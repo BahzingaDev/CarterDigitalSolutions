@@ -3,6 +3,41 @@ import { type FormEvent, useMemo, useState } from 'react';
 import { submitEnquiry } from '../src/api/enquiries';
 import { formatCurrency, pricingCategories } from '../src/data/pricing';
 
+const complexityLevels = [
+  {
+    level: 1,
+    label: 'Simple',
+    hours: 6,
+    description: 'Small setup, light changes, or a clearly defined single outcome.',
+  },
+  {
+    level: 2,
+    label: 'Standard',
+    hours: 12,
+    description: 'A modest build or improvement with a few moving parts.',
+  },
+  {
+    level: 3,
+    label: 'Detailed',
+    hours: 18,
+    description: 'More planning, integration, content, or workflow detail required.',
+  },
+  {
+    level: 4,
+    label: 'Advanced',
+    hours: 24,
+    description: 'A larger piece of work with multiple screens, states, or systems.',
+  },
+  {
+    level: 5,
+    label: 'Complex',
+    hours: 30,
+    description: 'A broad or open-ended project requiring deeper scoping.',
+  },
+] as const;
+
+type ComplexityLevel = (typeof complexityLevels)[number]['level'];
+
 const quoteSections = pricingCategories
   .filter((category) => category.category !== 'Working With You')
   .map((category) => ({
@@ -24,21 +59,24 @@ const quoteItems = quoteSections.flatMap((section) => section.items);
 export function QuoteBuilder() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [openSection, setOpenSection] = useState<string | null>(null);
+  const [complexity, setComplexity] = useState<ComplexityLevel>(2);
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [error, setError] = useState('');
 
   const selectedItems = quoteItems.filter((item) => selectedIds.has(item.id));
+  const selectedComplexity = complexityLevels.find((level) => level.level === complexity);
+  const complexityHours = selectedComplexity?.hours ?? 12;
 
   const quote = useMemo(
     () =>
       selectedItems.reduce(
         (total, item) => ({
-          hours: total.hours + item.hours,
-          cost: total.cost + item.hours * item.rate,
+          hours: total.hours + complexityHours,
+          cost: total.cost + complexityHours * item.rate,
         }),
         { hours: 0, cost: 0 },
       ),
-    [selectedItems],
+    [complexityHours, selectedItems],
   );
 
   const toggleItem = (id: string) => {
@@ -77,8 +115,8 @@ export function QuoteBuilder() {
         website: String(formData.get('website') ?? ''),
         quoteItems: selectedItems.map((item) => ({
           service: item.service,
-          category: item.category,
-          hours: item.hours,
+          category: `${item.category} - Complexity ${complexity}`,
+          hours: complexityHours,
           rate: item.rate,
         })),
         estimatedHours: quote.hours,
@@ -86,6 +124,7 @@ export function QuoteBuilder() {
       });
       form.reset();
       setSelectedIds(new Set());
+      setComplexity(2);
       setStatus('success');
     } catch (submissionError) {
       setError(
@@ -111,8 +150,49 @@ export function QuoteBuilder() {
         <div className="quote-total-panel" aria-live="polite">
           <span>Estimated total</span>
           <strong>{formatCurrency(quote.cost)}</strong>
-          <small>{quote.hours} estimated hours selected</small>
+          <small>
+            {quote.hours} estimated hours selected at complexity {complexity}
+          </small>
         </div>
+      </div>
+
+      <div className="quote-complexity-panel" aria-labelledby="quote-complexity-title">
+        <div>
+          <p className="section-kicker">Complexity</p>
+          <h3 id="quote-complexity-title">Choose the likely depth of work.</h3>
+          <p>
+            Complexity sets the planning estimate per selected item. Level 5 starts at
+            30 hours and may increase after scope review.
+          </p>
+        </div>
+        <div className="quote-complexity-options" role="radiogroup" aria-label="Project complexity">
+          {complexityLevels.map((level) => (
+            <label
+              className="quote-complexity-option"
+              key={level.level}
+              htmlFor={`complexity-${level.level}`}
+            >
+              <input
+                checked={complexity === level.level}
+                id={`complexity-${level.level}`}
+                name="complexity"
+                onChange={() => {
+                  setComplexity(level.level);
+                }}
+                type="radio"
+              />
+              <span>
+                <strong>{level.level}</strong>
+                <small>{level.hours}+ hrs</small>
+              </span>
+            </label>
+          ))}
+        </div>
+        {selectedComplexity ? (
+          <p className="quote-complexity-description mb-0">
+            <strong>{selectedComplexity.label}:</strong> {selectedComplexity.description}
+          </p>
+        ) : null}
       </div>
 
       <div className="quote-section-stack">
@@ -149,7 +229,7 @@ export function QuoteBuilder() {
                 <div className="quote-item-grid" id={sectionId}>
                   {section.items.map((item) => {
                     const isSelected = selectedIds.has(item.id);
-                    const itemCost = item.hours * item.rate;
+                    const itemCost = complexityHours * item.rate;
 
                     return (
                       <label className="quote-item" key={item.id}>
@@ -165,7 +245,7 @@ export function QuoteBuilder() {
                           <span className="quote-item-title">{item.service}</span>
                           <span className="quote-item-description">{item.description}</span>
                           <span className="quote-item-meta">
-                            {item.hours} hrs x {formatCurrency(item.rate)} ={' '}
+                            {complexityHours} hrs x {formatCurrency(item.rate)} ={' '}
                             {formatCurrency(itemCost)}
                           </span>
                         </span>
@@ -185,8 +265,10 @@ export function QuoteBuilder() {
           <ul>
             {selectedItems.map((item) => (
               <li key={item.id}>
-                <span>{item.service}</span>
-                <strong>{formatCurrency(item.hours * item.rate)}</strong>
+                <span>
+                  {item.service} <small>({complexityHours} hrs)</small>
+                </span>
+                <strong>{formatCurrency(complexityHours * item.rate)}</strong>
               </li>
             ))}
           </ul>
@@ -267,7 +349,7 @@ export function QuoteBuilder() {
             <p className="form-privacy-note mb-0">
               Your selected items and contact details are used only to review and
               respond to this quote enquiry. The estimate is not final until scope is
-              confirmed.
+              confirmed. Read the <a href="/privacy">privacy notice</a>.
             </p>
           </div>
         </div>

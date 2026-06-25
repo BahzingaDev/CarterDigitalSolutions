@@ -59,6 +59,10 @@ class Config:
     CUSTOMER_EMAIL_FROM = os.environ.get("CUSTOMER_EMAIL_FROM", ENQUIRY_EMAIL_FROM)
     ADMIN_EXPORT_TOKEN = os.environ.get("ADMIN_EXPORT_TOKEN", "")
     ADMIN_EXPORT_LIMIT = int(os.environ.get("ADMIN_EXPORT_LIMIT", "100"))
+    ENQUIRY_RATE_LIMIT_MAX = int(os.environ.get("ENQUIRY_RATE_LIMIT_MAX", "5"))
+    ENQUIRY_RATE_LIMIT_WINDOW_SECONDS = int(
+        os.environ.get("ENQUIRY_RATE_LIMIT_WINDOW_SECONDS", "900")
+    )
 
     if os.environ.get("FLASK_ENV") == "production" and SECRET_KEY == "dev-only-change-me":
         raise RuntimeError("SECRET_KEY must be set in production.")

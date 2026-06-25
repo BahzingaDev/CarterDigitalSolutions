@@ -172,7 +172,7 @@ export function ContactPage() {
                     <p className="form-privacy-note mb-0">
                       Your details are used only to review and respond to this enquiry.
                       Submissions are stored securely and are not added to a marketing
-                      list.
+                      list. Read the <a href="/privacy">privacy notice</a>.
                     </p>
                   </div>
                 </div>

@@ -3,6 +3,7 @@ from flask import Blueprint, current_app, jsonify, request
 from ..schemas.enquiry import EnquiryValidationError, validate_enquiry_payload
 from ..services.email_service import send_enquiry_notification
 from ..services.enquiry_service import EnquiryStorageError, save_enquiry
+from ..utils.rate_limit import email_key, enquiry_rate_limit_exceeded, request_ip_key
 from ..utils.security import origin_is_allowed
 
 enquiries_bp = Blueprint("enquiries", __name__)
@@ -20,6 +21,9 @@ def create_enquiry():
         enquiry = validate_enquiry_payload(request.get_json(silent=True))
     except EnquiryValidationError as error:
         return jsonify({"error": str(error)}), 400
+
+    if enquiry_rate_limit_exceeded([request_ip_key(), email_key(enquiry["email"])]):
+        return jsonify({"error": "Too many submissions. Please try again later."}), 429
 
     try:
         saved = save_enquiry(enquiry)

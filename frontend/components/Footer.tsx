@@ -3,6 +3,7 @@ const footerLinks = [
   { label: 'Workflow', href: '/workflow' },
   { label: 'About', href: '/about' },
   { label: 'Contact', href: '/contact' },
+  { label: 'Privacy', href: '/privacy' },
 ];
 
 export function Footer() {

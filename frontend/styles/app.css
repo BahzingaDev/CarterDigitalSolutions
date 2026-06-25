@@ -472,6 +472,89 @@ body {
   font-size: 1.75rem;
 }
 
+.quote-complexity-panel {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-accent-soft) 24%, var(--color-surface));
+}
+
+.quote-complexity-panel h3 {
+  margin-bottom: 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.quote-complexity-panel p {
+  max-width: 52rem;
+  color: var(--color-muted);
+}
+
+.quote-complexity-options {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.quote-complexity-option {
+  display: grid;
+  min-height: 5.25rem;
+  padding: 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.quote-complexity-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.quote-complexity-option span {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.25rem;
+  text-align: center;
+}
+
+.quote-complexity-option strong {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+
+.quote-complexity-option small {
+  color: var(--color-muted);
+  font-weight: 700;
+}
+
+.quote-complexity-option:has(input:checked) {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+
+.quote-complexity-option:has(input:checked) strong {
+  background: var(--color-on-accent);
+  color: var(--color-accent-strong);
+}
+
+.quote-complexity-option:has(input:checked) small {
+  color: var(--color-on-accent);
+}
+
+.quote-complexity-description {
+  padding-top: 0.25rem;
+}
+
 .quote-item-grid {
   display: grid;
   gap: 1rem;
@@ -633,6 +716,36 @@ body {
   color: var(--color-muted);
   font-size: 0.875rem;
   line-height: 1.45;
+}
+
+.form-privacy-note a {
+  color: var(--color-accent-strong);
+  font-weight: 700;
+}
+
+.privacy-content {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 52rem;
+}
+
+.privacy-content section {
+  padding: 1.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: 0 10px 30px var(--color-shadow);
+}
+
+.privacy-content h2 {
+  margin-bottom: 0.75rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.privacy-content p:last-child {
+  margin-bottom: 0;
+  color: var(--color-muted);
 }
 
 .testimonial-card {
@@ -1095,6 +1208,10 @@ body {
   .quote-builder-header,
   .quote-item-grid {
     grid-template-columns: 1fr;
+  }
+
+  .quote-complexity-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .pricing-category-table {

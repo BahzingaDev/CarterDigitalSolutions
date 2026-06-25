@@ -64,6 +64,15 @@ Optional query parameter:
 
 If `ADMIN_EXPORT_TOKEN` is not set, the export endpoint returns `404`.
 
+## Enquiry Rate Limiting
+
+The enquiry endpoint applies an in-memory rate limit before database writes:
+
+- `ENQUIRY_RATE_LIMIT_MAX=5`
+- `ENQUIRY_RATE_LIMIT_WINDOW_SECONDS=900`
+
+This limits repeated submissions by IP address and email address. For heavier traffic or multiple app instances, replace this with a shared store such as Redis.
+
 ## Render Build
 
 Use the included `render.yaml`, or configure a web service manually:
