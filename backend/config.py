@@ -54,6 +54,11 @@ class Config:
     SMTP_TIMEOUT = int(os.environ.get("SMTP_TIMEOUT", "10"))
     ENQUIRY_EMAIL_TO = os.environ.get("ENQUIRY_EMAIL_TO", "")
     ENQUIRY_EMAIL_FROM = os.environ.get("ENQUIRY_EMAIL_FROM", SMTP_USERNAME)
+    ENQUIRY_TIMEZONE = os.environ.get("ENQUIRY_TIMEZONE", "Europe/London")
+    CUSTOMER_AUTO_REPLY_ENABLED = os.environ.get("CUSTOMER_AUTO_REPLY_ENABLED", "1") == "1"
+    CUSTOMER_EMAIL_FROM = os.environ.get("CUSTOMER_EMAIL_FROM", ENQUIRY_EMAIL_FROM)
+    ADMIN_EXPORT_TOKEN = os.environ.get("ADMIN_EXPORT_TOKEN", "")
+    ADMIN_EXPORT_LIMIT = int(os.environ.get("ADMIN_EXPORT_LIMIT", "100"))
 
     if os.environ.get("FLASK_ENV") == "production" and SECRET_KEY == "dev-only-change-me":
         raise RuntimeError("SECRET_KEY must be set in production.")

@@ -168,6 +168,13 @@ export function ContactPage() {
                       {status === 'submitting' ? 'Sending...' : 'Send enquiry'}
                     </button>
                   </div>
+                  <div className="col-12">
+                    <p className="form-privacy-note mb-0">
+                      Your details are used only to review and respond to this enquiry.
+                      Submissions are stored securely and are not added to a marketing
+                      list.
+                    </p>
+                  </div>
                 </div>
               </form>
             </div>

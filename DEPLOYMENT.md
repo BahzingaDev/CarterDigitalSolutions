@@ -25,6 +25,11 @@ Set these environment variables to forward each saved enquiry to email. HTTPS pr
 - `RESEND_API_KEY`: Resend API key.
 - `ENQUIRY_EMAIL_TO`: destination inbox for enquiries.
 - `ENQUIRY_EMAIL_FROM`: verified sender address, for example `Carter Digital Solutions <hello@yourdomain.com>`.
+- `ENQUIRY_TIMEZONE=Europe/London`: timezone used when formatting enquiry timestamps.
+- `CUSTOMER_AUTO_REPLY_ENABLED=1`: sends a confirmation email to the person submitting the form.
+- `CUSTOMER_EMAIL_FROM`: verified sender used for the customer confirmation email.
+
+Resend tags are included for `email_type`, `enquiry_type`, `project_type`, and `priority`.
 
 Resend sends through `https://api.resend.com/emails` using the `from`, `to`, `subject`, and `text` fields required by their send email API.
 
@@ -42,6 +47,22 @@ Resend sends through `https://api.resend.com/emails` using the `from`, `to`, `su
 - `ENQUIRY_EMAIL_FROM`: verified sender address. Defaults to `SMTP_USERNAME` if omitted.
 
 Email delivery is non-blocking for users: if MongoDB saves the enquiry but SMTP fails, the API still returns success and the SMTP error is logged.
+
+## Admin Export
+
+Set `ADMIN_EXPORT_TOKEN` to a long random value to enable a protected JSON export endpoint:
+
+`GET /api/admin/enquiries`
+
+Send the token as a bearer token:
+
+`Authorization: Bearer <ADMIN_EXPORT_TOKEN>`
+
+Optional query parameter:
+
+- `limit`: number of latest enquiries to return, capped at 500.
+
+If `ADMIN_EXPORT_TOKEN` is not set, the export endpoint returns `404`.
 
 ## Render Build
 

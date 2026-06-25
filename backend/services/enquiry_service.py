@@ -54,6 +54,7 @@ def _ensure_indexes(collection) -> None:
     collection.create_index("created_at")
     collection.create_index("email")
     collection.create_index("type")
+    collection.create_index("priority")
     _indexes_ready = True
 
 
@@ -73,6 +74,7 @@ def save_enquiry(enquiry: dict[str, Any]) -> dict[str, str]:
     record = {
         "id": enquiry_id,
         "created_at": created_at,
+        "priority": classify_enquiry_priority(enquiry),
         **enquiry,
     }
 
@@ -86,3 +88,37 @@ def save_enquiry(enquiry: dict[str, Any]) -> dict[str, str]:
         raise EnquiryStorageError("Unable to save enquiry.", reason="write_failed") from error
 
     return {"id": enquiry_id, "created_at": created_at.isoformat()}
+
+
+def list_enquiries(limit: int | None = None) -> list[dict[str, Any]]:
+    collection = _get_collection()
+    export_limit = min(limit or current_app.config["ADMIN_EXPORT_LIMIT"], 500)
+    records = collection.find({}, {"_id": 0}).sort("created_at", -1).limit(export_limit)
+    return [_serialise_record(record) for record in records]
+
+
+def classify_enquiry_priority(enquiry: dict[str, Any]) -> str:
+    if enquiry.get("type") == "quote":
+        estimated_cost = float(enquiry.get("estimated_cost") or 0)
+        estimated_hours = float(enquiry.get("estimated_hours") or 0)
+        if estimated_cost >= 750 or estimated_hours >= 30:
+            return "high"
+        return "medium"
+
+    project_type = (enquiry.get("project_type") or "").lower()
+    if any(keyword in project_type for keyword in ("maintenance", "fixes", "support")):
+        return "high"
+
+    if any(keyword in project_type for keyword in ("app", "cloud", "software", "automation")):
+        return "medium"
+
+    return "standard"
+
+
+def _serialise_record(record: dict[str, Any]) -> dict[str, Any]:
+    serialised = dict(record)
+    created_at = serialised.get("created_at")
+    if isinstance(created_at, datetime):
+        serialised["created_at"] = created_at.isoformat()
+
+    return serialised

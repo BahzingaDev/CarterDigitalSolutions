@@ -17,6 +17,7 @@ def health_check():
             "mongo_database": current_app.config["MONGODB_DATABASE"],
             "mongo_collection": current_app.config["MONGODB_ENQUIRY_COLLECTION"],
             "email_notifications_configured": email_notifications_configured(),
+            "customer_auto_reply_enabled": current_app.config["CUSTOMER_AUTO_REPLY_ENABLED"],
         }
     )
 

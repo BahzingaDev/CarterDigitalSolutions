@@ -1,13 +1,17 @@
 import json
 import socket
 import smtplib
+from datetime import datetime, timezone
 from email.message import EmailMessage
 from html import escape
 from typing import Any
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from flask import current_app
+
+from .enquiry_service import classify_enquiry_priority
 
 
 class IPv4SMTP(smtplib.SMTP):
@@ -51,32 +55,10 @@ def send_enquiry_notification(enquiry: dict[str, Any], saved: dict[str, str]) ->
 
     if current_app.config.get("EMAIL_PROVIDER") == "resend":
         _send_resend_email(enquiry, saved)
+        _send_resend_customer_auto_reply(enquiry, saved)
         return
 
-    message = EmailMessage()
-    message["Subject"] = _subject(enquiry)
-    message["From"] = current_app.config["ENQUIRY_EMAIL_FROM"]
-    message["To"] = current_app.config["ENQUIRY_EMAIL_TO"]
-    message["Reply-To"] = enquiry["email"]
-    message.set_content(_text_body(enquiry, saved))
-    message.add_alternative(_html_body(enquiry, saved), subtype="html")
-
-    smtp_class = _smtp_class()
-
-    with smtp_class(
-        current_app.config["SMTP_HOST"],
-        current_app.config["SMTP_PORT"],
-        timeout=current_app.config["SMTP_TIMEOUT"],
-    ) as smtp:
-        if current_app.config["SMTP_USE_TLS"] and not current_app.config["SMTP_USE_SSL"]:
-            smtp.starttls()
-
-        username = current_app.config.get("SMTP_USERNAME")
-        password = current_app.config.get("SMTP_PASSWORD")
-        if username and password:
-            smtp.login(username, password)
-
-        smtp.send_message(message)
+    _send_smtp_messages(enquiry, saved)
 
 
 def _send_resend_email(enquiry: dict[str, Any], saved: dict[str, str]) -> None:
@@ -87,7 +69,31 @@ def _send_resend_email(enquiry: dict[str, Any], saved: dict[str, str]) -> None:
         "text": _text_body(enquiry, saved),
         "html": _html_body(enquiry, saved),
         "reply_to": enquiry["email"],
+        "tags": _resend_tags(enquiry),
     }
+    _send_resend_payload(payload)
+
+
+def _send_resend_customer_auto_reply(enquiry: dict[str, Any], saved: dict[str, str]) -> None:
+    if not current_app.config.get("CUSTOMER_AUTO_REPLY_ENABLED"):
+        return
+
+    payload = {
+        "from": current_app.config["CUSTOMER_EMAIL_FROM"],
+        "to": [enquiry["email"]],
+        "subject": "Your enquiry has been received",
+        "text": _customer_text_body(enquiry, saved),
+        "html": _customer_html_body(enquiry, saved),
+        "reply_to": current_app.config["ENQUIRY_EMAIL_TO"],
+        "tags": [
+            {"name": "email_type", "value": "customer_auto_reply"},
+            {"name": "enquiry_type", "value": _tag_value(enquiry["type"])},
+        ],
+    }
+    _send_resend_payload(payload)
+
+
+def _send_resend_payload(payload: dict[str, Any]) -> None:
     data = json.dumps(payload).encode("utf-8")
     request = Request(
         current_app.config["RESEND_API_URL"],
@@ -108,6 +114,45 @@ def _send_resend_email(enquiry: dict[str, Any], saved: dict[str, str]) -> None:
     except HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"Resend API error {error.code}: {detail}") from error
+
+
+def _send_smtp_messages(enquiry: dict[str, Any], saved: dict[str, str]) -> None:
+    internal_message = EmailMessage()
+    internal_message["Subject"] = _subject(enquiry)
+    internal_message["From"] = current_app.config["ENQUIRY_EMAIL_FROM"]
+    internal_message["To"] = current_app.config["ENQUIRY_EMAIL_TO"]
+    internal_message["Reply-To"] = enquiry["email"]
+    internal_message.set_content(_text_body(enquiry, saved))
+    internal_message.add_alternative(_html_body(enquiry, saved), subtype="html")
+
+    messages = [internal_message]
+    if current_app.config.get("CUSTOMER_AUTO_REPLY_ENABLED"):
+        customer_message = EmailMessage()
+        customer_message["Subject"] = "Your enquiry has been received"
+        customer_message["From"] = current_app.config["CUSTOMER_EMAIL_FROM"]
+        customer_message["To"] = enquiry["email"]
+        customer_message["Reply-To"] = current_app.config["ENQUIRY_EMAIL_TO"]
+        customer_message.set_content(_customer_text_body(enquiry, saved))
+        customer_message.add_alternative(_customer_html_body(enquiry, saved), subtype="html")
+        messages.append(customer_message)
+
+    smtp_class = _smtp_class()
+
+    with smtp_class(
+        current_app.config["SMTP_HOST"],
+        current_app.config["SMTP_PORT"],
+        timeout=current_app.config["SMTP_TIMEOUT"],
+    ) as smtp:
+        if current_app.config["SMTP_USE_TLS"] and not current_app.config["SMTP_USE_SSL"]:
+            smtp.starttls()
+
+        username = current_app.config.get("SMTP_USERNAME")
+        password = current_app.config.get("SMTP_PASSWORD")
+        if username and password:
+            smtp.login(username, password)
+
+        for message in messages:
+            smtp.send_message(message)
 
 
 def _smtp_class():
@@ -141,16 +186,20 @@ def _create_ipv4_connection(host: str, port: int, timeout: float):
 def _subject(enquiry: dict[str, Any]) -> str:
     enquiry_type = enquiry["type"].title()
     project_type = enquiry.get("project_type") or "General enquiry"
-    return f"New {enquiry_type}: {project_type}"
+    priority = classify_enquiry_priority(enquiry).title()
+    return f"[{priority}] New {enquiry_type}: {project_type}"
 
 
 def _text_body(enquiry: dict[str, Any], saved: dict[str, str]) -> str:
+    received_at = _format_received_at(saved["created_at"])
+    priority = classify_enquiry_priority(enquiry).title()
     lines = [
         "New enquiry received",
         "Carter Digital Solutions",
         "",
         f"Reference: {saved['id']}",
-        f"Received: {saved['created_at']}",
+        f"Received: {received_at}",
+        f"Priority: {priority}",
         f"Type: {enquiry['type'].title()}",
         f"Name: {enquiry['name']}",
         f"Email: {enquiry['email']}",
@@ -181,6 +230,8 @@ def _text_body(enquiry: dict[str, Any], saved: dict[str, str]) -> str:
 
 
 def _html_body(enquiry: dict[str, Any], saved: dict[str, str]) -> str:
+    received_at = _format_received_at(saved["created_at"])
+    priority = classify_enquiry_priority(enquiry).title()
     project_type = enquiry.get("project_type") or "Not specified"
     quote_items = enquiry.get("quote_items") or []
     message_html = _paragraphs(enquiry["message"])
@@ -236,7 +287,8 @@ def _html_body(enquiry: dict[str, Any], saved: dict[str, str]) -> str:
 
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
                   {_detail_row("Reference", saved["id"])}
-                  {_detail_row("Received", saved["created_at"])}
+                  {_detail_row("Received", received_at)}
+                  {_detail_row("Priority", priority)}
                   {_detail_row("Type", enquiry["type"].title())}
                   {_detail_row("Project type", project_type)}
                   {_detail_row("Name", enquiry["name"])}
@@ -253,6 +305,61 @@ def _html_body(enquiry: dict[str, Any], saved: dict[str, str]) -> str:
                 <p style="margin: 28px 0 0; color: #6d6175; font-size: 13px;">
                   Reply directly to this email to respond to {escape(enquiry["name"])}.
                 </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>"""
+
+
+def _customer_text_body(enquiry: dict[str, Any], saved: dict[str, str]) -> str:
+    received_at = _format_received_at(saved["created_at"])
+    return "\n".join(
+        [
+            f"Hello {enquiry['name']},",
+            "",
+            "Thank you for contacting Carter Digital Solutions. Your enquiry has been received and will be reviewed shortly.",
+            "",
+            f"Reference: {saved['id']}",
+            f"Received: {received_at}",
+            f"Project type: {enquiry.get('project_type') or 'Not specified'}",
+            "",
+            "I will follow up by email with the next steps.",
+            "",
+            "Carter Digital Solutions",
+        ]
+    )
+
+
+def _customer_html_body(enquiry: dict[str, Any], saved: dict[str, str]) -> str:
+    received_at = _format_received_at(saved["created_at"])
+    return f"""<!doctype html>
+<html>
+  <body style="margin: 0; padding: 0; background: #f5f3f7; color: #24162d; font-family: Arial, sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background: #f5f3f7; padding: 28px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 640px; background: #ffffff; border-radius: 10px; overflow: hidden; border: 1px solid #eadff3;">
+            <tr>
+              <td style="background: #4b1f70; color: #ffffff; padding: 24px 28px;">
+                <div style="font-size: 12px; letter-spacing: 1.4px; text-transform: uppercase;">Carter Digital Solutions</div>
+                <h1 style="margin: 8px 0 0; font-size: 24px; line-height: 1.2;">Your enquiry has been received</h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 26px 28px; line-height: 1.55;">
+                <p style="margin: 0 0 16px;">Hello {escape(enquiry['name'])},</p>
+                <p style="margin: 0 0 16px;">Thank you for contacting Carter Digital Solutions. Your enquiry has been received and will be reviewed shortly.</p>
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin: 18px 0;">
+                  {_detail_row("Reference", saved["id"])}
+                  {_detail_row("Received", received_at)}
+                  {_detail_row("Project type", enquiry.get("project_type") or "Not specified")}
+                </table>
+                <p style="margin: 0 0 16px;">I will follow up by email with the next steps.</p>
+                <p style="margin: 0; color: #6d6175; font-size: 13px;">You received this email because a form was submitted on the Carter Digital Solutions website using this email address.</p>
               </td>
             </tr>
           </table>
@@ -285,6 +392,41 @@ def _paragraphs(text: str) -> str:
 
 def _money(value: Any) -> str:
     try:
-        return f"£{float(value):,.2f}"
+        return f"\u00a3{float(value):,.2f}"
     except (TypeError, ValueError):
         return str(value)
+
+
+def _resend_tags(enquiry: dict[str, Any]) -> list[dict[str, str]]:
+    return [
+        {"name": "email_type", "value": "internal_notification"},
+        {"name": "enquiry_type", "value": _tag_value(enquiry["type"])},
+        {"name": "project_type", "value": _tag_value(enquiry.get("project_type") or "unknown")},
+        {"name": "priority", "value": _tag_value(classify_enquiry_priority(enquiry))},
+    ]
+
+
+def _tag_value(value: str) -> str:
+    cleaned = "".join(
+        character.lower() if character.isalnum() else "_"
+        for character in value
+    ).strip("_")
+    return cleaned[:256] or "unknown"
+
+
+def _format_received_at(value: str) -> str:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return value
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+
+    try:
+        display_timezone = ZoneInfo(current_app.config["ENQUIRY_TIMEZONE"])
+    except ZoneInfoNotFoundError:
+        display_timezone = ZoneInfo("Europe/London")
+
+    local_time = parsed.astimezone(display_timezone)
+    return local_time.strftime("%d %B %Y, %H:%M %Z")

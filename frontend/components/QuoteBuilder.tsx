@@ -263,6 +263,13 @@ export function QuoteBuilder() {
               {status === 'submitting' ? 'Sending quote...' : 'Send quote enquiry'}
             </button>
           </div>
+          <div className="col-12">
+            <p className="form-privacy-note mb-0">
+              Your selected items and contact details are used only to review and
+              respond to this quote enquiry. The estimate is not final until scope is
+              confirmed.
+            </p>
+          </div>
         </div>
       </form>
     </section>
