@@ -1,7 +1,10 @@
+import json
 import socket
 import smtplib
 from email.message import EmailMessage
 from typing import Any
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
 from flask import current_app
 
@@ -20,9 +23,20 @@ class IPv4SMTPSSL(smtplib.SMTP_SSL):
 
 
 def email_notifications_configured() -> bool:
+    if not current_app.config.get("EMAIL_NOTIFICATIONS_ENABLED"):
+        return False
+
+    if current_app.config.get("EMAIL_PROVIDER") == "resend":
+        return all(
+            [
+                current_app.config.get("RESEND_API_KEY"),
+                current_app.config.get("ENQUIRY_EMAIL_TO"),
+                current_app.config.get("ENQUIRY_EMAIL_FROM"),
+            ]
+        )
+
     return all(
         [
-            current_app.config.get("EMAIL_NOTIFICATIONS_ENABLED"),
             current_app.config.get("SMTP_HOST"),
             current_app.config.get("ENQUIRY_EMAIL_TO"),
             current_app.config.get("ENQUIRY_EMAIL_FROM"),
@@ -32,6 +46,10 @@ def email_notifications_configured() -> bool:
 
 def send_enquiry_notification(enquiry: dict[str, Any], saved: dict[str, str]) -> None:
     if not email_notifications_configured():
+        return
+
+    if current_app.config.get("EMAIL_PROVIDER") == "resend":
+        _send_resend_email(enquiry, saved)
         return
 
     message = EmailMessage()
@@ -57,6 +75,34 @@ def send_enquiry_notification(enquiry: dict[str, Any], saved: dict[str, str]) ->
             smtp.login(username, password)
 
         smtp.send_message(message)
+
+
+def _send_resend_email(enquiry: dict[str, Any], saved: dict[str, str]) -> None:
+    payload = {
+        "from": current_app.config["ENQUIRY_EMAIL_FROM"],
+        "to": [current_app.config["ENQUIRY_EMAIL_TO"]],
+        "subject": _subject(enquiry),
+        "text": _body(enquiry, saved),
+        "reply_to": enquiry["email"],
+    }
+    data = json.dumps(payload).encode("utf-8")
+    request = Request(
+        current_app.config["RESEND_API_URL"],
+        data=data,
+        headers={
+            "Authorization": f"Bearer {current_app.config['RESEND_API_KEY']}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urlopen(request, timeout=current_app.config["SMTP_TIMEOUT"]) as response:
+            if response.status >= 400:
+                raise RuntimeError(f"Resend API returned status {response.status}.")
+    except HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Resend API error {error.code}: {detail}") from error
 
 
 def _smtp_class():

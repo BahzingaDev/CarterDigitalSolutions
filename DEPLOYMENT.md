@@ -15,9 +15,21 @@ This app is prepared for a single same-origin deployment: Flask serves the built
 
 ## Optional Email Notifications
 
-Set these environment variables to forward each saved enquiry to email:
+Set these environment variables to forward each saved enquiry to email. HTTPS providers are recommended on Render because direct SMTP can be blocked or time out.
 
 - `EMAIL_NOTIFICATIONS_ENABLED=1`
+
+### Resend
+
+- `EMAIL_PROVIDER=resend`
+- `RESEND_API_KEY`: Resend API key.
+- `ENQUIRY_EMAIL_TO`: destination inbox for enquiries.
+- `ENQUIRY_EMAIL_FROM`: verified sender address, for example `Carter Digital Solutions <hello@yourdomain.com>`.
+
+Resend sends through `https://api.resend.com/emails` using the `from`, `to`, `subject`, and `text` fields required by their send email API.
+
+### SMTP
+
 - `SMTP_HOST`: SMTP server hostname.
 - `SMTP_PORT=587`
 - `SMTP_USERNAME`: SMTP account username.

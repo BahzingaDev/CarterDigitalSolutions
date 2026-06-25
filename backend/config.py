@@ -38,6 +38,12 @@ class Config:
         str(Path(__file__).resolve().parent.parent / "frontend" / "dist"),
     )
     EMAIL_NOTIFICATIONS_ENABLED = os.environ.get("EMAIL_NOTIFICATIONS_ENABLED", "1") == "1"
+    RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+    RESEND_API_URL = os.environ.get("RESEND_API_URL", "https://api.resend.com/emails")
+    EMAIL_PROVIDER = os.environ.get(
+        "EMAIL_PROVIDER",
+        "resend" if RESEND_API_KEY else "smtp",
+    ).lower()
     SMTP_HOST = os.environ.get("SMTP_HOST", "")
     SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
     SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "")
