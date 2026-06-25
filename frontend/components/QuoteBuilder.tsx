@@ -61,10 +61,11 @@ export function QuoteBuilder() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const form = event.currentTarget;
     setStatus('submitting');
     setError('');
 
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
 
     try {
       await submitEnquiry({
@@ -83,7 +84,7 @@ export function QuoteBuilder() {
         estimatedHours: quote.hours,
         estimatedCost: quote.cost,
       });
-      event.currentTarget.reset();
+      form.reset();
       setSelectedIds(new Set());
       setStatus('success');
     } catch (submissionError) {

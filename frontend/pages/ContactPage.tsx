@@ -15,10 +15,11 @@ export function ContactPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const form = event.currentTarget;
     setStatus('submitting');
     setError('');
 
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
 
     try {
       await submitEnquiry({
@@ -29,7 +30,7 @@ export function ContactPage() {
         message: String(formData.get('message') ?? ''),
         website: String(formData.get('website') ?? ''),
       });
-      event.currentTarget.reset();
+      form.reset();
       setStatus('success');
     } catch (submissionError) {
       setError(
