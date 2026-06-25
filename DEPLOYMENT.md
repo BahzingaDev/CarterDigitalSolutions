@@ -5,6 +5,7 @@ This app is prepared for a single same-origin deployment: Flask serves the built
 ## Required Environment Variables
 
 - `FLASK_ENV=production`
+- `PYTHON_VERSION=3.12.11`
 - `FORCE_HTTPS=1`
 - `SECRET_KEY`: long random value used by Flask.
 - `MONGODB_URI`: MongoDB connection string, for example from MongoDB Atlas.
@@ -16,8 +17,8 @@ This app is prepared for a single same-origin deployment: Flask serves the built
 
 Use the included `render.yaml`, or configure a web service manually:
 
-- Build command: `cd frontend && npm ci && npm run build && cd ../backend && pip install -r requirements.txt`
-- Start command: `cd backend && gunicorn wsgi:app`
+- Build command: `cd frontend && npm ci && npm run build && cd .. && pip install -r backend/requirements.txt`
+- Start command: `gunicorn backend.wsgi:app`
 - Health check path: `/api/ready`
 
 ## MongoDB

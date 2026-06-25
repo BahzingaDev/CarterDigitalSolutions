@@ -3,12 +3,14 @@ services:
     name: carter-digital-solutions
     runtime: python
     plan: starter
-    buildCommand: cd frontend && npm ci && npm run build && cd ../backend && pip install -r requirements.txt
-    startCommand: cd backend && gunicorn wsgi:app
+    buildCommand: cd frontend && npm ci && npm run build && cd .. && pip install -r backend/requirements.txt
+    startCommand: gunicorn backend.wsgi:app
     healthCheckPath: /api/ready
     envVars:
       - key: FLASK_ENV
         value: production
+      - key: PYTHON_VERSION
+        value: 3.12.11
       - key: FORCE_HTTPS
         value: "1"
       - key: SECRET_KEY
