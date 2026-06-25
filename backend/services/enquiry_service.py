@@ -6,7 +6,9 @@ from flask import current_app
 
 
 class EnquiryStorageError(RuntimeError):
-    pass
+    def __init__(self, message: str, reason: str = "unavailable") -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 _client = None
@@ -18,13 +20,19 @@ def _get_collection():
 
     mongodb_uri = current_app.config.get("MONGODB_URI")
     if not mongodb_uri:
-        raise EnquiryStorageError("Enquiry storage is not configured.")
+        raise EnquiryStorageError(
+            "Enquiry storage is not configured.",
+            reason="unconfigured",
+        )
 
     if _client is None:
         try:
             from pymongo import MongoClient
         except ImportError as error:
-            raise EnquiryStorageError("MongoDB support is not installed.") from error
+            raise EnquiryStorageError(
+                "MongoDB support is not installed.",
+                reason="dependency_missing",
+            ) from error
 
         _client = MongoClient(
             mongodb_uri,
@@ -56,7 +64,7 @@ def check_enquiry_storage() -> None:
     except EnquiryStorageError:
         raise
     except Exception as error:
-        raise EnquiryStorageError("MongoDB is unreachable.") from error
+        raise EnquiryStorageError("MongoDB is unreachable.", reason="unreachable") from error
 
 
 def save_enquiry(enquiry: dict[str, Any]) -> dict[str, str]:
@@ -75,6 +83,6 @@ def save_enquiry(enquiry: dict[str, Any]) -> dict[str, str]:
     except EnquiryStorageError:
         raise
     except Exception as error:
-        raise EnquiryStorageError("Unable to save enquiry.") from error
+        raise EnquiryStorageError("Unable to save enquiry.", reason="write_failed") from error
 
     return {"id": enquiry_id, "created_at": created_at.isoformat()}

@@ -22,7 +22,12 @@ def create_enquiry():
 
     try:
         saved = save_enquiry(enquiry)
-    except EnquiryStorageError:
+    except EnquiryStorageError as error:
+        current_app.logger.warning(
+            "Enquiry storage failed: %s",
+            error,
+            exc_info=True,
+        )
         return jsonify({"error": "Enquiry storage is unavailable."}), 503
 
     return jsonify({"status": "received", **saved}), 201

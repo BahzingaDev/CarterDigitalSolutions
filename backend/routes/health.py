@@ -12,6 +12,9 @@ def health_check():
             "status": "ok",
             "service": current_app.config["API_NAME"],
             "version": current_app.config["API_VERSION"],
+            "mongo_configured": bool(current_app.config.get("MONGODB_URI")),
+            "mongo_database": current_app.config["MONGODB_DATABASE"],
+            "mongo_collection": current_app.config["MONGODB_ENQUIRY_COLLECTION"],
         }
     )
 
@@ -20,9 +23,11 @@ def health_check():
 def readiness_check():
     try:
         check_enquiry_storage()
-    except EnquiryStorageError:
-        return jsonify({"status": "unavailable", "database": "unconfigured"}), 503
+    except EnquiryStorageError as error:
+        current_app.logger.warning("MongoDB readiness check failed: %s", error)
+        return jsonify({"status": "unavailable", "database": error.reason}), 503
     except Exception:
+        current_app.logger.exception("Unexpected readiness check failure")
         return jsonify({"status": "unavailable", "database": "unreachable"}), 503
 
     return jsonify({"status": "ok", "database": "reachable"})
