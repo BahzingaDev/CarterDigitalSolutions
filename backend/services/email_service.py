@@ -91,7 +91,9 @@ def _send_resend_email(enquiry: dict[str, Any], saved: dict[str, str]) -> None:
         data=data,
         headers={
             "Authorization": f"Bearer {current_app.config['RESEND_API_KEY']}",
+            "Accept": "application/json",
             "Content-Type": "application/json",
+            "User-Agent": "CarterDigitalSolutions/1.0 (+https://carterdigitalsolutions.onrender.com)",
         },
         method="POST",
     )
