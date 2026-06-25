@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: carter-digital-solutions
+    runtime: python
+    plan: starter
+    buildCommand: cd frontend && npm ci && npm run build && cd ../backend && pip install -r requirements.txt
+    startCommand: cd backend && gunicorn wsgi:app
+    healthCheckPath: /api/ready
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: FORCE_HTTPS
+        value: "1"
+      - key: SECRET_KEY
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DATABASE
+        value: carter_digital_solutions
+      - key: MONGODB_ENQUIRY_COLLECTION
+        value: enquiries
+      - key: ALLOWED_ORIGINS
+        sync: false
