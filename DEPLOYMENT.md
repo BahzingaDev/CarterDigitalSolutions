@@ -8,9 +8,9 @@ This app is prepared for a single same-origin deployment: Flask serves the built
 - `PYTHON_VERSION=3.12.11`
 - `FORCE_HTTPS=1`
 - `SECRET_KEY`: long random value used by Flask.
-- `MONGODB_URI`: MongoDB connection string, for example from MongoDB Atlas.
-- `MONGODB_DATABASE=carter_digital_solutions`
-- `MONGODB_ENQUIRY_COLLECTION=enquiries`
+- `MONGODB_URI`: MongoDB connection string, for example from MongoDB Atlas. `MONGO_URI` is also supported.
+- `MONGODB_DATABASE=carter_digital_solutions`. `MONGO_DATABASE` is also supported.
+- `MONGODB_ENQUIRY_COLLECTION=enquiries`. `MONGO_ENQUIRY_COLLECTION` is also supported.
 - `ALLOWED_ORIGINS`: deployed site origin, for example `https://www.carterdigitalsolutions.co.uk`.
 
 ## Render Build

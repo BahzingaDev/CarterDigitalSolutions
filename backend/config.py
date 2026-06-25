@@ -21,12 +21,15 @@ class Config:
 
     API_NAME = "Carter Digital Solutions"
     API_VERSION = "0.1.0"
-    MONGODB_URI = os.environ.get("MONGODB_URI", "")
-    MONGODB_DATABASE = os.environ.get("MONGODB_DATABASE", "carter_digital_solutions")
+    MONGODB_URI = os.environ.get("MONGODB_URI") or os.environ.get("MONGO_URI", "")
+    MONGODB_DATABASE = (
+        os.environ.get("MONGODB_DATABASE")
+        or os.environ.get("MONGO_DATABASE")
+        or "carter_digital_solutions"
+    )
     MONGODB_ENQUIRY_COLLECTION = os.environ.get(
         "MONGODB_ENQUIRY_COLLECTION",
-        "enquiries",
-    )
+    ) or os.environ.get("MONGO_ENQUIRY_COLLECTION", "enquiries")
     MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(
         os.environ.get("MONGODB_SERVER_SELECTION_TIMEOUT_MS", "5000"),
     )
