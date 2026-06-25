@@ -1,6 +1,7 @@
 from flask import Blueprint, current_app, jsonify, request
 
 from ..schemas.enquiry import EnquiryValidationError, validate_enquiry_payload
+from ..services.email_service import send_enquiry_notification
 from ..services.enquiry_service import EnquiryStorageError, save_enquiry
 from ..utils.security import origin_is_allowed
 
@@ -29,5 +30,10 @@ def create_enquiry():
             exc_info=True,
         )
         return jsonify({"error": "Enquiry storage is unavailable."}), 503
+
+    try:
+        send_enquiry_notification(enquiry, saved)
+    except Exception:
+        current_app.logger.exception("Enquiry email notification failed")
 
     return jsonify({"status": "received", **saved}), 201

@@ -1,5 +1,6 @@
 from flask import Blueprint, current_app, jsonify
 
+from ..services.email_service import email_notifications_configured
 from ..services.enquiry_service import EnquiryStorageError, check_enquiry_storage
 
 health_bp = Blueprint("health", __name__)
@@ -15,6 +16,7 @@ def health_check():
             "mongo_configured": bool(current_app.config.get("MONGODB_URI")),
             "mongo_database": current_app.config["MONGODB_DATABASE"],
             "mongo_collection": current_app.config["MONGODB_ENQUIRY_COLLECTION"],
+            "email_notifications_configured": email_notifications_configured(),
         }
     )
 

@@ -37,6 +37,14 @@ class Config:
         "FRONTEND_DIST_PATH",
         str(Path(__file__).resolve().parent.parent / "frontend" / "dist"),
     )
+    EMAIL_NOTIFICATIONS_ENABLED = os.environ.get("EMAIL_NOTIFICATIONS_ENABLED", "1") == "1"
+    SMTP_HOST = os.environ.get("SMTP_HOST", "")
+    SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+    SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "")
+    SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+    SMTP_USE_TLS = os.environ.get("SMTP_USE_TLS", "1") == "1"
+    ENQUIRY_EMAIL_TO = os.environ.get("ENQUIRY_EMAIL_TO", "")
+    ENQUIRY_EMAIL_FROM = os.environ.get("ENQUIRY_EMAIL_FROM", SMTP_USERNAME)
 
     if os.environ.get("FLASK_ENV") == "production" and SECRET_KEY == "dev-only-change-me":
         raise RuntimeError("SECRET_KEY must be set in production.")

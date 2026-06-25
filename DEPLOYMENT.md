@@ -13,6 +13,21 @@ This app is prepared for a single same-origin deployment: Flask serves the built
 - `MONGODB_ENQUIRY_COLLECTION=enquiries`. `MONGO_ENQUIRY_COLLECTION` is also supported.
 - `ALLOWED_ORIGINS`: deployed site origin, for example `https://www.carterdigitalsolutions.co.uk`.
 
+## Optional Email Notifications
+
+Set these environment variables to forward each saved enquiry to email:
+
+- `EMAIL_NOTIFICATIONS_ENABLED=1`
+- `SMTP_HOST`: SMTP server hostname.
+- `SMTP_PORT=587`
+- `SMTP_USERNAME`: SMTP account username.
+- `SMTP_PASSWORD`: SMTP account password or app password.
+- `SMTP_USE_TLS=1`
+- `ENQUIRY_EMAIL_TO`: destination inbox for enquiries.
+- `ENQUIRY_EMAIL_FROM`: verified sender address. Defaults to `SMTP_USERNAME` if omitted.
+
+Email delivery is non-blocking for users: if MongoDB saves the enquiry but SMTP fails, the API still returns success and the SMTP error is logged.
+
 ## Render Build
 
 Use the included `render.yaml`, or configure a web service manually:

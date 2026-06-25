@@ -3,10 +3,18 @@ import { type FormEvent, useState } from 'react';
 import { submitEnquiry } from '../src/api/enquiries';
 
 const projectTypes = [
+  'Not sure yet / general enquiry',
   'Business website or refresh',
+  'Lead generation or conversion improvements',
+  'Social media or digital presence support',
   'Portfolio or personal website',
-  'Custom tool, app, or automation',
-  'Workflow, productivity, or technical support',
+  'Personal brand or CV support',
+  'Desktop software or internal tool',
+  'Cloud platform or dashboard',
+  'Web or mobile app',
+  'Workflow automation or productivity audit',
+  'Training, support, or consultancy',
+  'Maintenance, fixes, or improvements',
 ];
 
 export function ContactPage() {
@@ -139,7 +147,8 @@ export function ContactPage() {
                   {status === 'success' ? (
                     <div className="col-12">
                       <div className="alert alert-success mb-0" role="status">
-                        Enquiry received. I will review it and follow up.
+                        Thank you. Your enquiry has been received and will be reviewed
+                        shortly. I will follow up by email with the next steps.
                       </div>
                     </div>
                   ) : null}
