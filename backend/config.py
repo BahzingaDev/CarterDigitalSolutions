@@ -43,6 +43,9 @@ class Config:
     SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "")
     SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
     SMTP_USE_TLS = os.environ.get("SMTP_USE_TLS", "1") == "1"
+    SMTP_USE_SSL = os.environ.get("SMTP_USE_SSL", "0") == "1"
+    SMTP_FORCE_IPV4 = os.environ.get("SMTP_FORCE_IPV4", "1") == "1"
+    SMTP_TIMEOUT = int(os.environ.get("SMTP_TIMEOUT", "10"))
     ENQUIRY_EMAIL_TO = os.environ.get("ENQUIRY_EMAIL_TO", "")
     ENQUIRY_EMAIL_FROM = os.environ.get("ENQUIRY_EMAIL_FROM", SMTP_USERNAME)
 

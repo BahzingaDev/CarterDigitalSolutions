@@ -23,6 +23,9 @@ Set these environment variables to forward each saved enquiry to email:
 - `SMTP_USERNAME`: SMTP account username.
 - `SMTP_PASSWORD`: SMTP account password or app password.
 - `SMTP_USE_TLS=1`
+- `SMTP_USE_SSL=0`
+- `SMTP_FORCE_IPV4=1`
+- `SMTP_TIMEOUT=10`
 - `ENQUIRY_EMAIL_TO`: destination inbox for enquiries.
 - `ENQUIRY_EMAIL_FROM`: verified sender address. Defaults to `SMTP_USERNAME` if omitted.
 
