@@ -767,6 +767,28 @@ body {
   color: var(--color-muted);
 }
 
+.quote-summary-total {
+  align-items: center;
+  margin-top: 0.5rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text) !important;
+  font-weight: 800;
+}
+
+.quote-summary-total strong {
+  display: grid;
+  justify-items: end;
+  color: var(--color-accent-strong);
+  font-size: 1.2rem;
+}
+
+.quote-summary-total small {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
 .quote-submit-form {
   border-top: 1px solid var(--color-border);
 }
@@ -821,6 +843,103 @@ body {
 .privacy-content p:last-child {
   margin-bottom: 0;
   color: var(--color-muted);
+}
+
+.faq-list {
+  display: grid;
+  gap: 1rem;
+  max-width: 58rem;
+}
+
+.faq-item {
+  padding: 1.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: 0 10px 30px var(--color-shadow);
+}
+
+.faq-item h2 {
+  margin-bottom: 0.75rem;
+  color: var(--color-text);
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.faq-item p {
+  max-width: 52rem;
+  margin-bottom: 0;
+  color: var(--color-muted);
+  line-height: 1.6;
+}
+
+.readiness-layout {
+  display: grid;
+  align-items: start;
+  gap: 1.5rem;
+  grid-template-columns: minmax(14rem, 0.35fr) minmax(0, 1fr);
+}
+
+.readiness-score {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1.5rem;
+  border: 2px solid var(--color-accent);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--color-accent-soft) 35%, var(--color-surface));
+  box-shadow: 0 10px 30px var(--color-shadow);
+}
+
+.readiness-score span {
+  color: var(--color-accent-strong);
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.readiness-score strong {
+  color: var(--color-accent-strong);
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.readiness-score small {
+  color: var(--color-muted);
+  font-weight: 700;
+}
+
+.readiness-list {
+  display: grid;
+  gap: 0.875rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.readiness-item {
+  display: grid;
+  gap: 0.875rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 100%;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: 0 10px 30px var(--color-shadow);
+  color: var(--color-text);
+  cursor: pointer;
+  line-height: 1.45;
+}
+
+.readiness-item input {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-top: 0.2rem;
+  accent-color: var(--color-accent);
+}
+
+.readiness-item:has(input:checked) {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent-soft) 45%, var(--color-surface));
 }
 
 .testimonial-card {
@@ -1290,6 +1409,14 @@ body {
   }
 
   .quote-modifier-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .readiness-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .readiness-list {
     grid-template-columns: 1fr;
   }
 

@@ -414,6 +414,13 @@ export function QuoteBuilder() {
                 </li>
               );
             })}
+            <li className="quote-summary-total">
+              <span>Total estimate</span>
+              <strong>
+                {formatCurrency(quote.cost)}
+                <small>{quote.hours} hrs</small>
+              </strong>
+            </li>
           </ul>
         </div>
       ) : null}
