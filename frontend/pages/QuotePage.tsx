@@ -1,4 +1,5 @@
 import { QuoteBuilder } from '../components/QuoteBuilder';
+import { NextStepsPanel } from '../components/NextStepsPanel';
 
 export function QuotePage() {
   return (
@@ -33,6 +34,7 @@ export function QuotePage() {
           <QuoteBuilder />
         </div>
       </section>
+      <NextStepsPanel />
     </>
   );
 }

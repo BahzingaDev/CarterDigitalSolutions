@@ -475,7 +475,8 @@ export function QuoteBuilder() {
           {status === 'success' ? (
             <div className="col-12">
               <div className="alert alert-success mb-0" role="status">
-                Quote enquiry received. I will review the selected items and follow up.
+                Quote enquiry received. You should receive an email confirmation, and I
+                will review the selected items before confirming any final estimate.
               </div>
             </div>
           ) : null}

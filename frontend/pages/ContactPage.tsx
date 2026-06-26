@@ -148,7 +148,8 @@ export function ContactPage() {
                     <div className="col-12">
                       <div className="alert alert-success mb-0" role="status">
                         Thank you. Your enquiry has been received and will be reviewed
-                        shortly. I will follow up by email with the next steps.
+                        shortly. You should receive an email confirmation, and I will
+                        follow up with the next steps.
                       </div>
                     </div>
                   ) : null}

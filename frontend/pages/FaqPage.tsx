@@ -1,3 +1,5 @@
+import { CustomerPathPanel } from '../components/CustomerPathPanel';
+
 const faqs = [
   {
     question: 'How does a project usually start?',
@@ -56,6 +58,7 @@ export function FaqPage() {
           </div>
         </div>
       </section>
+      <CustomerPathPanel />
     </>
   );
 }

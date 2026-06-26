@@ -350,6 +350,56 @@ body {
   color: var(--color-muted);
 }
 
+.customer-path-grid,
+.next-steps-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.customer-path-card,
+.next-step-card {
+  display: grid;
+  align-content: start;
+  gap: 0.875rem;
+  min-height: 100%;
+  padding: 1.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: 0 10px 30px var(--color-shadow);
+}
+
+.customer-path-card h3,
+.next-step-card h3 {
+  margin-bottom: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.customer-path-card p,
+.next-step-card p {
+  margin-bottom: 0;
+  color: var(--color-muted);
+  line-height: 1.55;
+}
+
+.customer-path-card .btn {
+  align-self: end;
+  justify-self: start;
+}
+
+.next-step-card span {
+  display: inline-grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  font-weight: 800;
+}
+
 .workflow-timeline {
   display: grid;
   gap: 1rem;
@@ -1397,6 +1447,11 @@ body {
   .custom-needs-prompt {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .customer-path-grid,
+  .next-steps-grid {
+    grid-template-columns: 1fr;
   }
 
   .quote-builder-header,

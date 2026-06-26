@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 
+import { CustomerPathPanel } from '../components/CustomerPathPanel';
+
 const readinessItems = [
   'I know the main outcome I want from the project.',
   'I can describe who the website, tool, or workflow is for.',
@@ -72,6 +74,7 @@ export function ReadinessPage() {
           </div>
         </div>
       </section>
+      <CustomerPathPanel />
     </>
   );
 }
