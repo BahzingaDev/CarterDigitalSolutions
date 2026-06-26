@@ -55,6 +55,7 @@ def _ensure_indexes(collection) -> None:
     collection.create_index("email")
     collection.create_index("type")
     collection.create_index("priority")
+    collection.create_index("status")
     _indexes_ready = True
 
 
@@ -75,6 +76,9 @@ def save_enquiry(enquiry: dict[str, Any]) -> dict[str, str]:
         "id": enquiry_id,
         "created_at": created_at,
         "priority": classify_enquiry_priority(enquiry),
+        "status": "new",
+        "admin_notes": "",
+        "status_updated_at": created_at,
         **enquiry,
     }
 
@@ -97,6 +101,32 @@ def list_enquiries(limit: int | None = None) -> list[dict[str, Any]]:
     return [_serialise_record(record) for record in records]
 
 
+def update_enquiry(enquiry_id: str, updates: dict[str, Any]) -> dict[str, Any] | None:
+    allowed_statuses = {"new", "reviewed", "replied", "closed"}
+    update_document: dict[str, Any] = {}
+
+    if "status" in updates:
+        status = str(updates["status"]).strip().lower()
+        if status not in allowed_statuses:
+            raise ValueError("Invalid enquiry status.")
+        update_document["status"] = status
+        update_document["status_updated_at"] = datetime.now(timezone.utc)
+
+    if "admin_notes" in updates:
+        notes = str(updates["admin_notes"]).strip()
+        if len(notes) > 4000:
+            raise ValueError("Admin notes are too long.")
+        update_document["admin_notes"] = notes
+
+    if not update_document:
+        raise ValueError("No valid updates supplied.")
+
+    collection = _get_collection()
+    collection.update_one({"id": enquiry_id}, {"$set": update_document})
+    record = collection.find_one({"id": enquiry_id}, {"_id": 0})
+    return _serialise_record(record) if record else None
+
+
 def classify_enquiry_priority(enquiry: dict[str, Any]) -> str:
     if enquiry.get("type") == "quote":
         estimated_cost = float(enquiry.get("estimated_cost") or 0)
@@ -117,8 +147,12 @@ def classify_enquiry_priority(enquiry: dict[str, Any]) -> str:
 
 def _serialise_record(record: dict[str, Any]) -> dict[str, Any]:
     serialised = dict(record)
-    created_at = serialised.get("created_at")
-    if isinstance(created_at, datetime):
-        serialised["created_at"] = created_at.isoformat()
+    for field in ("created_at", "status_updated_at"):
+        value = serialised.get(field)
+        if isinstance(value, datetime):
+            serialised[field] = value.isoformat()
+
+    serialised.setdefault("status", "new")
+    serialised.setdefault("admin_notes", "")
 
     return serialised

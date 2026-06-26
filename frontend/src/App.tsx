@@ -1,4 +1,5 @@
 import { ShellLayout } from '../layouts/ShellLayout';
+import { AdminPage } from '../pages/AdminPage';
 import { AboutPage } from '../pages/AboutPage';
 import { ContactPage } from '../pages/ContactPage';
 import { FaqPage } from '../pages/FaqPage';
@@ -47,6 +48,10 @@ function getCurrentPage() {
 
   if (window.location.pathname === '/privacy') {
     return <PrivacyPage />;
+  }
+
+  if (window.location.pathname === '/admin') {
+    return <AdminPage />;
   }
 
   return <HomePage />;
