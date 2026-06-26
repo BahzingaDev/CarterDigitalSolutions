@@ -58,6 +58,8 @@ const navSections = [
     workingWithYouLinks: [
       { label: 'Pricing & deposit', href: '/pricing' },
       { label: 'Workflow', href: '/workflow' },
+      { label: 'FAQ', href: '/faq' },
+      { label: 'Readiness checklist', href: '/readiness' },
     ],
   },
 ];

@@ -38,6 +38,37 @@ const complexityLevels = [
 
 type ComplexityLevel = (typeof complexityLevels)[number]['level'];
 
+const quoteModifiers = [
+  {
+    id: 'urgent-turnaround',
+    label: 'Urgent turnaround',
+    description: 'Adds a planning buffer for accelerated scheduling.',
+    type: 'percentage',
+    value: 0.25,
+  },
+  {
+    id: 'content-support',
+    label: 'Content writing or editing',
+    description: 'Adds time for page copy, structure, or content cleanup.',
+    type: 'hours',
+    value: 6,
+  },
+  {
+    id: 'third-party-integration',
+    label: 'Third-party integration',
+    description: 'Adds time for APIs, booking tools, payment systems, or external platforms.',
+    type: 'hours',
+    value: 12,
+  },
+  {
+    id: 'handover-support',
+    label: 'Handover and support',
+    description: 'Adds time for walkthroughs, documentation, or post-launch guidance.',
+    type: 'hours',
+    value: 4,
+  },
+] as const;
+
 const quoteSections = pricingCategories
   .filter((category) => category.category !== 'Working With You')
   .map((category) => ({
@@ -58,29 +89,65 @@ const quoteItems = quoteSections.flatMap((section) => section.items);
 
 export function QuoteBuilder() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedModifierIds, setSelectedModifierIds] = useState<Set<string>>(new Set());
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [complexity, setComplexity] = useState<ComplexityLevel>(2);
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [error, setError] = useState('');
 
   const selectedItems = quoteItems.filter((item) => selectedIds.has(item.id));
+  const selectedModifiers = quoteModifiers.filter((modifier) =>
+    selectedModifierIds.has(modifier.id),
+  );
   const selectedComplexity = complexityLevels.find((level) => level.level === complexity);
   const complexityHours = selectedComplexity?.hours ?? 12;
+  const averageRate =
+    selectedItems.length > 0
+      ? selectedItems.reduce((total, item) => total + item.rate, 0) / selectedItems.length
+      : 0;
 
-  const quote = useMemo(
-    () =>
-      selectedItems.reduce(
-        (total, item) => ({
-          hours: total.hours + complexityHours,
-          cost: total.cost + complexityHours * item.rate,
-        }),
-        { hours: 0, cost: 0 },
-      ),
-    [complexityHours, selectedItems],
-  );
+  const quote = useMemo(() => {
+    if (selectedItems.length === 0) {
+      return { hours: 0, cost: 0 };
+    }
+
+    const base = selectedItems.reduce(
+      (total, item) => ({
+        hours: total.hours + complexityHours,
+        cost: total.cost + complexityHours * item.rate,
+      }),
+      { hours: 0, cost: 0 },
+    );
+
+    return selectedModifiers.reduce((total, modifier) => {
+      const addedHours =
+        modifier.type === 'percentage'
+          ? Math.ceil(base.hours * modifier.value)
+          : modifier.value;
+
+      return {
+        hours: total.hours + addedHours,
+        cost: total.cost + addedHours * averageRate,
+      };
+    }, base);
+  }, [averageRate, complexityHours, selectedItems, selectedModifiers]);
 
   const toggleItem = (id: string) => {
     setSelectedIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+
+      return next;
+    });
+  };
+
+  const toggleModifier = (id: string) => {
+    setSelectedModifierIds((current) => {
       const next = new Set(current);
 
       if (next.has(id)) {
@@ -104,6 +171,23 @@ export function QuoteBuilder() {
     setError('');
 
     const formData = new FormData(form);
+    const baseHours = selectedItems.length * complexityHours;
+    const modifierQuoteItems =
+      selectedItems.length === 0
+        ? []
+        : selectedModifiers.map((modifier) => {
+            const addedHours =
+              modifier.type === 'percentage'
+                ? Math.ceil(baseHours * modifier.value)
+                : modifier.value;
+
+            return {
+              service: modifier.label,
+              category: 'Quote modifier',
+              hours: addedHours,
+              rate: averageRate,
+            };
+          });
 
     try {
       await submitEnquiry({
@@ -113,17 +197,21 @@ export function QuoteBuilder() {
         projectType: 'Quote builder',
         message: String(formData.get('message') ?? ''),
         website: String(formData.get('website') ?? ''),
-        quoteItems: selectedItems.map((item) => ({
-          service: item.service,
-          category: `${item.category} - Complexity ${complexity}`,
-          hours: complexityHours,
-          rate: item.rate,
-        })),
+        quoteItems: [
+          ...selectedItems.map((item) => ({
+            service: item.service,
+            category: `${item.category} - Complexity ${complexity}`,
+            hours: complexityHours,
+            rate: item.rate,
+          })),
+          ...modifierQuoteItems,
+        ],
         estimatedHours: quote.hours,
         estimatedCost: quote.cost,
       });
       form.reset();
       setSelectedIds(new Set());
+      setSelectedModifierIds(new Set());
       setComplexity(2);
       setStatus('success');
     } catch (submissionError) {
@@ -259,6 +347,45 @@ export function QuoteBuilder() {
         })}
       </div>
 
+      <div className="quote-modifier-panel" aria-labelledby="quote-modifier-title">
+        <div>
+          <p className="section-kicker">Estimate modifiers</p>
+          <h3 id="quote-modifier-title">Add details that may affect the estimate.</h3>
+          <p>
+            These options add planning time based on common project factors. Final
+            scope is still reviewed before any quote is confirmed.
+          </p>
+        </div>
+        <div className="quote-modifier-grid">
+          {quoteModifiers.map((modifier) => {
+            const isSelected = selectedModifierIds.has(modifier.id);
+            const baseHours = selectedItems.length * complexityHours;
+            const addedHours =
+              modifier.type === 'percentage'
+                ? Math.ceil(baseHours * modifier.value)
+                : modifier.value;
+
+            return (
+              <label className="quote-modifier-item" key={modifier.id}>
+                <input
+                  checked={isSelected}
+                  disabled={selectedItems.length === 0}
+                  onChange={() => {
+                    toggleModifier(modifier.id);
+                  }}
+                  type="checkbox"
+                />
+                <span>
+                  <strong>{modifier.label}</strong>
+                  <small>{modifier.description}</small>
+                  <em>+{addedHours} estimated hrs</em>
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
       {selectedItems.length > 0 ? (
         <div className="quote-summary">
           <h3>Selected items</h3>
@@ -271,6 +398,22 @@ export function QuoteBuilder() {
                 <strong>{formatCurrency(complexityHours * item.rate)}</strong>
               </li>
             ))}
+            {selectedModifiers.map((modifier) => {
+              const baseHours = selectedItems.length * complexityHours;
+              const addedHours =
+                modifier.type === 'percentage'
+                  ? Math.ceil(baseHours * modifier.value)
+                  : modifier.value;
+
+              return (
+                <li key={modifier.id}>
+                  <span>
+                    {modifier.label} <small>({addedHours} hrs)</small>
+                  </span>
+                  <strong>{formatCurrency(addedHours * averageRate)}</strong>
+                </li>
+              );
+            })}
           </ul>
         </div>
       ) : null}
