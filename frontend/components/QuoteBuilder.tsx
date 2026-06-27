@@ -82,6 +82,7 @@ const buildQuoteSections = (categories: typeof pricingCategories) => categories
         description: service.bestFor,
         hours: service.estimatedHours,
         rate: service.hourlyRate ?? 0,
+        depositAmount: service.depositAmount ?? calculateDepositAmount(service.startingFrom ?? 0, service.deposit),
       })),
     ),
   }));
@@ -207,6 +208,7 @@ export function QuoteBuilder() {
             category: `${item.category} - Complexity ${complexity}`,
             hours: complexityHours,
             rate: item.rate,
+            deposit_amount: item.depositAmount,
           })),
           ...modifierQuoteItems,
         ],
@@ -511,4 +513,11 @@ export function QuoteBuilder() {
       </form>
     </section>
   );
+}
+
+function calculateDepositAmount(startingFrom: number, description: string) {
+  if (/paid upfront/i.test(description)) return startingFrom;
+  if (/none/i.test(description)) return 0;
+  const percentage = Number(description.match(/\d+(?:\.\d+)?/)?.[0] ?? 0);
+  return Number((startingFrom * percentage / 100).toFixed(2));
 }

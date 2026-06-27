@@ -3,6 +3,7 @@ export interface QuoteItemPayload {
   category: string;
   hours: number;
   rate: number;
+  deposit_amount?: number;
 }
 
 export interface EnquiryPayload {

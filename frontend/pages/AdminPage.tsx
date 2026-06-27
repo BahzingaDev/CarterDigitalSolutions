@@ -5,6 +5,7 @@ import { AdminAccount } from '../components/admin/AdminAccount';
 import { AdminInbox } from '../components/admin/AdminInbox';
 import { AdminCustomers } from '../components/admin/AdminCustomers';
 import { AdminCommunicationSettings } from '../components/admin/AdminCommunicationSettings';
+import { AdminCommercialSettings } from '../components/admin/AdminCommercialSettings';
 import { AdminLogin } from '../components/admin/AdminLogin';
 import { AdminOverview } from '../components/admin/AdminOverview';
 import { AdminProjects } from '../components/admin/AdminProjects';
@@ -211,6 +212,9 @@ export function AdminPage() {
         reference: quote.deposit_invoice_reference || `DEP-${quote.version}-${enquiry.id.slice(0, 6).toUpperCase()}`,
         kind: 'deposit',
         status: depositInvoiceStatus,
+        subtotal: Number((quote.deposit / (1 + (quote.tax_rate || 0) / 100)).toFixed(2)),
+        tax_rate: quote.tax_rate || 0,
+        tax_amount: Number((quote.deposit - quote.deposit / (1 + (quote.tax_rate || 0) / 100)).toFixed(2)),
         amount: quote.deposit,
         issue_date: quote.deposit_invoice_sent_at?.slice(0, 10) ?? '',
         due_date: '',
@@ -263,7 +267,7 @@ export function AdminPage() {
           {view === 'overview' ? <AdminOverview enquiries={enquiries} onNavigate={setView} onSelect={setSelectedId} /> : null}
           {view === 'enquiries' ? <AdminInbox enquiries={enquiries} mode="all" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onDepositInvoice={handleDepositInvoice} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
           {view === 'quotes' ? <AdminInbox enquiries={enquiries} mode="quotes" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onDepositInvoice={handleDepositInvoice} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
-          {view === 'projects' ? <AdminProjects csrfToken={session.csrf_token ?? ''} /> : null}
+          {view === 'projects' ? <div className="admin-view-stack"><AdminCommercialSettings csrfToken={session.csrf_token ?? ''} /><AdminProjects csrfToken={session.csrf_token ?? ''} /></div> : null}
           {view === 'customers' ? <AdminCustomers csrfToken={session.csrf_token ?? ''} /> : null}
           {view === 'records' ? <AdminRecords csrfToken={session.csrf_token ?? ''} /> : null}
           {view === 'services' ? <AdminServices csrfToken={session.csrf_token ?? ''} /> : null}

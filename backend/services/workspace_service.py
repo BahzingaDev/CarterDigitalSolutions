@@ -69,6 +69,14 @@ def list_projects() -> list[dict[str, Any]]:
     return _list("MONGODB_PROJECT_COLLECTION", {"updated_at": -1})
 
 
+def get_project(project_id: str) -> dict[str, Any] | None:
+    try:
+        project = _collection("MONGODB_PROJECT_COLLECTION").find_one({"id": project_id}, {"_id": 0})
+        return _serialise(project) if project else None
+    except Exception as error:
+        raise WorkspaceStorageError("Unable to load project.") from error
+
+
 def save_project(payload: dict[str, Any], project_id: str | None = None) -> dict[str, Any]:
     stage = str(payload.get("stage", "lead")).strip().lower()
     if stage not in PROJECT_STAGES:
@@ -125,6 +133,25 @@ def save_project(payload: dict[str, Any], project_id: str | None = None) -> dict
 
 def delete_project(project_id: str) -> bool:
     return _delete("MONGODB_PROJECT_COLLECTION", project_id)
+
+
+def mark_project_invoice_sent(project_id: str, invoice_id: str, provider_message_id: str | None, due_date: str, current_status: str) -> dict[str, Any] | None:
+    now = datetime.now(timezone.utc)
+    try:
+        result = _collection("MONGODB_PROJECT_COLLECTION").update_one(
+            {"id": project_id, "invoices.id": invoice_id},
+            {"$set": {
+                "invoices.$.status": "paid" if current_status == "paid" else "sent",
+                "invoices.$.issue_date": now.date().isoformat(),
+                "invoices.$.due_date": due_date,
+                "invoices.$.sent_at": now,
+                "invoices.$.provider_message_id": provider_message_id or "",
+                "updated_at": now,
+            }},
+        )
+    except Exception as error:
+        raise WorkspaceStorageError("Unable to update invoice delivery status.") from error
+    return get_project(project_id) if result.matched_count else None
 
 
 def list_service_overrides(published_only: bool = False) -> list[dict[str, Any]]:
@@ -207,6 +234,7 @@ def save_service_override(payload: dict[str, Any], service_id: str | None = None
         "hourly_rate": _number(payload.get("hourly_rate", 0), "Hourly rate", 1000),
         "estimated_hours": _number(payload.get("estimated_hours", 0), "Estimated hours", 1000),
         "deposit": _optional_text(payload.get("deposit"), 80),
+        "deposit_amount": _number(payload.get("deposit_amount", 0), "Deposit amount", 1_000_000),
         "active": bool(payload.get("active", True)),
         "sort_order": int(_number(payload.get("sort_order", 0), "Sort order", 10000)),
         "status": status,
@@ -237,6 +265,44 @@ def save_communication_settings(payload: dict[str, Any]) -> dict[str, Any]:
         return _serialise(collection.find_one({"id": "communications"}, {"_id": 0}))
     except Exception as error:
         raise WorkspaceStorageError("Unable to save communication settings.") from error
+
+
+def get_commercial_settings() -> dict[str, Any]:
+    defaults = {
+        "id": "commercial",
+        "tax_rate": 0,
+        "invoice_business_name": "Carter Digital Solutions",
+        "invoice_address": "",
+        "payment_details": "",
+        "invoice_due_days": 14,
+        "invoice_email_subject": "Invoice {{invoice_reference}} from Carter Digital Solutions",
+        "invoice_email_message": "Please find invoice {{invoice_reference}} attached as a PDF.",
+    }
+    try:
+        record = _collection("MONGODB_SETTINGS_COLLECTION").find_one({"id": "commercial"}, {"_id": 0})
+        return _serialise({**defaults, **(record or {})})
+    except Exception as error:
+        raise WorkspaceStorageError("Unable to load commercial settings.") from error
+
+
+def save_commercial_settings(payload: dict[str, Any]) -> dict[str, Any]:
+    document = {
+        "id": "commercial",
+        "tax_rate": _number(payload.get("tax_rate", 0), "Tax rate", 100),
+        "invoice_business_name": _text(payload.get("invoice_business_name"), "Business name", 160),
+        "invoice_address": _optional_text(payload.get("invoice_address"), 1000),
+        "payment_details": _optional_text(payload.get("payment_details"), 2000),
+        "invoice_due_days": int(_number(payload.get("invoice_due_days", 14), "Invoice due days", 365)),
+        "invoice_email_subject": _text(payload.get("invoice_email_subject"), "Invoice email subject", 180),
+        "invoice_email_message": _text(payload.get("invoice_email_message"), "Invoice email message", 5000),
+        "updated_at": datetime.now(timezone.utc),
+    }
+    try:
+        collection = _collection("MONGODB_SETTINGS_COLLECTION")
+        collection.update_one({"id": "commercial"}, {"$set": document}, upsert=True)
+        return _serialise(collection.find_one({"id": "commercial"}, {"_id": 0}))
+    except Exception as error:
+        raise WorkspaceStorageError("Unable to save commercial settings.") from error
 
 
 def _save(config_key: str, document: dict[str, Any], item_id: str | None) -> dict[str, Any]:
@@ -420,12 +486,18 @@ def _project_invoices(value: Any) -> list[dict[str, Any]]:
         kind = str(item.get("kind", "other")).strip().lower()
         if status not in INVOICE_STATUSES or kind not in INVOICE_KINDS:
             raise ValueError("Invalid invoice status or type.")
+        subtotal = _number(item.get("subtotal", item.get("amount", 0)), "Invoice subtotal", 1_000_000)
+        tax_rate = _number(item.get("tax_rate", 0), "Invoice tax rate", 100)
+        tax_amount = round(subtotal * tax_rate / 100, 2)
         invoices.append({
             "id": str(item.get("id") or uuid.uuid4()),
             "reference": _text(item.get("reference"), "Invoice reference", 80),
             "kind": kind,
             "status": status,
-            "amount": _number(item.get("amount", 0), "Invoice amount", 1_000_000),
+            "subtotal": subtotal,
+            "tax_rate": tax_rate,
+            "tax_amount": tax_amount,
+            "amount": round(subtotal + tax_amount, 2),
             "issue_date": _optional_text(item.get("issue_date"), 40),
             "due_date": _optional_text(item.get("due_date"), 40),
             "paid_date": _optional_text(item.get("paid_date"), 40),

@@ -114,6 +114,7 @@ function toPricingService(item: AdminServiceOverride, fallback?: PricingCategory
     hourlyRate: item.hourly_rate,
     estimatedHours: item.estimated_hours,
     deposit: item.deposit,
+    depositAmount: item.deposit_amount,
     bestFor: item.best_for,
     ...(!fallback ? {} : fallback),
     ...(fallback ? {
@@ -122,6 +123,7 @@ function toPricingService(item: AdminServiceOverride, fallback?: PricingCategory
       hourlyRate: item.hourly_rate,
       estimatedHours: item.estimated_hours,
       deposit: item.deposit,
+      depositAmount: item.deposit_amount,
       bestFor: item.best_for,
     } : {}),
   };

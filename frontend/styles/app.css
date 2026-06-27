@@ -2146,7 +2146,7 @@ body {
 .admin-meeting-list, .admin-invoice-register { display: grid; gap: 0.75rem; }
 .admin-meeting-list article, .admin-invoice-register article { position: relative; display: grid; gap: 0.75rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-page); }
 .admin-meeting-grid { display: grid; gap: 0.75rem; grid-template-columns: minmax(180px, 1fr) minmax(170px, 0.8fr) 90px 130px minmax(170px, 1fr); }
-.admin-invoice-grid { display: grid; gap: 0.75rem; grid-template-columns: minmax(130px, 1fr) 120px 120px 120px 140px 140px; }
+.admin-invoice-grid { display: grid; gap: 0.75rem; grid-template-columns: repeat(4, minmax(120px, 1fr)); }
 .admin-invoice-register article > .admin-icon-button { position: absolute; top: 0.4rem; right: 0.4rem; }
 .admin-consultation-billing { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem; border-left: 4px solid #d97706; background: color-mix(in srgb, #f59e0b 10%, var(--color-page)); }
 .admin-consultation-billing p { margin: 0; color: var(--color-muted); }

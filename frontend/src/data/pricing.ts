@@ -5,6 +5,7 @@ export interface PricingService {
   hourlyRate: number | null;
   estimatedHours: number;
   deposit: string;
+  depositAmount?: number;
   bestFor: string;
 }
 

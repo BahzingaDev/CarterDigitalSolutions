@@ -657,6 +657,7 @@ def _validate_quote_items(value: Any) -> list[dict[str, Any]]:
             "rate": rate,
             "optional": optional,
             "included": bool(item.get("included", False)) if optional else True,
+            "deposit_amount": _bounded_number(item.get("deposit_amount", 0), "deposit amount", 1_000_000),
         })
     return items
 

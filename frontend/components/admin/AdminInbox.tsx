@@ -111,9 +111,9 @@ function AdminEnquiryDetail({ defaultTab, enquiry, onConvertQuote, onCreateQuote
     try { await onUpdate(enquiry.id, { admin_notes: notes, labels: labels.split(',').map((label) => label.trim()).filter(Boolean), follow_up_at: followUp ? new Date(followUp).toISOString() : null }); } finally { setIsSaving(false); }
   };
 
-  const prepareQuoteEmail = (quote: AdminQuoteVersion) => {
+  const prepareQuoteEmail = (quote: AdminQuoteVersion, approvalUrl: string) => {
     const itemSummary = quote.items.map((item) => `• ${item.service}: ${item.hours} hours at ${formatCurrency(item.rate)}/hr`).join('\n');
-    setCommunicationDraft({ quoteId: quote.id, subject: `Quote for ${enquiry.project_type || 'your project'} – version ${quote.version}`, message: `Your quote is ready for review.\n\n${itemSummary}\n\nQuote total: ${formatCurrency(quote.total)}\nDeposit: ${formatCurrency(quote.deposit)}${quote.valid_until ? `\nValid until: ${formatDate(quote.valid_until)}` : ''}\n\nPlease reply if you would like to discuss any part of the scope.` });
+    setCommunicationDraft({ quoteId: quote.id, subject: `Quote for ${enquiry.project_type || 'your project'} – version ${quote.version}`, message: `Your quote is ready for review.\n\n${itemSummary}\n\nQuote total: ${formatCurrency(quote.total)}\nDeposit: ${formatCurrency(quote.deposit)}${quote.valid_until ? `\nValid until: ${formatDate(quote.valid_until)}` : ''}\n\nReview and approve your quote:\n${approvalUrl}\n\nPlease reply if you would like to discuss any part of the scope.` });
     setTab('communications');
   };
 

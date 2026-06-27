@@ -3,17 +3,18 @@ export type AdminView = 'overview' | 'enquiries' | 'quotes' | 'customers' | 'pro
 
 export interface AdminTemplate { id: string; name: string; subject: string; body: string; created_at: string; updated_at: string; }
 export interface CommunicationSettings { id: string; signature: string; updated_at?: string; }
+export interface CommercialSettings { id: string; tax_rate: number; invoice_business_name: string; invoice_address: string; payment_details: string; invoice_due_days: number; invoice_email_subject: string; invoice_email_message: string; updated_at?: string; }
 export interface AdminCustomField { key: string; value: string; }
 export interface AdminRecord { id: string; title: string; record_type: string; tags: string[]; notes: string; fields: AdminCustomField[]; archived: boolean; created_at: string; updated_at: string; }
 export type ProjectStage = 'lead' | 'discovery' | 'quoted' | 'accepted' | 'active' | 'on_hold' | 'completed';
 export interface ProjectChecklistItem { id: string; title: string; completed: boolean; due_date: string; }
 export interface ProjectService { service: string; category: string; hours: number; rate: number; optional: boolean; included: boolean; }
 export interface ProjectMeeting { id: string; title: string; start_at: string; duration_minutes: number; status: 'scheduled' | 'completed' | 'cancelled'; counts_as_consultation: boolean; location: string; notes: string; calendar_provider: string; external_calendar_id: string; }
-export interface ProjectInvoice { id: string; reference: string; kind: 'deposit' | 'interim' | 'final' | 'consultation' | 'other'; status: 'draft' | 'sent' | 'paid' | 'overdue' | 'void'; amount: number; issue_date: string; due_date: string; paid_date: string; notes: string; }
+export interface ProjectInvoice { id: string; reference: string; kind: 'deposit' | 'interim' | 'final' | 'consultation' | 'other'; status: 'draft' | 'sent' | 'paid' | 'overdue' | 'void'; subtotal: number; tax_rate: number; tax_amount: number; amount: number; issue_date: string; due_date: string; paid_date: string; notes: string; sent_at?: string; provider_message_id?: string; }
 export interface AdminProject { id: string; name: string; client_name: string; client_email: string; stage: ProjectStage; value: number; due_date: string; notes: string; tags: string[]; linked_enquiry_id: string; source_quote_id: string; services: ProjectService[]; included_consultation_hours: number; consultation_rate: number; meetings: ProjectMeeting[]; invoices: ProjectInvoice[]; tasks: ProjectChecklistItem[]; milestones: ProjectChecklistItem[]; completion: number; created_at: string; updated_at: string; }
 export interface AdminCustomer { email: string; name: string; phone: string; organisation: string; notes: string; tags: string[]; enquiries: AdminEnquiry[]; projects: AdminProject[]; }
 export interface AdminServiceCategory { id: string; slug: string; name: string; audience: string; description: string; active: boolean; sort_order: number; status: 'draft' | 'published'; created_at?: string; updated_at?: string; }
-export interface AdminServiceOverride { id: string; slug: string; name: string; audience: string; category_id: string; category: string; description: string; best_for: string; starting_from: number; hourly_rate: number; estimated_hours: number; deposit: string; active: boolean; sort_order: number; status: 'draft' | 'published'; outcomes: string[]; process_notes: string[]; }
+export interface AdminServiceOverride { id: string; slug: string; name: string; audience: string; category_id: string; category: string; description: string; best_for: string; starting_from: number; hourly_rate: number; estimated_hours: number; deposit: string; deposit_amount: number; active: boolean; sort_order: number; status: 'draft' | 'published'; outcomes: string[]; process_notes: string[]; }
 
 export interface AdminSession {
   authenticated: boolean;
@@ -33,6 +34,7 @@ export interface AdminQuoteItem {
   rate: number;
   optional?: boolean;
   included?: boolean;
+  deposit_amount?: number;
 }
 
 export interface AdminQuoteVersion {
@@ -225,6 +227,8 @@ export async function sendAdminCommunication(csrfToken: string, enquiryId: strin
 }
 export async function fetchCommunicationSettings() { const response = await fetch('/api/admin/communication-settings', { credentials: 'same-origin', headers: { Accept: 'application/json' } }); return (await parseAdminResponse<{ settings: CommunicationSettings }>(response)).settings; }
 export async function saveCommunicationSettings(csrf: string, signature: string) { const response = await fetch('/api/admin/communication-settings', { method: 'PUT', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify({ signature }) }); return (await parseAdminResponse<{ settings: CommunicationSettings }>(response)).settings; }
+export async function fetchCommercialSettings() { const response = await fetch('/api/admin/commercial-settings', { credentials: 'same-origin', headers: { Accept: 'application/json' } }); return (await parseAdminResponse<{ settings: CommercialSettings }>(response)).settings; }
+export async function saveCommercialSettings(csrf: string, settings: Partial<CommercialSettings>) { const response = await fetch('/api/admin/commercial-settings', { method: 'PUT', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(settings) }); return (await parseAdminResponse<{ settings: CommercialSettings }>(response)).settings; }
 
 export const fetchAdminTemplates = () => workspaceList<AdminTemplate>('templates');
 export const fetchAdminRecords = () => workspaceList<AdminRecord>('records');
@@ -235,6 +239,8 @@ export const saveAdminProject = (csrf: string, item: Partial<AdminProject>) => w
 export const deleteAdminTemplate = (csrf: string, id: string) => workspaceDelete('templates', csrf, id);
 export const deleteAdminRecord = (csrf: string, id: string) => workspaceDelete('records', csrf, id);
 export const deleteAdminProject = (csrf: string, id: string) => workspaceDelete('projects', csrf, id);
+export async function sendAdminProjectInvoice(csrf: string, projectId: string, invoiceId: string) { const response = await fetch(`/api/admin/projects/${encodeURIComponent(projectId)}/invoices/${encodeURIComponent(invoiceId)}/send`, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'X-CSRF-Token': csrf } }); return (await parseAdminResponse<{ project: AdminProject }>(response)).project; }
+export async function downloadAdminProjectInvoice(projectId: string, invoiceId: string, reference: string) { const response = await fetch(`/api/admin/projects/${encodeURIComponent(projectId)}/invoices/${encodeURIComponent(invoiceId)}/pdf`, { credentials: 'same-origin' }); if (!response.ok) throw new Error('Unable to generate invoice PDF'); const url = URL.createObjectURL(await response.blob()); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `invoice-${reference}.pdf`; anchor.click(); URL.revokeObjectURL(url); }
 export const fetchAdminServices = () => workspaceList<AdminServiceOverride>('services');
 export const saveAdminService = (csrf: string, item: Partial<AdminServiceOverride>) => workspaceSave<AdminServiceOverride>('services', csrf, item);
 export const deleteAdminService = (csrf: string, id: string) => workspaceDelete('services', csrf, id);

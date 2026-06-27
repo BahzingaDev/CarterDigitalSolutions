@@ -1,10 +1,13 @@
-import { CalendarPlus, Download, FilePlus2, Plus, Save, Trash2, X } from 'lucide-react';
+import { CalendarPlus, Download, FilePlus2, Plus, Save, Send, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import {
   deleteAdminProject,
+  downloadAdminProjectInvoice,
+  fetchCommercialSettings,
   fetchAdminProjects,
   saveAdminProject,
+  sendAdminProjectInvoice,
   type AdminProject,
   type ProjectChecklistItem,
   type ProjectInvoice,
@@ -33,15 +36,17 @@ export function AdminProjects({ csrfToken }: { csrfToken: string }) {
   const [tab, setTab] = useState<WorkspaceTab>('delivery');
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [taxRate, setTaxRate] = useState(0);
 
   useEffect(() => {
     void fetchAdminProjects()
       .then((projects) => setItems(projects.map(normaliseProject)))
       .catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load projects'));
   }, []);
+  useEffect(() => { void fetchCommercialSettings().then((settings) => setTaxRate(settings.tax_rate)); }, []);
 
   const select = (item: AdminProject) => { setDraft(normaliseProject(item)); setTags(item.tags.join(', ')); setEditing(true); setTab('delivery'); setError(''); };
-  const save = async (value = draft) => {
+  const save = async (value = draft): Promise<AdminProject | undefined> => {
     setIsSaving(true); setError('');
     try {
       const saved = normaliseProject(await saveAdminProject(csrfToken, {
@@ -52,8 +57,10 @@ export function AdminProjects({ csrfToken }: { csrfToken: string }) {
       }));
       setItems((current) => value.id ? current.map((item) => item.id === saved.id ? saved : item) : [saved, ...current]);
       setDraft(saved); setTags(saved.tags.join(', '));
+      return saved;
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to save project'); }
     finally { setIsSaving(false); }
+    return undefined;
   };
   const move = async (project: AdminProject, stage: ProjectStage) => {
     const saved = normaliseProject(await saveAdminProject(csrfToken, { ...project, stage }));
@@ -72,8 +79,8 @@ export function AdminProjects({ csrfToken }: { csrfToken: string }) {
       <div className="admin-project-workspace-heading"><div><p className="section-kicker">Client project</p><h2>{draft.name || 'New project'}</h2><span>{draft.client_name || 'No client assigned'}</span></div><div className="admin-management-actions"><button className="btn btn-accent" disabled={isSaving} onClick={() => void save()} type="button"><Save size={16} /> {isSaving ? 'Saving...' : 'Save project'}</button><button className="btn btn-outline-secondary" onClick={() => setEditing(false)} type="button">Close</button>{draft.id ? <button className="admin-icon-button is-danger" onClick={() => void remove()} title="Delete project" type="button"><Trash2 size={16} /></button> : null}</div></div>
       <div className="admin-project-tabs" role="tablist"><ProjectTab active={tab === 'delivery'} label="Delivery" onClick={() => setTab('delivery')} /><ProjectTab active={tab === 'meetings'} label="Meetings" onClick={() => setTab('meetings')} /><ProjectTab active={tab === 'invoices'} label="Invoices" onClick={() => setTab('invoices')} /></div>
       {tab === 'delivery' ? <DeliveryWorkspace draft={draft} onChange={setDraft} tags={tags} onTags={setTags} /> : null}
-      {tab === 'meetings' ? <MeetingWorkspace draft={draft} onChange={setDraft} /> : null}
-      {tab === 'invoices' ? <InvoiceWorkspace draft={draft} onChange={setDraft} /> : null}
+      {tab === 'meetings' ? <MeetingWorkspace draft={draft} onChange={setDraft} taxRate={taxRate} /> : null}
+      {tab === 'invoices' ? <InvoiceWorkspace draft={draft} onChange={setDraft} taxRate={taxRate} onDownload={async (invoice) => { const saved = await save(); if (saved) await downloadAdminProjectInvoice(saved.id, invoice.id, invoice.reference); }} onSend={async (invoice) => { const saved = await save(); if (!saved) return; try { const updated = normaliseProject(await sendAdminProjectInvoice(csrfToken, saved.id, invoice.id)); setDraft(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to send invoice'); } }} /> : null}
     </section> : null}
     <div className="admin-kanban">{stages.map((stage) => <section className="admin-kanban-column" key={stage.id}><header><span>{stage.label}</span><em>{items.filter((item) => item.stage === stage.id).length}</em></header><div>{items.filter((item) => item.stage === stage.id).map((project) => <article className="admin-project-card" key={project.id} onClick={() => select(project)}><strong>{project.name}</strong><small>{project.client_name || 'No client assigned'}</small><span>{formatCurrency(project.value)}</span><div className="admin-card-progress"><i style={{ width: `${project.completion ?? 0}%` }} /></div><small>{project.meetings.filter((meeting) => meeting.status === 'scheduled').length} upcoming · {project.invoices.filter((invoice) => invoice.status === 'draft' || invoice.status === 'overdue').length} invoice actions</small>{project.due_date ? <time>{project.due_date}</time> : null}<select aria-label={`Move ${project.name}`} onClick={(event) => event.stopPropagation()} onChange={(event) => void move(project, event.target.value as ProjectStage)} value={project.stage}>{stages.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></article>)}</div></section>)}</div>
   </div>;
@@ -97,7 +104,7 @@ function DeliveryWorkspace({ draft, onChange, tags, onTags }: { draft: Partial<A
   </div>;
 }
 
-function MeetingWorkspace({ draft, onChange }: { draft: Partial<AdminProject>; onChange: (value: Partial<AdminProject>) => void }) {
+function MeetingWorkspace({ draft, onChange, taxRate }: { draft: Partial<AdminProject>; onChange: (value: Partial<AdminProject>) => void; taxRate: number }) {
   const meetings = draft.meetings ?? [];
   const bookedHours = consultationHours(meetings, (meeting) => meeting.status !== 'cancelled');
   const completedHours = consultationHours(meetings, (meeting) => meeting.status === 'completed');
@@ -108,7 +115,9 @@ function MeetingWorkspace({ draft, onChange }: { draft: Partial<AdminProject>; o
   const add = () => onChange({ ...draft, meetings: [...meetings, { id: crypto.randomUUID(), title: 'Project consultation', start_at: nextHourInput(), duration_minutes: 60, status: 'scheduled', counts_as_consultation: true, location: '', notes: '', calendar_provider: '', external_calendar_id: '' }] });
   const createConsultationInvoice = () => {
     const invoices = draft.invoices ?? [];
-    onChange({ ...draft, invoices: [...invoices, { id: crypto.randomUUID(), reference: `CONS-${new Date().toISOString().slice(0, 10)}`, kind: 'consultation', status: 'draft', amount: Number((billableHours * rate).toFixed(2)), issue_date: '', due_date: '', paid_date: '', notes: `${billableHours.toFixed(2)} billable consultation hours` }] });
+    const subtotal = Number((billableHours * rate).toFixed(2));
+    const taxAmount = Number((subtotal * taxRate / 100).toFixed(2));
+    onChange({ ...draft, invoices: [...invoices, { id: crypto.randomUUID(), reference: `CONS-${new Date().toISOString().slice(0, 10)}`, kind: 'consultation', status: 'draft', subtotal, tax_rate: taxRate, tax_amount: taxAmount, amount: subtotal + taxAmount, issue_date: '', due_date: '', paid_date: '', notes: `${billableHours.toFixed(2)} billable consultation hours` }] });
   };
   return <div className="admin-project-workspace">
     <div className="admin-management-grid"><label>Included consultation hours<input className="form-control" min="0" onChange={(event) => onChange({ ...draft, included_consultation_hours: Number(event.target.value) })} step="0.25" type="number" value={included} /></label><label>Billable consultation rate (£/hour)<input className="form-control" min="0" onChange={(event) => onChange({ ...draft, consultation_rate: Number(event.target.value) })} step="0.01" type="number" value={rate} /></label></div>
@@ -125,19 +134,19 @@ function MeetingWorkspace({ draft, onChange }: { draft: Partial<AdminProject>; o
   </div>;
 }
 
-function InvoiceWorkspace({ draft, onChange }: { draft: Partial<AdminProject>; onChange: (value: Partial<AdminProject>) => void }) {
+function InvoiceWorkspace({ draft, onChange, onDownload, onSend, taxRate }: { draft: Partial<AdminProject>; onChange: (value: Partial<AdminProject>) => void; onDownload: (invoice: ProjectInvoice) => Promise<void>; onSend: (invoice: ProjectInvoice) => Promise<void>; taxRate: number }) {
   const invoices = draft.invoices ?? [];
-  const update = (index: number, patch: Partial<ProjectInvoice>) => onChange({ ...draft, invoices: invoices.map((invoice, invoiceIndex) => invoiceIndex === index ? { ...invoice, ...patch } : invoice) });
-  const add = () => onChange({ ...draft, invoices: [...invoices, { id: crypto.randomUUID(), reference: `INV-${String(invoices.length + 1).padStart(3, '0')}`, kind: 'interim', status: 'draft', amount: 0, issue_date: '', due_date: '', paid_date: '', notes: '' }] });
+  const update = (index: number, patch: Partial<ProjectInvoice>) => onChange({ ...draft, invoices: invoices.map((invoice, invoiceIndex) => { if (invoiceIndex !== index) return invoice; const next = { ...invoice, ...patch }; next.tax_amount = Number((next.subtotal * next.tax_rate / 100).toFixed(2)); next.amount = Number((next.subtotal + next.tax_amount).toFixed(2)); return next; }) });
+  const add = () => onChange({ ...draft, invoices: [...invoices, { id: crypto.randomUUID(), reference: `INV-${String(invoices.length + 1).padStart(3, '0')}`, kind: 'interim', status: 'draft', subtotal: 0, tax_rate: taxRate, tax_amount: 0, amount: 0, issue_date: '', due_date: '', paid_date: '', notes: '' }] });
   const billed = invoices.filter((item) => item.status !== 'void').reduce((sum, item) => sum + item.amount, 0);
   const paid = invoices.filter((item) => item.status === 'paid').reduce((sum, item) => sum + item.amount, 0);
   return <div className="admin-project-workspace">
     <div className="admin-consultation-summary"><Summary label="Project value" value={formatCurrency(draft.value ?? 0)} /><Summary label="Invoiced" value={formatCurrency(billed)} /><Summary label="Paid" value={formatCurrency(paid)} /><Summary label="Outstanding" value={formatCurrency(Math.max(0, billed - paid))} /></div>
     <div className="admin-subpanel-heading"><div><h3>Invoice register</h3><p>Track deposit, interim, consultation, and final invoices.</p></div><button className="btn btn-outline-accent" onClick={add} type="button"><Plus size={16} /> Add invoice</button></div>
     <div className="admin-invoice-register">{invoices.map((invoice, index) => <article key={invoice.id}>
-      <div className="admin-invoice-grid"><label>Reference<input className="form-control" onChange={(event) => update(index, { reference: event.target.value })} value={invoice.reference} /></label><label>Type<select className="form-select" onChange={(event) => update(index, { kind: event.target.value as ProjectInvoice['kind'] })} value={invoice.kind}><option value="deposit">Deposit</option><option value="interim">Interim</option><option value="final">Final</option><option value="consultation">Consultation</option><option value="other">Other</option></select></label><label>Amount (£)<input className="form-control" min="0" onChange={(event) => update(index, { amount: Number(event.target.value) })} step="0.01" type="number" value={invoice.amount} /></label><label>Status<select className="form-select" onChange={(event) => { const status = event.target.value as ProjectInvoice['status']; update(index, { status, paid_date: status === 'paid' && !invoice.paid_date ? new Date().toISOString().slice(0, 10) : invoice.paid_date }); }} value={invoice.status}><option value="draft">Draft</option><option value="sent">Sent</option><option value="paid">Paid</option><option value="overdue">Overdue</option><option value="void">Void</option></select></label><label>Issued<input className="form-control" onChange={(event) => update(index, { issue_date: event.target.value })} type="date" value={invoice.issue_date} /></label><label>Due<input className="form-control" onChange={(event) => update(index, { due_date: event.target.value })} type="date" value={invoice.due_date} /></label></div>
+      <div className="admin-invoice-grid"><label>Reference<input className="form-control" onChange={(event) => update(index, { reference: event.target.value })} value={invoice.reference} /></label><label>Type<select className="form-select" onChange={(event) => update(index, { kind: event.target.value as ProjectInvoice['kind'] })} value={invoice.kind}><option value="deposit">Deposit</option><option value="interim">Interim</option><option value="final">Final</option><option value="consultation">Consultation</option><option value="other">Other</option></select></label><label>Net amount (£)<input className="form-control" min="0" onChange={(event) => update(index, { subtotal: Number(event.target.value) })} step="0.01" type="number" value={invoice.subtotal} /></label><label>Tax (global)<input className="form-control" readOnly value={`${invoice.tax_rate}%`} /></label><label>Total<input className="form-control" readOnly value={formatCurrency(invoice.amount)} /></label><label>Status<select className="form-select" onChange={(event) => { const status = event.target.value as ProjectInvoice['status']; update(index, { status, paid_date: status === 'paid' && !invoice.paid_date ? new Date().toISOString().slice(0, 10) : invoice.paid_date }); }} value={invoice.status}><option value="draft">Draft</option><option value="sent">Sent</option><option value="paid">Paid</option><option value="overdue">Overdue</option><option value="void">Void</option></select></label><label>Issued<input className="form-control" onChange={(event) => update(index, { issue_date: event.target.value })} type="date" value={invoice.issue_date} /></label><label>Due<input className="form-control" onChange={(event) => update(index, { due_date: event.target.value })} type="date" value={invoice.due_date} /></label></div>
       <label>Notes<input className="form-control" onChange={(event) => update(index, { notes: event.target.value })} value={invoice.notes} /></label>
-      <button className="admin-icon-button is-danger" onClick={() => onChange({ ...draft, invoices: invoices.filter((_, invoiceIndex) => invoiceIndex !== index) })} title="Remove invoice" type="button"><X size={15} /></button>
+      <div className="admin-management-actions"><button className="btn btn-outline-accent btn-sm" onClick={() => void onDownload(invoice)} type="button"><Download size={15} /> PDF</button><button className="btn btn-accent btn-sm" disabled={invoice.status === 'void'} onClick={() => void onSend(invoice)} type="button"><Send size={15} /> Send invoice</button><button className="admin-icon-button is-danger" onClick={() => onChange({ ...draft, invoices: invoices.filter((_, invoiceIndex) => invoiceIndex !== index) })} title="Remove invoice" type="button"><X size={15} /></button></div>
     </article>)}</div>
     {invoices.length === 0 ? <p className="admin-empty">No invoices recorded for this project.</p> : null}
   </div>;
@@ -151,7 +160,7 @@ function Checklist({ title, items, onChange }: { title: string; items: ProjectCh
 function ProjectTab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) { return <button aria-selected={active} className={active ? 'is-active' : ''} onClick={onClick} role="tab" type="button">{label}</button>; }
 function Summary({ label, value }: { label: string; value: string }) { return <div><span>{label}</span><strong>{value}</strong></div>; }
 function consultationHours(meetings: ProjectMeeting[], filter: (meeting: ProjectMeeting) => boolean) { return meetings.filter((meeting) => meeting.counts_as_consultation && filter(meeting)).reduce((sum, meeting) => sum + meeting.duration_minutes / 60, 0); }
-function normaliseProject(project: AdminProject): AdminProject { return { ...project, services: project.services ?? [], included_consultation_hours: project.included_consultation_hours ?? 8, consultation_rate: project.consultation_rate ?? 16.5, meetings: project.meetings ?? [], invoices: project.invoices ?? [], tasks: project.tasks ?? [], milestones: project.milestones ?? [], completion: project.completion ?? 0 }; }
+function normaliseProject(project: AdminProject): AdminProject { return { ...project, services: project.services ?? [], included_consultation_hours: project.included_consultation_hours ?? 8, consultation_rate: project.consultation_rate ?? 16.5, meetings: project.meetings ?? [], invoices: (project.invoices ?? []).map((invoice) => { const subtotal = invoice.subtotal ?? invoice.amount ?? 0; const rate = invoice.tax_rate ?? 0; const tax = invoice.tax_amount ?? Number((subtotal * rate / 100).toFixed(2)); return { ...invoice, subtotal, tax_rate: rate, tax_amount: tax, amount: Number((subtotal + tax).toFixed(2)) }; }), tasks: project.tasks ?? [], milestones: project.milestones ?? [], completion: project.completion ?? 0 }; }
 function nextHourInput() { const date = new Date(Date.now() + 60 * 60 * 1000); date.setMinutes(0, 0, 0); return toDateTimeInput(date.toISOString()); }
 function toDateTimeInput(value?: string) { if (!value) return ''; const date = new Date(value); const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000); return local.toISOString().slice(0, 16); }
 function downloadCalendarEvent(project: Partial<AdminProject>, meeting: ProjectMeeting) {

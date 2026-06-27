@@ -1,4 +1,5 @@
 import json
+import base64
 import socket
 import smtplib
 from datetime import datetime, timedelta, timezone
@@ -143,9 +144,7 @@ def _customer_message_html(name: str, message: str) -> str:
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 640px; background: #ffffff; border: 1px solid #eadff3; border-radius: 8px;">
           <tr><td style="padding: 28px;">
             <p style="margin: 0 0 18px; color: #6f2da8; font-weight: bold;">CARTER DIGITAL SOLUTIONS</p>
-            <p style="margin: 0 0 16px;">Hello {escape(name)},</p>
             <div style="color: #34263d; line-height: 1.6;">{_paragraphs(message)}</div>
-            <p style="margin: 24px 0 0;">Kind regards,<br><strong>Carter Digital Solutions</strong></p>
           </td></tr>
         </table>
       </td></tr>
@@ -238,6 +237,70 @@ def send_quote_approval_notification(approval: dict[str, Any]) -> None:
         "html": f"<p><strong>{escape(customer)}</strong> approved quote version {escape(str(quote.get('version')))}.</p><p>Total: <strong>{escape(_money(quote.get('total', 0)))}</strong></p>",
         "tags": [{"name": "email_type", "value": "quote_approval"}],
     })
+
+
+def send_project_invoice(
+    project: dict[str, Any],
+    invoice: dict[str, Any],
+    pdf: bytes,
+    settings: dict[str, Any],
+) -> str | None:
+    if not email_notifications_configured():
+        raise RuntimeError("Email delivery is not configured.")
+    recipient = str(project.get("client_email", "")).strip()
+    if not recipient:
+        raise ValueError("The project must have a client email before sending an invoice.")
+    replacements = {
+        "invoice_reference": str(invoice.get("reference", "")),
+        "client_name": str(project.get("client_name", "Client")),
+        "project_name": str(project.get("name", "project")),
+        "invoice_total": _money(invoice.get("amount", 0)),
+        "invoice_due_date": str(invoice.get("due_date") or "as agreed"),
+    }
+    subject = _replace_placeholders(settings["invoice_email_subject"], replacements).strip()
+    message = _replace_placeholders(settings["invoice_email_message"], replacements).strip()
+    filename = f"invoice-{_filename_part(invoice.get('reference', 'invoice'))}.pdf"
+    if current_app.config.get("EMAIL_PROVIDER") == "resend":
+        response = _send_resend_payload({
+            "from": current_app.config["CUSTOMER_EMAIL_FROM"],
+            "to": [recipient],
+            "subject": subject,
+            "text": message,
+            "html": _customer_message_html(project.get("client_name", "Client"), message),
+            "reply_to": current_app.config["ENQUIRY_EMAIL_TO"],
+            "attachments": [{"filename": filename, "content": base64.b64encode(pdf).decode("ascii")}],
+            "tags": [{"name": "email_type", "value": "project_invoice"}],
+        })
+        return str(response.get("id", "")) or None
+
+    email = EmailMessage()
+    email["Subject"] = subject
+    email["From"] = current_app.config["CUSTOMER_EMAIL_FROM"]
+    email["To"] = recipient
+    email["Reply-To"] = current_app.config["ENQUIRY_EMAIL_TO"]
+    email.set_content(message)
+    email.add_alternative(_customer_message_html(project.get("client_name", "Client"), message), subtype="html")
+    email.add_attachment(pdf, maintype="application", subtype="pdf", filename=filename)
+    smtp_class = _smtp_class()
+    with smtp_class(current_app.config["SMTP_HOST"], current_app.config["SMTP_PORT"], timeout=current_app.config["SMTP_TIMEOUT"]) as smtp:
+        if current_app.config["SMTP_USE_TLS"] and not current_app.config["SMTP_USE_SSL"]:
+            smtp.starttls()
+        if current_app.config.get("SMTP_USERNAME") and current_app.config.get("SMTP_PASSWORD"):
+            smtp.login(current_app.config["SMTP_USERNAME"], current_app.config["SMTP_PASSWORD"])
+        smtp.send_message(email)
+    return None
+
+
+def _replace_placeholders(value: str, replacements: dict[str, str]) -> str:
+    result = value
+    for key, replacement in replacements.items():
+        result = result.replace(f"{{{{{key}}}}}", replacement)
+    return result
+
+
+def _filename_part(value: Any) -> str:
+    cleaned = "".join(character if character.isalnum() or character in {"-", "_"} else "-" for character in str(value))
+    return cleaned.strip("-")[:80] or "invoice"
 
 
 def _send_smtp_messages(enquiry: dict[str, Any], saved: dict[str, str]) -> None:

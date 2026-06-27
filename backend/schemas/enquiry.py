@@ -111,6 +111,7 @@ def validate_enquiry_payload(payload: Any) -> dict[str, Any]:
                 "category": _optional_text(item.get("category"), 120),
                 "hours": _clean_number(item.get("hours"), "quote item hours", MAX_QUOTE_HOURS),
                 "rate": _clean_number(item.get("rate"), "quote item rate", MAX_HOURLY_RATE),
+                "deposit_amount": _clean_number(item.get("deposit_amount", 0), "quote item deposit", MAX_ESTIMATED_COST),
             }
         )
 

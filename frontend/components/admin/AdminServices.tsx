@@ -28,6 +28,7 @@ const baseline = pricingCategories.flatMap((audience) => audience.groups.flatMap
     hourly_rate: service.hourlyRate ?? 0,
     estimated_hours: service.estimatedHours,
     deposit: service.deposit,
+    deposit_amount: calculateDepositAmount(service.startingFrom ?? 0, service.deposit),
     active: true,
     sort_order: groupIndex * 100 + index,
     status: 'published' as const,
@@ -37,7 +38,7 @@ const baseline = pricingCategories.flatMap((audience) => audience.groups.flatMap
 
 const blankService: Partial<AdminServiceOverride> = {
   audience: 'For Industry', category_id: '', category: '', active: true, status: 'draft',
-  starting_from: 0, hourly_rate: 16.5, estimated_hours: 6, sort_order: 0, outcomes: [], process_notes: [],
+  starting_from: 0, hourly_rate: 16.5, estimated_hours: 6, deposit_amount: 0, sort_order: 0, outcomes: [], process_notes: [],
 };
 const blankCategory: Partial<AdminServiceCategory> = {
   audience: 'For Industry', active: true, status: 'draft', sort_order: 0,
@@ -126,8 +127,8 @@ export function AdminServices({ csrfToken }: { csrfToken: string }) {
         const existingIndex = importedServices.findIndex((item) => item.slug === service.slug);
         if (existingIndex >= 0) {
           const existing = importedServices[existingIndex];
-          if (!existing.category_id && category?.id) {
-            importedServices[existingIndex] = await saveAdminService(csrfToken, { ...existing, category_id: category.id });
+          if ((!existing.category_id && category?.id) || existing.deposit_amount == null) {
+            importedServices[existingIndex] = await saveAdminService(csrfToken, { ...service, ...existing, deposit_amount: existing.deposit_amount ?? service.deposit_amount, category_id: existing.category_id || category?.id || '' });
           }
           continue;
         }
@@ -200,7 +201,8 @@ function ServiceEditor({ categories, draft, isSaving, outcomes, preview, process
         <label>Starting from (£)<input className="form-control" min="0" onChange={(event) => onDraft({ ...draft, starting_from: Number(event.target.value) })} step="0.01" type="number" value={draft.starting_from ?? 0} /></label>
         <label>Hourly rate (£)<input className="form-control" min="0" onChange={(event) => onDraft({ ...draft, hourly_rate: Number(event.target.value) })} step="0.01" type="number" value={draft.hourly_rate ?? 0} /></label>
         <label>Estimated hours<input className="form-control" min="0" onChange={(event) => onDraft({ ...draft, estimated_hours: Number(event.target.value) })} step="0.25" type="number" value={draft.estimated_hours ?? 0} /></label>
-        <label>Deposit<input className="form-control" maxLength={80} onChange={(event) => onDraft({ ...draft, deposit: event.target.value })} value={draft.deposit ?? ''} /></label>
+        <label>Deposit description<input className="form-control" maxLength={80} onChange={(event) => onDraft({ ...draft, deposit: event.target.value })} value={draft.deposit ?? ''} /></label>
+        <label>Deposit amount (£)<input className="form-control" min="0" onChange={(event) => onDraft({ ...draft, deposit_amount: Number(event.target.value) })} step="0.01" type="number" value={draft.deposit_amount ?? 0} /></label>
         <label>Sort order<input className="form-control" min="0" onChange={(event) => onDraft({ ...draft, sort_order: Number(event.target.value) })} type="number" value={draft.sort_order ?? 0} /></label>
         <label>Status<select className="form-select" onChange={(event) => onDraft({ ...draft, status: event.target.value as 'draft' | 'published' })} value={draft.status}><option value="draft">Draft</option><option value="published">Published</option></select></label>
       </div>
@@ -232,3 +234,4 @@ function CategoryEditor({ draft, isSaving, onDraft, onSave, onDelete }: { draft:
 
 function AudienceOptions() { return <><option>For Industry</option><option>For Individuals</option><option>Working With You</option></>; }
 function lines(value: string) { return value.split('\n').map((item) => item.trim()).filter(Boolean); }
+function calculateDepositAmount(startingFrom: number, description: string) { if (/paid upfront/i.test(description)) return startingFrom; if (/none/i.test(description)) return 0; const percentage = Number(description.match(/\d+(?:\.\d+)?/)?.[0] ?? 0); return Number((startingFrom * percentage / 100).toFixed(2)); }

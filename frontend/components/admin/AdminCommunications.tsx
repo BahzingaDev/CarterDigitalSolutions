@@ -20,7 +20,7 @@ export function AdminCommunications({ enquiry, draft, onSend }: { enquiry: Admin
 
   const send = async () => {
     setIsSending(true);
-    try { const finalMessage = signature ? `${message}\n\n${signature}` : message; await onSend(subject, finalMessage, quoteId, scheduledAt ? new Date(scheduledAt).toISOString() : undefined); setSubject(''); setMessage(''); setQuoteId(undefined); setScheduledAt(''); } finally { setIsSending(false); }
+    try { const cleanMessage = message.trim(); const cleanSignature = signature.trim(); const finalMessage = cleanSignature && !cleanMessage.endsWith(cleanSignature) ? `${cleanMessage}\n\n${cleanSignature}` : cleanMessage; await onSend(subject, finalMessage, quoteId, scheduledAt ? new Date(scheduledAt).toISOString() : undefined); setSubject(''); setMessage(''); setQuoteId(undefined); setScheduledAt(''); } finally { setIsSending(false); }
   };
 
   return (

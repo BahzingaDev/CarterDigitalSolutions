@@ -2,6 +2,7 @@ import { BriefcaseBusiness, CirclePlus, Link2, Mail, Printer, ReceiptText, Trash
 import { useEffect, useMemo, useState } from 'react';
 
 import type { AdminEnquiry, AdminQuoteItem, AdminQuotePayload, AdminQuoteVersion } from '../../src/api/admin';
+import { fetchCommercialSettings } from '../../src/api/admin';
 import { formatCurrency } from '../../src/data/pricing';
 import { fetchServiceCatalogue, mergeServiceCatalogue } from '../../src/api/services';
 
@@ -11,22 +12,22 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onDepositInvoi
   onUpdate: (quoteId: string, payload: AdminQuotePayload) => Promise<void>;
   onConvert: (quote: AdminQuoteVersion) => Promise<void>;
   onDepositInvoice: (quoteId: string, status: 'pending' | 'sent' | 'paid', reference?: string) => Promise<void>;
-  onPrepareEmail: (quote: AdminQuoteVersion) => void;
+  onPrepareEmail: (quote: AdminQuoteVersion, approvalUrl: string) => void;
   onShare: (quoteId: string) => Promise<string>;
   onStatus: (quoteId: string, status: AdminQuoteVersion['status']) => Promise<void>;
 }) {
   const latest = enquiry.quote_versions[enquiry.quote_versions.length - 1];
   const initialItems = latest?.items.length ? latest.items : enquiry.quote_items;
   const [items, setItems] = useState<AdminQuoteItem[]>(initialItems.length ? initialItems : [{ service: '', category: '', hours: 1, rate: 16.5 }]);
-  const [discount, setDiscount] = useState(0);
-  const [deposit, setDeposit] = useState(0);
-  const [expenses, setExpenses] = useState(0);
-  const [taxRate, setTaxRate] = useState(0);
-  const [notes, setNotes] = useState('');
-  const [validUntil, setValidUntil] = useState('');
+  const [discount, setDiscount] = useState(latest?.discount ?? 0);
+  const [deposit, setDeposit] = useState(latest?.deposit ?? 0);
+  const [expenses, setExpenses] = useState(latest?.expenses ?? 0);
+  const [taxRate, setTaxRate] = useState(latest?.tax_rate ?? 0);
+  const [notes, setNotes] = useState(latest?.notes ?? '');
+  const [validUntil, setValidUntil] = useState(latest?.valid_until?.slice(0, 10) ?? '');
   const [isSaving, setIsSaving] = useState(false);
   const [shareLinks, setShareLinks] = useState<Record<string, string>>({});
-  const [catalogueServices, setCatalogueServices] = useState<{ name: string; category: string; hours: number; rate: number }[]>([]);
+  const [catalogueServices, setCatalogueServices] = useState<{ name: string; category: string; hours: number; rate: number; deposit: number }[]>([]);
   const [invoiceReferences, setInvoiceReferences] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -39,17 +40,33 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onDepositInvoi
             category: group.subcategory,
             hours: service.estimatedHours,
             rate: service.hourlyRate ?? 0,
+            deposit: service.depositAmount ?? 0,
           })),
         ),
       ));
     });
   }, []);
+  useEffect(() => { void fetchCommercialSettings().then((settings) => setTaxRate(settings.tax_rate)); }, []);
 
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + (!item.optional || item.included ? Number(item.hours || 0) * Number(item.rate || 0) : 0), 0), [items]);
   const taxable = Math.max(0, subtotal - Number(discount || 0) + Number(expenses || 0));
   const total = taxable + taxable * Number(taxRate || 0) / 100;
+  useEffect(() => {
+    if (!items.some((item) => Number(item.deposit_amount || 0) > 0)) return;
+    const netDeposit = items.reduce((sum, item) => sum + (!item.optional || item.included ? Number(item.deposit_amount || 0) : 0), 0);
+    setDeposit(Number((netDeposit * (1 + Number(taxRate || 0) / 100)).toFixed(2)));
+  }, [items, taxRate]);
 
-  const updateItem = (index: number, patch: Partial<AdminQuoteItem>) => setItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
+  const updateItem = (index: number, patch: Partial<AdminQuoteItem>, syncDeposit = false) => setItems((current) => {
+    const next = current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item);
+    if (syncDeposit) setDeposit(next.reduce((sum, item) => sum + (!item.optional || item.included ? Number(item.deposit_amount || 0) : 0), 0));
+    return next;
+  });
+  const removeItem = (index: number) => setItems((current) => {
+    const next = current.filter((_, itemIndex) => itemIndex !== index);
+    setDeposit(next.reduce((sum, item) => sum + (!item.optional || item.included ? Number(item.deposit_amount || 0) : 0), 0));
+    return next;
+  });
 
   const saveVersion = async () => {
     setIsSaving(true);
@@ -66,14 +83,14 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onDepositInvoi
         <div className="admin-quote-editor-items">
           {items.map((item, index) => (
             <div className="admin-quote-editor-row" key={index}>
-              <input aria-label="Service" className="form-control" list={`quote-service-options-${index}`} onChange={(event) => { const selected = catalogueServices.find((service) => service.name === event.target.value); updateItem(index, selected ? { service: selected.name, category: selected.category, hours: selected.hours, rate: selected.rate } : { service: event.target.value }); }} placeholder="Search or enter service" value={item.service} />
+              <input aria-label="Service" className="form-control" list={`quote-service-options-${index}`} onChange={(event) => { const selected = catalogueServices.find((service) => service.name === event.target.value); updateItem(index, selected ? { service: selected.name, category: selected.category, hours: selected.hours, rate: selected.rate, deposit_amount: selected.deposit } : { service: event.target.value }, Boolean(selected)); }} placeholder="Search or enter service" value={item.service} />
               <datalist id={`quote-service-options-${index}`}>{catalogueServices.map((service) => <option key={`${service.category}-${service.name}`} value={service.name}>{service.category}</option>)}</datalist>
               <input aria-label="Category" className="form-control" onChange={(event) => updateItem(index, { category: event.target.value })} placeholder="Category" value={item.category} />
               <input aria-label="Hours" className="form-control" min="0.25" onChange={(event) => updateItem(index, { hours: Number(event.target.value) })} step="0.25" type="number" value={item.hours} />
               <input aria-label="Hourly rate" className="form-control" min="0.01" onChange={(event) => updateItem(index, { rate: Number(event.target.value) })} step="0.01" type="number" value={item.rate} />
-              <label className="admin-quote-option"><input checked={item.optional ?? false} onChange={(event) => updateItem(index, { optional: event.target.checked, included: event.target.checked ? false : true })} type="checkbox" /> Optional</label>
-              {item.optional ? <label className="admin-quote-option"><input checked={item.included ?? false} onChange={(event) => updateItem(index, { included: event.target.checked })} type="checkbox" /> Include</label> : <span />}
-              <button className="admin-icon-button" disabled={items.length === 1} onClick={() => setItems((current) => current.filter((_, itemIndex) => itemIndex !== index))} title="Remove item" type="button"><Trash2 size={16} /></button>
+              <label className="admin-quote-option"><input checked={item.optional ?? false} onChange={(event) => updateItem(index, { optional: event.target.checked, included: event.target.checked ? false : true }, true)} type="checkbox" /> Optional</label>
+              {item.optional ? <label className="admin-quote-option"><input checked={item.included ?? false} onChange={(event) => updateItem(index, { included: event.target.checked }, true)} type="checkbox" /> Include</label> : <span />}
+              <button className="admin-icon-button" disabled={items.length === 1} onClick={() => removeItem(index)} title="Remove item" type="button"><Trash2 size={16} /></button>
             </div>
           ))}
         </div>
@@ -82,7 +99,7 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onDepositInvoi
           <label>Discount (£)<input className="form-control" min="0" onChange={(event) => setDiscount(Number(event.target.value))} step="0.01" type="number" value={discount} /></label>
           <label>Deposit (£)<input className="form-control" min="0" onChange={(event) => setDeposit(Number(event.target.value))} step="0.01" type="number" value={deposit} /></label>
           <label>Expenses (£)<input className="form-control" min="0" onChange={(event) => setExpenses(Number(event.target.value))} step="0.01" type="number" value={expenses} /></label>
-          <label>Tax rate (%)<input className="form-control" min="0" max="100" onChange={(event) => setTaxRate(Number(event.target.value))} step="0.01" type="number" value={taxRate} /></label>
+          <label>Tax rate (global)<input className="form-control" readOnly value={`${taxRate}%`} /></label>
           <label>Valid until<input className="form-control" onChange={(event) => setValidUntil(event.target.value)} type="date" value={validUntil} /></label>
         </div>
         <label className="form-label">Quote notes<textarea className="form-control" maxLength={2000} onChange={(event) => setNotes(event.target.value)} rows={3} value={notes} /></label>
@@ -98,7 +115,7 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onDepositInvoi
             <select aria-label={`Version ${quote.version} status`} className="form-select" onChange={(event) => void onStatus(quote.id, event.target.value as AdminQuoteVersion['status'])} value={quote.status}>
               <option value="draft">Draft</option><option value="sent">Sent</option><option value="accepted">Accepted</option><option value="declined">Declined</option><option value="expired">Expired</option>
             </select>
-            <div className="admin-quote-actions"><button className="admin-icon-button" onClick={() => onPrepareEmail(quote)} title="Email quote" type="button"><Mail size={16} /></button><button className="admin-icon-button" onClick={() => void onShare(quote.id).then((url) => { setShareLinks((current) => ({ ...current, [quote.id]: url })); void navigator.clipboard.writeText(url); })} title="Create and copy approval link" type="button"><Link2 size={16} /></button>{shareLinks[quote.id] ? <button className="admin-icon-button" onClick={() => window.open(shareLinks[quote.id], '_blank', 'noopener,noreferrer')} title="Open printable quote" type="button"><Printer size={16} /></button> : null}<button className="admin-icon-button" onClick={() => void onConvert(quote)} title="Convert quote to project" type="button"><BriefcaseBusiness size={16} /></button></div>
+            <div className="admin-quote-actions"><button className="admin-icon-button" onClick={() => void onShare(quote.id).then((url) => { setShareLinks((current) => ({ ...current, [quote.id]: url })); onPrepareEmail(quote, url); })} title="Email approval link" type="button"><Mail size={16} /></button><button className="admin-icon-button" onClick={() => void onShare(quote.id).then((url) => { setShareLinks((current) => ({ ...current, [quote.id]: url })); void navigator.clipboard.writeText(url); })} title="Create and copy approval link" type="button"><Link2 size={16} /></button>{shareLinks[quote.id] ? <button className="admin-icon-button" onClick={() => window.open(shareLinks[quote.id], '_blank', 'noopener,noreferrer')} title="Open printable quote" type="button"><Printer size={16} /></button> : null}<button className="admin-icon-button" onClick={() => void onConvert(quote)} title="Convert quote to project" type="button"><BriefcaseBusiness size={16} /></button></div>
             <DepositInvoiceWorkflow invoiceReferences={invoiceReferences} onReference={(value) => setInvoiceReferences((current) => ({ ...current, [quote.id]: value }))} onStatus={(status, reference) => onDepositInvoice(quote.id, status, reference)} quote={quote} />
           </article>
         ))}

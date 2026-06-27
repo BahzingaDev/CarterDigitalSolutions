@@ -1,4 +1,6 @@
-from flask import Blueprint, current_app, jsonify, request, session
+from datetime import datetime, timedelta, timezone
+
+from flask import Blueprint, Response, current_app, jsonify, request, session
 
 from ..services.admin_service import (
     AdminStorageError,
@@ -6,16 +8,19 @@ from ..services.admin_service import (
     authenticate_admin_account,
     create_admin_account,
 )
-from ..services.email_service import send_customer_message
+from ..services.email_service import send_customer_message, send_project_invoice
+from ..services.invoice_service import generate_invoice_pdf
 from ..services.customer_service import CustomerStorageError, list_customer_profiles, save_customer_profile
 from ..services.workspace_service import (
     WorkspaceStorageError,
     delete_project,
+    get_project,
     delete_record,
     delete_template,
     delete_service_override,
     delete_service_category,
     list_projects,
+    mark_project_invoice_sent,
     list_records,
     list_templates,
     list_service_overrides,
@@ -26,7 +31,9 @@ from ..services.workspace_service import (
     save_service_override,
     save_service_category,
     get_communication_settings,
+    get_commercial_settings,
     save_communication_settings,
+    save_commercial_settings,
 )
 from ..services.enquiry_service import (
     EnquiryStorageError,
@@ -52,6 +59,28 @@ from ..utils.rate_limit import request_ip_key
 from ..utils.security import origin_is_allowed
 
 admin_bp = Blueprint("admin", __name__)
+
+
+@admin_bp.get("/admin/commercial-settings")
+@require_admin
+def admin_commercial_settings():
+    try:
+        return jsonify({"settings": get_commercial_settings()})
+    except WorkspaceStorageError:
+        return jsonify({"error": "Workspace storage is unavailable."}), 503
+
+
+@admin_bp.put("/admin/commercial-settings")
+@require_admin_write
+def update_admin_commercial_settings():
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json."}), 415
+    try:
+        return jsonify({"settings": save_commercial_settings(request.get_json(silent=True) or {})})
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except WorkspaceStorageError:
+        return jsonify({"error": "Workspace storage is unavailable."}), 503
 
 
 @admin_bp.get("/admin/communication-settings")
@@ -172,6 +201,52 @@ def update_admin_project(item_id: str):
 @require_admin_write
 def remove_admin_project(item_id: str):
     return _workspace_delete(delete_project, item_id)
+
+
+@admin_bp.get("/admin/projects/<project_id>/invoices/<invoice_id>/pdf")
+@require_admin
+def download_admin_project_invoice(project_id: str, invoice_id: str):
+    try:
+        project = get_project(project_id)
+        settings = get_commercial_settings()
+    except WorkspaceStorageError:
+        return jsonify({"error": "Workspace storage is unavailable."}), 503
+    if not project:
+        return jsonify({"error": "Project not found."}), 404
+    invoice = next((item for item in project.get("invoices", []) if item.get("id") == invoice_id), None)
+    if not invoice:
+        return jsonify({"error": "Invoice not found."}), 404
+    pdf = generate_invoice_pdf(project, invoice, settings)
+    safe_reference = "".join(character if character.isalnum() or character in {"-", "_"} else "-" for character in invoice["reference"]).strip("-")[:80] or "invoice"
+    filename = f"invoice-{safe_reference}.pdf"
+    return Response(pdf, mimetype="application/pdf", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@admin_bp.post("/admin/projects/<project_id>/invoices/<invoice_id>/send")
+@require_admin_write
+def send_admin_project_invoice(project_id: str, invoice_id: str):
+    try:
+        project = get_project(project_id)
+        settings = get_commercial_settings()
+        if not project:
+            return jsonify({"error": "Project not found."}), 404
+        invoice = next((item for item in project.get("invoices", []) if item.get("id") == invoice_id), None)
+        if not invoice:
+            return jsonify({"error": "Invoice not found."}), 404
+        if invoice.get("status") == "void":
+            return jsonify({"error": "A void invoice cannot be sent."}), 400
+        issue_date = datetime.now(timezone.utc).date()
+        due_date = invoice.get("due_date") or (issue_date + timedelta(days=settings["invoice_due_days"])).isoformat()
+        invoice = {**invoice, "issue_date": issue_date.isoformat(), "due_date": due_date}
+        pdf = generate_invoice_pdf(project, invoice, settings)
+        provider_message_id = send_project_invoice(project, invoice, pdf, settings)
+        updated = mark_project_invoice_sent(project_id, invoice_id, provider_message_id, due_date, invoice.get("status", "draft"))
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except (WorkspaceStorageError, RuntimeError):
+        current_app.logger.exception("Project invoice delivery failed")
+        return jsonify({"error": "Invoice delivery is unavailable."}), 503
+    return jsonify({"project": updated})
 
 
 @admin_bp.get("/admin/services")
