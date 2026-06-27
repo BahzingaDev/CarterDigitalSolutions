@@ -13,7 +13,7 @@ export function AdminOverview({
   onSelect: (id: string) => void;
 }) {
   const newCount = enquiries.filter((enquiry) => enquiry.status === 'new').length;
-  const activeCount = enquiries.filter((enquiry) => !['replied', 'closed'].includes(enquiry.status)).length;
+  const followUpsDue = enquiries.filter((enquiry) => enquiry.follow_up_at && new Date(enquiry.follow_up_at) <= new Date() && enquiry.status !== 'closed').length;
   const quoteRequests = enquiries.filter((enquiry) => enquiry.type === 'quote');
   const pipelineValue = quoteRequests
     .filter((enquiry) => enquiry.status !== 'closed')
@@ -23,7 +23,7 @@ export function AdminOverview({
     <div className="admin-view-stack">
       <div className="admin-metric-grid">
         <Metric icon={Inbox} label="New enquiries" value={String(newCount)} tone="purple" />
-        <Metric icon={Clock3} label="Awaiting action" value={String(activeCount)} tone="amber" />
+        <Metric icon={Clock3} label="Follow-ups due" value={String(followUpsDue)} tone="amber" />
         <Metric icon={PoundSterling} label="Quoted pipeline" value={formatCurrency(pipelineValue)} tone="green" />
         <Metric icon={CircleCheck} label="Closed" value={String(enquiries.filter((item) => item.status === 'closed').length)} tone="neutral" />
       </div>

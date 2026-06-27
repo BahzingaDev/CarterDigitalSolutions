@@ -19,6 +19,38 @@ export interface AdminQuoteItem {
   rate: number;
 }
 
+export interface AdminQuoteVersion {
+  id: string;
+  version: number;
+  status: 'draft' | 'sent' | 'accepted' | 'declined' | 'expired';
+  items: AdminQuoteItem[];
+  subtotal: number;
+  discount: number;
+  total: number;
+  deposit: number;
+  notes: string;
+  valid_until?: string | null;
+  created_at: string;
+  status_updated_at?: string;
+}
+
+export interface AdminActivity {
+  id: string;
+  type: string;
+  description: string;
+  created_at: string;
+}
+
+export interface AdminCommunication {
+  id: string;
+  direction: 'outgoing';
+  subject: string;
+  message: string;
+  status: 'sent' | 'failed';
+  sent_at: string;
+  sent_by: string;
+}
+
 export interface AdminEnquiry {
   id: string;
   created_at: string;
@@ -34,7 +66,17 @@ export interface AdminEnquiry {
   estimated_hours: number;
   estimated_cost: number;
   admin_notes: string;
+  labels: string[];
+  follow_up_at?: string | null;
+  archived: boolean;
+  quote_versions: AdminQuoteVersion[];
+  communications: AdminCommunication[];
+  activity: AdminActivity[];
 }
+
+export type AdminEnquiryUpdate = Partial<
+  Pick<AdminEnquiry, 'status' | 'priority' | 'admin_notes' | 'labels' | 'follow_up_at' | 'archived'>
+>;
 
 export async function fetchAdminSession() {
   const response = await fetch('/api/admin/auth/session', {
@@ -88,7 +130,7 @@ export async function fetchAdminEnquiries() {
 export async function updateAdminEnquiry(
   csrfToken: string,
   id: string,
-  payload: Partial<Pick<AdminEnquiry, 'status' | 'admin_notes'>>,
+  payload: AdminEnquiryUpdate,
 ) {
   const response = await fetch(`/api/admin/enquiries/${encodeURIComponent(id)}`, {
     method: 'PATCH',
@@ -99,6 +141,53 @@ export async function updateAdminEnquiry(
       'X-CSRF-Token': csrfToken,
     },
     body: JSON.stringify(payload),
+  });
+  return parseAdminResponse<{ enquiry: AdminEnquiry }>(response);
+}
+
+export async function createAdminQuote(
+  csrfToken: string,
+  id: string,
+  payload: {
+    items: AdminQuoteItem[];
+    discount: number;
+    deposit: number;
+    notes: string;
+    valid_until: string | null;
+  },
+) {
+  const response = await fetch(`/api/admin/enquiries/${encodeURIComponent(id)}/quotes`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+    body: JSON.stringify(payload),
+  });
+  return parseAdminResponse<{ enquiry: AdminEnquiry }>(response);
+}
+
+export async function updateAdminQuoteStatus(csrfToken: string, enquiryId: string, quoteId: string, status: AdminQuoteVersion['status']) {
+  const response = await fetch(`/api/admin/enquiries/${encodeURIComponent(enquiryId)}/quotes/${encodeURIComponent(quoteId)}`, {
+    method: 'PATCH',
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+    body: JSON.stringify({ status }),
+  });
+  return parseAdminResponse<{ enquiry: AdminEnquiry }>(response);
+}
+
+export async function createQuoteShareLink(csrfToken: string, enquiryId: string, quoteId: string) {
+  const response = await fetch(`/api/admin/enquiries/${encodeURIComponent(enquiryId)}/quotes/${encodeURIComponent(quoteId)}/share`, {
+    method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'X-CSRF-Token': csrfToken },
+  });
+  return parseAdminResponse<{ url: string }>(response);
+}
+
+export async function sendAdminCommunication(csrfToken: string, enquiryId: string, subject: string, message: string, quoteId?: string) {
+  const response = await fetch(`/api/admin/enquiries/${encodeURIComponent(enquiryId)}/communications`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+    body: JSON.stringify({ subject, message, quote_id: quoteId ?? '' }),
   });
   return parseAdminResponse<{ enquiry: AdminEnquiry }>(response);
 }

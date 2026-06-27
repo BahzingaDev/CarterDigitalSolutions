@@ -6,7 +6,17 @@ from ..services.admin_service import (
     authenticate_admin_account,
     create_admin_account,
 )
-from ..services.enquiry_service import EnquiryStorageError, list_enquiries, update_enquiry
+from ..services.email_service import send_customer_message
+from ..services.enquiry_service import (
+    EnquiryStorageError,
+    create_quote_version,
+    create_quote_approval_link,
+    get_enquiry,
+    list_enquiries,
+    record_communication,
+    update_enquiry,
+    update_quote_status,
+)
 from ..utils.admin_auth import (
     admin_login_rate_limited,
     admin_session_payload,
@@ -204,5 +214,117 @@ def update_admin_enquiry(enquiry_id: str):
 
     if not updated:
         return jsonify({"error": "Enquiry not found."}), 404
+
+    return jsonify({"enquiry": updated})
+
+
+@admin_bp.post("/admin/enquiries/<enquiry_id>/quotes")
+@require_admin_write
+def create_admin_quote(enquiry_id: str):
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json."}), 415
+
+    try:
+        updated = create_quote_version(
+            enquiry_id,
+            request.get_json(silent=True) or {},
+            session.get("admin_email", ""),
+        )
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except EnquiryStorageError:
+        current_app.logger.exception("Admin quote creation failed")
+        return jsonify({"error": "Enquiry storage is unavailable."}), 503
+
+    if not updated:
+        return jsonify({"error": "Enquiry not found."}), 404
+    return jsonify({"enquiry": updated}), 201
+
+
+@admin_bp.patch("/admin/enquiries/<enquiry_id>/quotes/<quote_id>")
+@require_admin_write
+def update_admin_quote(enquiry_id: str, quote_id: str):
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json."}), 415
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        updated = update_quote_status(enquiry_id, quote_id, str(payload.get("status", "")))
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except EnquiryStorageError:
+        current_app.logger.exception("Admin quote update failed")
+        return jsonify({"error": "Enquiry storage is unavailable."}), 503
+
+    if not updated:
+        return jsonify({"error": "Enquiry not found."}), 404
+    return jsonify({"enquiry": updated})
+
+
+@admin_bp.post("/admin/enquiries/<enquiry_id>/quotes/<quote_id>/share")
+@require_admin_write
+def share_admin_quote(enquiry_id: str, quote_id: str):
+    try:
+        token = create_quote_approval_link(enquiry_id, quote_id)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except EnquiryStorageError:
+        current_app.logger.exception("Admin quote link creation failed")
+        return jsonify({"error": "Enquiry storage is unavailable."}), 503
+    if not token:
+        return jsonify({"error": "Enquiry not found."}), 404
+    url = f"{request.host_url.rstrip('/')}/quote-review#quote={quote_id}&token={token}"
+    return jsonify({"url": url})
+
+
+@admin_bp.post("/admin/enquiries/<enquiry_id>/communications")
+@require_admin_write
+def send_admin_communication(enquiry_id: str):
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json."}), 415
+
+    payload = request.get_json(silent=True) or {}
+    subject = str(payload.get("subject", "")).strip()
+    message = str(payload.get("message", "")).strip()
+    quote_id = str(payload.get("quote_id", "")).strip()
+
+    try:
+        enquiry = get_enquiry(enquiry_id)
+        if not enquiry:
+            return jsonify({"error": "Enquiry not found."}), 404
+        send_customer_message(enquiry, subject, message)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except EnquiryStorageError:
+        return jsonify({"error": "Enquiry storage is unavailable."}), 503
+    except Exception:
+        current_app.logger.exception("Admin customer email delivery failed")
+        try:
+            record_communication(
+                enquiry_id,
+                subject or "Untitled message",
+                message or "Message content unavailable",
+                "failed",
+                session.get("admin_email", ""),
+            )
+        except Exception:
+            current_app.logger.exception("Failed email could not be recorded")
+        return jsonify({"error": "Email delivery failed. The attempt was recorded."}), 502
+
+    try:
+        updated = record_communication(
+            enquiry_id,
+            subject,
+            message,
+            "sent",
+            session.get("admin_email", ""),
+        )
+        if quote_id:
+            updated = update_quote_status(enquiry_id, quote_id, "sent")
+    except (ValueError, EnquiryStorageError):
+        current_app.logger.exception("Delivered email could not be recorded")
+        return jsonify(
+            {"error": "Email was sent, but its delivery record could not be saved."}
+        ), 500
 
     return jsonify({"enquiry": updated})

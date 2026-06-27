@@ -1756,6 +1756,317 @@ body {
 :root[data-theme='dark'] .admin-metric-icon.is-green,
 :root[data-theme='dark'] .admin-status-replied { color: #bbf7d0; background: #173e2a; }
 
+.admin-detail-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-detail-tabs button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 42px;
+  padding: 0.6rem;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.admin-detail-tabs button:hover,
+.admin-detail-tabs button.is-active {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-accent-strong);
+}
+
+.admin-workflow-stack {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.admin-subpanel {
+  display: grid;
+  gap: 1rem;
+  padding-top: 0.25rem;
+}
+
+.admin-subpanel + .admin-subpanel {
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.admin-subpanel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-subpanel-heading h3 {
+  margin: 0 0 0.2rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.admin-subpanel-heading p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+}
+
+.admin-subpanel-heading > span {
+  color: var(--color-accent-strong);
+  font-size: 1.15rem;
+  font-weight: 850;
+}
+
+.admin-management-grid,
+.admin-quote-terms-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-management-grid label,
+.admin-quote-terms-grid label,
+.admin-compose-panel > label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.admin-management-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.admin-management-actions .btn,
+.admin-inline-action,
+.admin-quote-version .btn,
+.admin-compose-panel .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.admin-archive-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.admin-archive-toggle input { accent-color: var(--color-accent); }
+
+.admin-follow-up {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 0.25rem;
+  color: #92400e !important;
+}
+
+.admin-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+
+.admin-pagination button {
+  border: 0;
+  background: transparent;
+  color: var(--color-accent-strong);
+  font-weight: 750;
+}
+
+.admin-pagination button:disabled { color: var(--color-muted); opacity: 0.5; }
+
+.admin-quote-editor-items {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.admin-quote-editor-row {
+  display: grid;
+  align-items: center;
+  gap: 0.5rem;
+  grid-template-columns: minmax(130px, 1.5fr) minmax(100px, 1fr) 76px 92px 38px;
+}
+
+.admin-inline-action {
+  justify-self: start;
+  padding: 0;
+  color: var(--color-accent-strong);
+  text-decoration: none;
+}
+
+.admin-quote-summary {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1.5rem;
+  padding: 0.85rem 0;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-muted);
+}
+
+.admin-quote-summary span { display: grid; gap: 0.1rem; }
+.admin-quote-summary strong { color: var(--color-text); font-size: 1.05rem; }
+
+.admin-quote-version {
+  display: grid;
+  align-items: center;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) 130px auto;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-quote-version:last-child { border-bottom: 0; }
+.admin-quote-version > div { display: grid; }
+.admin-quote-version small { color: var(--color-muted); }
+.admin-quote-actions { display: flex !important; gap: 0.35rem; }
+
+.quote-review-page {
+  width: min(960px, calc(100% - 2rem));
+  margin: 2rem auto 4rem;
+  padding: clamp(1.25rem, 4vw, 3rem);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: 0 12px 40px var(--color-shadow);
+}
+
+.quote-review-header,
+.quote-review-title,
+.quote-review-meta,
+.quote-review-totals {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.quote-review-header { padding-bottom: 2rem; border-bottom: 4px solid var(--color-accent); }
+.quote-review-header .admin-brand { color: var(--color-text); }
+.quote-review-header .btn { display: inline-flex; align-items: center; gap: 0.4rem; }
+.quote-review-title { align-items: flex-end; padding: 2rem 0; }
+.quote-review-title p { margin: 0 0 0.35rem; color: var(--color-accent-strong); font-size: 0.75rem; font-weight: 850; }
+.quote-review-title h1 { margin: 0; font-size: 2rem; font-weight: 850; }
+.quote-review-meta { align-items: stretch; margin: 0 0 2rem; padding: 1rem; background: var(--color-page); }
+.quote-review-meta div { display: grid; gap: 0.2rem; }
+.quote-review-meta dt { color: var(--color-muted); font-size: 0.72rem; font-weight: 800; text-transform: uppercase; }
+.quote-review-meta dd { margin: 0; font-weight: 700; }
+.quote-review-table { width: 100%; border-collapse: collapse; }
+.quote-review-table th { padding: 0.75rem; background: #6d28d9; color: #fff; font-size: 0.75rem; text-align: right; }
+.quote-review-table th:first-child { text-align: left; }
+.quote-review-table td { padding: 0.9rem 0.75rem; border-bottom: 1px solid var(--color-border); text-align: right; }
+.quote-review-table td:first-child { display: grid; text-align: left; }
+.quote-review-table small { color: var(--color-muted); }
+.quote-review-totals { align-items: flex-end; flex-direction: column; margin-left: auto; padding: 1.5rem 0; }
+.quote-review-totals span { display: flex; justify-content: space-between; gap: 3rem; width: min(320px, 100%); }
+.quote-review-totals .is-total { padding-top: 0.6rem; border-top: 2px solid var(--color-text); font-size: 1.2rem; }
+.quote-review-notes { padding: 1rem 0; border-top: 1px solid var(--color-border); }
+.quote-review-notes h2, .quote-approval h2, .quote-approved h2 { font-size: 1.1rem; font-weight: 800; }
+.quote-approval, .quote-approved { margin-top: 2rem; padding: 1.25rem; border: 1px solid var(--color-accent); border-radius: 8px; background: var(--color-accent-soft); }
+.quote-approval label { display: grid; gap: 0.35rem; margin-bottom: 1rem; font-weight: 700; }
+.quote-approval .quote-confirm { display: flex; align-items: center; }
+.quote-approval input[type='checkbox'] { accent-color: var(--color-accent); }
+.quote-approved { display: flex; align-items: flex-start; gap: 0.75rem; color: #166534; }
+.quote-approved h2, .quote-approved p { margin: 0; }
+.quote-review-state { display: grid; place-items: center; min-height: 55vh; padding: 2rem; text-align: center; }
+
+@media print {
+  .site-navbar, .site-footer, .no-print { display: none !important; }
+  .quote-review-page { width: 100%; margin: 0; padding: 0; border: 0; box-shadow: none; }
+}
+
+.admin-communication-list {
+  display: grid;
+}
+
+.admin-communication-list article {
+  display: grid;
+  align-items: start;
+  gap: 0.75rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-communication-list article:last-child { border-bottom: 0; }
+.admin-communication-list article div { display: grid; gap: 0.25rem; }
+.admin-communication-list p { margin: 0; color: var(--color-text); white-space: pre-wrap; }
+.admin-communication-list small { color: var(--color-muted); }
+
+.admin-reuse-message {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 0.3rem;
+  padding: 0;
+  color: var(--color-accent-strong);
+  font-size: 0.76rem;
+  text-decoration: none;
+}
+
+.admin-delivery {
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.admin-delivery-sent { color: #166534; background: #dcfce7; }
+.admin-delivery-failed { color: #991b1b; background: #fee2e2; }
+
+.admin-activity-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-activity-list li {
+  position: relative;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 32px minmax(0, 1fr);
+  min-height: 58px;
+}
+
+.admin-activity-list li::before {
+  position: absolute;
+  top: 32px;
+  bottom: 0;
+  left: 15px;
+  width: 1px;
+  background: var(--color-border);
+  content: '';
+}
+
+.admin-activity-list li:last-child::before { display: none; }
+.admin-activity-list li > span { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--color-accent-soft); color: var(--color-accent-strong); }
+.admin-activity-list li > div { display: grid; align-content: start; gap: 0.15rem; padding-top: 0.25rem; }
+.admin-activity-list small { color: var(--color-muted); }
+
+:root[data-theme='dark'] .admin-delivery-sent { color: #bbf7d0; background: #173e2a; }
+:root[data-theme='dark'] .admin-delivery-failed { color: #fecaca; background: #4a2025; }
+
 .testimonial-card {
   margin-bottom: 0;
   padding: 1.5rem;
@@ -2463,6 +2774,11 @@ body {
   .admin-inbox-list-panel .admin-enquiry-list {
     max-height: 28rem;
   }
+
+  .admin-quote-editor-row {
+    grid-template-columns: minmax(130px, 1.5fr) minmax(100px, 1fr) 76px 92px 38px;
+    overflow-x: auto;
+  }
 }
 
 @media (max-width: 575.98px) {
@@ -2513,12 +2829,41 @@ body {
   }
 
   .admin-filter-row,
-  .admin-meta-grid {
+  .admin-meta-grid,
+  .admin-management-grid,
+  .admin-quote-terms-grid {
     grid-template-columns: 1fr;
   }
 
   .admin-detail-card,
   .admin-login-panel {
     padding: 1.15rem;
+  }
+
+  .admin-detail-tabs button span {
+    display: none;
+  }
+
+  .admin-quote-editor-row {
+    align-items: stretch;
+    grid-template-columns: 1fr 1fr 38px;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .admin-quote-editor-row input:first-child,
+  .admin-quote-editor-row input:nth-child(2) {
+    grid-column: span 3;
+  }
+
+  .admin-quote-version {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .admin-management-actions,
+  .admin-quote-summary {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

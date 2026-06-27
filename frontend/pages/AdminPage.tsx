@@ -9,14 +9,21 @@ import { AdminSidebar } from '../components/admin/AdminSidebar';
 import { AdminSetup } from '../components/admin/AdminSetup';
 import {
   type AdminEnquiry,
+  type AdminEnquiryUpdate,
+  type AdminQuoteItem,
+  type AdminQuoteVersion,
   type AdminSession,
   type AdminView,
+  createAdminQuote,
+  createQuoteShareLink,
   fetchAdminEnquiries,
   fetchAdminSession,
   loginAdmin,
   logoutAdmin,
+  sendAdminCommunication,
   setupAdmin,
   updateAdminEnquiry,
+  updateAdminQuoteStatus,
 } from '../src/api/admin';
 
 const viewTitles: Record<AdminView, { title: string; description: string }> = {
@@ -94,17 +101,49 @@ export function AdminPage() {
     setSelectedId(null);
   };
 
-  const handleUpdate = async (id: string, payload: Partial<Pick<AdminEnquiry, 'status' | 'admin_notes'>>) => {
+  const replaceEnquiry = (updated: AdminEnquiry) => {
+    setEnquiries((current) => current.map((item) => item.id === updated.id ? updated : item));
+  };
+
+  const handleUpdate = async (id: string, payload: AdminEnquiryUpdate) => {
     if (!session?.csrf_token) return;
     setError('');
     setMessage('');
     try {
       const data = await updateAdminEnquiry(session.csrf_token, id, payload);
-      setEnquiries((current) => current.map((item) => item.id === id ? data.enquiry : item));
+      replaceEnquiry(data.enquiry);
       setMessage('Enquiry updated successfully.');
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : 'Unable to update enquiry');
     }
+  };
+
+  const handleCreateQuote = async (id: string, payload: { items: AdminQuoteItem[]; discount: number; deposit: number; notes: string; valid_until: string | null }) => {
+    if (!session?.csrf_token) return;
+    setError(''); setMessage('');
+    try { const data = await createAdminQuote(session.csrf_token, id, payload); replaceEnquiry(data.enquiry); setMessage('Quote version created.'); }
+    catch (quoteError) { setError(quoteError instanceof Error ? quoteError.message : 'Unable to create quote'); throw quoteError; }
+  };
+
+  const handleQuoteStatus = async (enquiryId: string, quoteId: string, status: AdminQuoteVersion['status']) => {
+    if (!session?.csrf_token) return;
+    setError(''); setMessage('');
+    try { const data = await updateAdminQuoteStatus(session.csrf_token, enquiryId, quoteId, status); replaceEnquiry(data.enquiry); setMessage('Quote status updated.'); }
+    catch (quoteError) { setError(quoteError instanceof Error ? quoteError.message : 'Unable to update quote'); }
+  };
+
+  const handleSend = async (id: string, subject: string, body: string, quoteId?: string) => {
+    if (!session?.csrf_token) return;
+    setError(''); setMessage('');
+    try { const data = await sendAdminCommunication(session.csrf_token, id, subject, body, quoteId); replaceEnquiry(data.enquiry); setMessage('Email sent and recorded.'); }
+    catch (sendError) { setError(sendError instanceof Error ? sendError.message : 'Unable to send email'); throw sendError; }
+  };
+
+  const handleShareQuote = async (enquiryId: string, quoteId: string) => {
+    if (!session?.csrf_token) throw new Error('Authentication required.');
+    const data = await createQuoteShareLink(session.csrf_token, enquiryId, quoteId);
+    setMessage('Secure approval link copied to the clipboard.');
+    return data.url;
   };
 
   if (!session || (isLoading && !session.authenticated)) {
@@ -146,8 +185,8 @@ export function AdminPage() {
           {message ? <div className="alert alert-success" role="status">{message}</div> : null}
           {error ? <div className="alert alert-danger" role="alert">{error}</div> : null}
           {view === 'overview' ? <AdminOverview enquiries={enquiries} onNavigate={setView} onSelect={setSelectedId} /> : null}
-          {view === 'enquiries' ? <AdminInbox enquiries={enquiries} mode="all" onSelect={setSelectedId} onUpdate={handleUpdate} selectedId={selectedId} /> : null}
-          {view === 'quotes' ? <AdminInbox enquiries={enquiries} mode="quotes" onSelect={setSelectedId} onUpdate={handleUpdate} selectedId={selectedId} /> : null}
+          {view === 'enquiries' ? <AdminInbox enquiries={enquiries} mode="all" onCreateQuote={handleCreateQuote} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} selectedId={selectedId} /> : null}
+          {view === 'quotes' ? <AdminInbox enquiries={enquiries} mode="quotes" onCreateQuote={handleCreateQuote} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} selectedId={selectedId} /> : null}
           {view === 'account' ? <AdminAccount email={session.email ?? ''} name={session.name ?? 'Administrator'} /> : null}
         </div>
       </main>

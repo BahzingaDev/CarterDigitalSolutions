@@ -61,6 +61,80 @@ def send_enquiry_notification(enquiry: dict[str, Any], saved: dict[str, str]) ->
     _send_smtp_messages(enquiry, saved)
 
 
+def send_customer_message(enquiry: dict[str, Any], subject: str, message: str) -> None:
+    if not email_notifications_configured():
+        raise RuntimeError("Email delivery is not configured.")
+
+    clean_subject = subject.strip()
+    clean_message = message.strip()
+    if not clean_subject or len(clean_subject) > 180:
+        raise ValueError("Subject must contain between 1 and 180 characters.")
+    if not clean_message or len(clean_message) > 5000:
+        raise ValueError("Message must contain between 1 and 5000 characters.")
+
+    if current_app.config.get("EMAIL_PROVIDER") == "resend":
+        _send_resend_payload(
+            {
+                "from": current_app.config["CUSTOMER_EMAIL_FROM"],
+                "to": [enquiry["email"]],
+                "subject": clean_subject,
+                "text": clean_message,
+                "html": _customer_message_html(enquiry["name"], clean_message),
+                "reply_to": current_app.config["ENQUIRY_EMAIL_TO"],
+                "tags": [
+                    {"name": "email_type", "value": "admin_reply"},
+                    {"name": "enquiry_type", "value": _tag_value(enquiry["type"])},
+                ],
+            }
+        )
+        return
+
+    customer_message = EmailMessage()
+    customer_message["Subject"] = clean_subject
+    customer_message["From"] = current_app.config["CUSTOMER_EMAIL_FROM"]
+    customer_message["To"] = enquiry["email"]
+    customer_message["Reply-To"] = current_app.config["ENQUIRY_EMAIL_TO"]
+    customer_message.set_content(clean_message)
+    customer_message.add_alternative(
+        _customer_message_html(enquiry["name"], clean_message),
+        subtype="html",
+    )
+
+    smtp_class = _smtp_class()
+    with smtp_class(
+        current_app.config["SMTP_HOST"],
+        current_app.config["SMTP_PORT"],
+        timeout=current_app.config["SMTP_TIMEOUT"],
+    ) as smtp:
+        if current_app.config["SMTP_USE_TLS"] and not current_app.config["SMTP_USE_SSL"]:
+            smtp.starttls()
+        username = current_app.config.get("SMTP_USERNAME")
+        password = current_app.config.get("SMTP_PASSWORD")
+        if username and password:
+            smtp.login(username, password)
+        smtp.send_message(customer_message)
+
+
+def _customer_message_html(name: str, message: str) -> str:
+    return f"""<!doctype html>
+<html>
+  <body style="margin: 0; padding: 24px; background: #f7f4fa; color: #2d173d; font-family: Arial, sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+      <tr><td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 640px; background: #ffffff; border: 1px solid #eadff3; border-radius: 8px;">
+          <tr><td style="padding: 28px;">
+            <p style="margin: 0 0 18px; color: #6f2da8; font-weight: bold;">CARTER DIGITAL SOLUTIONS</p>
+            <p style="margin: 0 0 16px;">Hello {escape(name)},</p>
+            <div style="color: #34263d; line-height: 1.6;">{_paragraphs(message)}</div>
+            <p style="margin: 24px 0 0;">Kind regards,<br><strong>Carter Digital Solutions</strong></p>
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body>
+</html>"""
+
+
 def _send_resend_email(enquiry: dict[str, Any], saved: dict[str, str]) -> None:
     payload = {
         "from": current_app.config["ENQUIRY_EMAIL_FROM"],

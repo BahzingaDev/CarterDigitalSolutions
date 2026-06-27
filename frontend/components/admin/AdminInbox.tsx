@@ -1,120 +1,125 @@
-import { Search } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Archive, CalendarClock, FileText, History, MessageSquare, Search, UserRound } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 
-import type { AdminEnquiry, EnquiryStatus } from '../../src/api/admin';
+import type { AdminEnquiry, AdminEnquiryUpdate, AdminQuoteItem, AdminQuoteVersion, EnquiryStatus } from '../../src/api/admin';
 import { formatCurrency } from '../../src/data/pricing';
+import { AdminActivity } from './AdminActivity';
+import { AdminCommunications, type CommunicationDraft } from './AdminCommunications';
+import { AdminQuoteManager } from './AdminQuoteManager';
 
 const statuses: EnquiryStatus[] = ['new', 'reviewed', 'replied', 'closed'];
+const pageSize = 10;
 
-export function AdminInbox({
-  enquiries,
-  mode,
-  selectedId,
-  onSelect,
-  onUpdate,
-}: {
+export function AdminInbox({ enquiries, mode, selectedId, onCreateQuote, onQuoteStatus, onSelect, onSend, onShareQuote, onUpdate }: {
   enquiries: AdminEnquiry[];
   mode: 'all' | 'quotes';
   selectedId: string | null;
+  onCreateQuote: (id: string, payload: { items: AdminQuoteItem[]; discount: number; deposit: number; notes: string; valid_until: string | null }) => Promise<void>;
+  onQuoteStatus: (enquiryId: string, quoteId: string, status: AdminQuoteVersion['status']) => Promise<void>;
   onSelect: (id: string) => void;
-  onUpdate: (id: string, payload: Partial<Pick<AdminEnquiry, 'status' | 'admin_notes'>>) => Promise<void>;
+  onSend: (id: string, subject: string, message: string, quoteId?: string) => Promise<void>;
+  onShareQuote: (enquiryId: string, quoteId: string) => Promise<string>;
+  onUpdate: (id: string, payload: AdminEnquiryUpdate) => Promise<void>;
 }) {
-  const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | EnquiryStatus>('all');
-  const [priorityFilter, setPriorityFilter] = useState<'all' | AdminEnquiry['priority']>('all');
+  const savedFilters = useMemo(() => readSavedFilters(mode), [mode]);
+  const [query, setQuery] = useState(savedFilters.query);
+  const [statusFilter, setStatusFilter] = useState<'all' | EnquiryStatus>(savedFilters.status);
+  const [priorityFilter, setPriorityFilter] = useState<'all' | AdminEnquiry['priority']>(savedFilters.priority);
+  const [showArchived, setShowArchived] = useState(savedFilters.archived);
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    window.localStorage.setItem(`cds_admin_filters_${mode}`, JSON.stringify({ query, status: statusFilter, priority: priorityFilter, archived: showArchived }));
+    setPage(1);
+  }, [mode, priorityFilter, query, showArchived, statusFilter]);
 
   const filtered = useMemo(() => enquiries.filter((enquiry) => {
-    const haystack = `${enquiry.name} ${enquiry.email} ${enquiry.project_type}`.toLowerCase();
+    const haystack = `${enquiry.name} ${enquiry.email} ${enquiry.project_type} ${enquiry.labels.join(' ')}`.toLowerCase();
     return (mode === 'all' || enquiry.type === 'quote')
+      && (showArchived ? enquiry.archived : !enquiry.archived)
       && (statusFilter === 'all' || enquiry.status === statusFilter)
       && (priorityFilter === 'all' || enquiry.priority === priorityFilter)
       && haystack.includes(query.trim().toLowerCase());
-  }), [enquiries, mode, priorityFilter, query, statusFilter]);
+  }), [enquiries, mode, priorityFilter, query, showArchived, statusFilter]);
 
-  const selected = filtered.find((item) => item.id === selectedId) ?? filtered[0];
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const selected = filtered.find((item) => item.id === selectedId) ?? pageItems[0];
 
   return (
     <div className="admin-inbox-layout">
       <section className="admin-panel admin-inbox-list-panel">
         <div className="admin-inbox-controls">
-          <label className="admin-search">
-            <Search size={17} />
-            <span className="visually-hidden">Search enquiries</span>
-            <input onChange={(event) => setQuery(event.target.value)} placeholder="Search enquiries" type="search" value={query} />
-          </label>
+          <label className="admin-search"><Search size={17} /><span className="visually-hidden">Search enquiries</span><input onChange={(event) => setQuery(event.target.value)} placeholder="Search enquiries" type="search" value={query} /></label>
           <div className="admin-filter-row">
-            <select aria-label="Filter by status" className="form-select" onChange={(event) => setStatusFilter(event.target.value as 'all' | EnquiryStatus)} value={statusFilter}>
-              <option value="all">All statuses</option>
-              {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
-            </select>
-            <select aria-label="Filter by priority" className="form-select" onChange={(event) => setPriorityFilter(event.target.value as 'all' | AdminEnquiry['priority'])} value={priorityFilter}>
-              <option value="all">All priorities</option>
-              <option value="high">High</option><option value="medium">Medium</option><option value="standard">Standard</option>
-            </select>
+            <select aria-label="Filter by status" className="form-select" onChange={(event) => setStatusFilter(event.target.value as 'all' | EnquiryStatus)} value={statusFilter}><option value="all">All statuses</option>{statuses.map((status) => <option key={status} value={status}>{status}</option>)}</select>
+            <select aria-label="Filter by priority" className="form-select" onChange={(event) => setPriorityFilter(event.target.value as 'all' | AdminEnquiry['priority'])} value={priorityFilter}><option value="all">All priorities</option><option value="high">High</option><option value="medium">Medium</option><option value="standard">Standard</option></select>
           </div>
+          <label className="admin-archive-toggle"><input checked={showArchived} onChange={(event) => setShowArchived(event.target.checked)} type="checkbox" /> Show archived</label>
         </div>
 
         <div className="admin-enquiry-list">
-          {filtered.map((enquiry) => (
-            <button className={`admin-enquiry-list-item ${selected?.id === enquiry.id ? 'is-active' : ''}`} key={enquiry.id} onClick={() => onSelect(enquiry.id)} type="button">
-              <span className="admin-avatar" aria-hidden="true">{enquiry.name.charAt(0).toUpperCase()}</span>
-              <span className="admin-list-copy"><strong>{enquiry.name}</strong><small>{enquiry.project_type || enquiry.type}</small></span>
-              <span className={`admin-priority admin-priority-${enquiry.priority}`}>{enquiry.priority}</span>
-            </button>
-          ))}
-          {filtered.length === 0 ? <p className="admin-empty">No enquiries match these filters.</p> : null}
+          {pageItems.map((enquiry) => <button className={`admin-enquiry-list-item ${selected?.id === enquiry.id ? 'is-active' : ''}`} key={enquiry.id} onClick={() => onSelect(enquiry.id)} type="button"><span className="admin-avatar" aria-hidden="true">{enquiry.name.charAt(0).toUpperCase()}</span><span className="admin-list-copy"><strong>{enquiry.name}</strong><small>{enquiry.project_type || enquiry.type}</small>{enquiry.follow_up_at ? <small className="admin-follow-up"><CalendarClock size={12} /> {formatShortDate(enquiry.follow_up_at)}</small> : null}</span><span className={`admin-priority admin-priority-${enquiry.priority}`}>{enquiry.priority}</span></button>)}
+          {pageItems.length === 0 ? <p className="admin-empty">No enquiries match these filters.</p> : null}
         </div>
+        <div className="admin-pagination"><button disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button">Previous</button><span>{page} of {pageCount}</span><button disabled={page >= pageCount} onClick={() => setPage((current) => current + 1)} type="button">Next</button></div>
       </section>
 
       <section className="admin-detail">
-        {selected ? <AdminEnquiryDetail key={selected.id} enquiry={selected} onUpdate={onUpdate} /> : <div className="admin-panel admin-empty">Select an enquiry to view it.</div>}
+        {selected ? <AdminEnquiryDetail key={`${selected.id}-${mode}`} defaultTab={mode === 'quotes' ? 'quote' : 'details'} enquiry={selected} onCreateQuote={onCreateQuote} onQuoteStatus={onQuoteStatus} onSend={onSend} onShareQuote={onShareQuote} onUpdate={onUpdate} /> : <div className="admin-panel admin-empty">Select an enquiry to view it.</div>}
       </section>
     </div>
   );
 }
 
-function AdminEnquiryDetail({ enquiry, onUpdate }: { enquiry: AdminEnquiry; onUpdate: (id: string, payload: Partial<Pick<AdminEnquiry, 'status' | 'admin_notes'>>) => Promise<void> }) {
-  const [notes, setNotes] = useState(enquiry.admin_notes ?? '');
-  const [isSaving, setIsSaving] = useState(false);
+type DetailTab = 'details' | 'quote' | 'communications' | 'activity';
 
-  const saveNotes = async () => {
+function AdminEnquiryDetail({ defaultTab, enquiry, onCreateQuote, onQuoteStatus, onSend, onShareQuote, onUpdate }: {
+  defaultTab: DetailTab;
+  enquiry: AdminEnquiry;
+  onCreateQuote: AdminInboxProps['onCreateQuote'];
+  onQuoteStatus: AdminInboxProps['onQuoteStatus'];
+  onSend: AdminInboxProps['onSend'];
+  onShareQuote: AdminInboxProps['onShareQuote'];
+  onUpdate: AdminInboxProps['onUpdate'];
+}) {
+  const [tab, setTab] = useState<DetailTab>(defaultTab);
+  const [notes, setNotes] = useState(enquiry.admin_notes ?? '');
+  const [labels, setLabels] = useState(enquiry.labels.join(', '));
+  const [followUp, setFollowUp] = useState(toDateTimeInput(enquiry.follow_up_at));
+  const [isSaving, setIsSaving] = useState(false);
+  const [communicationDraft, setCommunicationDraft] = useState<CommunicationDraft>();
+
+  const saveManagement = async () => {
     setIsSaving(true);
-    try { await onUpdate(enquiry.id, { admin_notes: notes }); } finally { setIsSaving(false); }
+    try { await onUpdate(enquiry.id, { admin_notes: notes, labels: labels.split(',').map((label) => label.trim()).filter(Boolean), follow_up_at: followUp ? new Date(followUp).toISOString() : null }); } finally { setIsSaving(false); }
   };
 
-  return (
-    <article className="admin-panel admin-detail-card">
-      <div className="admin-detail-header">
-        <div><p className="section-kicker">{enquiry.type}</p><h2>{enquiry.name}</h2><a href={`mailto:${enquiry.email}`}>{enquiry.email}</a></div>
-        <span className={`admin-priority admin-priority-${enquiry.priority}`}>{enquiry.priority}</span>
-      </div>
+  const prepareQuoteEmail = (quote: AdminQuoteVersion) => {
+    const itemSummary = quote.items.map((item) => `• ${item.service}: ${item.hours} hours at ${formatCurrency(item.rate)}/hr`).join('\n');
+    setCommunicationDraft({ quoteId: quote.id, subject: `Quote for ${enquiry.project_type || 'your project'} – version ${quote.version}`, message: `Your quote is ready for review.\n\n${itemSummary}\n\nQuote total: ${formatCurrency(quote.total)}\nDeposit: ${formatCurrency(quote.deposit)}${quote.valid_until ? `\nValid until: ${formatDate(quote.valid_until)}` : ''}\n\nPlease reply if you would like to discuss any part of the scope.` });
+    setTab('communications');
+  };
 
-      <dl className="admin-meta-grid">
-        <div><dt>Received</dt><dd>{formatDate(enquiry.created_at)}</dd></div>
-        <div><dt>Project type</dt><dd>{enquiry.project_type || 'Not specified'}</dd></div>
-        <div><dt>Estimated hours</dt><dd>{enquiry.estimated_hours || 'Not provided'}</dd></div>
-        <div><dt>Estimated cost</dt><dd>{enquiry.estimated_cost ? formatCurrency(enquiry.estimated_cost) : 'Not provided'}</dd></div>
-      </dl>
+  return <article className="admin-panel admin-detail-card">
+    <div className="admin-detail-header"><div><p className="section-kicker">{enquiry.type}</p><h2>{enquiry.name}</h2><a href={`mailto:${enquiry.email}`}>{enquiry.email}</a></div><span className={`admin-priority admin-priority-${enquiry.priority}`}>{enquiry.priority}</span></div>
+    <div className="admin-detail-tabs" role="tablist"><Tab active={tab === 'details'} icon={UserRound} label="Details" onClick={() => setTab('details')} /><Tab active={tab === 'quote'} icon={FileText} label="Quotes" onClick={() => setTab('quote')} /><Tab active={tab === 'communications'} icon={MessageSquare} label="Messages" onClick={() => setTab('communications')} /><Tab active={tab === 'activity'} icon={History} label="Activity" onClick={() => setTab('activity')} /></div>
 
-      <label className="admin-status-control">Status
-        <select className="form-select" onChange={(event) => void onUpdate(enquiry.id, { status: event.target.value as EnquiryStatus })} value={enquiry.status}>
-          {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
-        </select>
-      </label>
-
-      <section className="admin-message"><h3>Message</h3><p>{enquiry.message}</p></section>
-
-      {enquiry.quote_items.length > 0 ? <section className="admin-quote-items"><h3>Selected services</h3><ul>{enquiry.quote_items.map((item, index) => <li key={`${item.service}-${index}`}><span><strong>{item.service}</strong><small>{item.category}</small></span><em>{item.hours} hrs at {formatCurrency(item.rate)}</em></li>)}</ul></section> : null}
-
-      <section className="admin-notes">
-        <label className="form-label" htmlFor={`notes-${enquiry.id}`}>Private notes</label>
-        <textarea className="form-control" id={`notes-${enquiry.id}`} maxLength={4000} onChange={(event) => setNotes(event.target.value)} rows={5} value={notes} />
-        <button className="btn btn-accent" disabled={isSaving || notes === enquiry.admin_notes} onClick={() => void saveNotes()} type="button">{isSaving ? 'Saving...' : 'Save notes'}</button>
-      </section>
-    </article>
-  );
+    {tab === 'details' ? <div className="admin-workflow-stack">
+      <dl className="admin-meta-grid"><div><dt>Received</dt><dd>{formatDate(enquiry.created_at)}</dd></div><div><dt>Project type</dt><dd>{enquiry.project_type || 'Not specified'}</dd></div><div><dt>Estimated hours</dt><dd>{enquiry.estimated_hours || 'Not provided'}</dd></div><div><dt>Estimated cost</dt><dd>{enquiry.estimated_cost ? formatCurrency(enquiry.estimated_cost) : 'Not provided'}</dd></div></dl>
+      <section className="admin-management-grid"><label>Status<select className="form-select" onChange={(event) => void onUpdate(enquiry.id, { status: event.target.value as EnquiryStatus })} value={enquiry.status}>{statuses.map((status) => <option key={status} value={status}>{status}</option>)}</select></label><label>Priority<select className="form-select" onChange={(event) => void onUpdate(enquiry.id, { priority: event.target.value as AdminEnquiry['priority'] })} value={enquiry.priority}><option value="standard">Standard</option><option value="medium">Medium</option><option value="high">High</option></select></label><label>Follow-up<input className="form-control" onChange={(event) => setFollowUp(event.target.value)} type="datetime-local" value={followUp} /></label><label>Labels<input className="form-control" onChange={(event) => setLabels(event.target.value)} placeholder="website, priority" value={labels} /></label></section>
+      <section className="admin-message"><h3>Customer message</h3><p>{enquiry.message}</p></section>
+      <section className="admin-notes"><label className="form-label" htmlFor={`notes-${enquiry.id}`}>Private notes</label><textarea className="form-control" id={`notes-${enquiry.id}`} maxLength={4000} onChange={(event) => setNotes(event.target.value)} rows={5} value={notes} /><div className="admin-management-actions"><button className="btn btn-accent" disabled={isSaving} onClick={() => void saveManagement()} type="button">{isSaving ? 'Saving...' : 'Save details'}</button><button className="btn btn-outline-danger" onClick={() => void onUpdate(enquiry.id, { archived: !enquiry.archived })} type="button"><Archive size={16} /> {enquiry.archived ? 'Restore' : 'Archive'}</button></div></section>
+    </div> : null}
+    {tab === 'quote' ? <AdminQuoteManager enquiry={enquiry} onCreate={(payload) => onCreateQuote(enquiry.id, payload)} onPrepareEmail={prepareQuoteEmail} onShare={(quoteId) => onShareQuote(enquiry.id, quoteId)} onStatus={(quoteId, status) => onQuoteStatus(enquiry.id, quoteId, status)} /> : null}
+    {tab === 'communications' ? <AdminCommunications draft={communicationDraft} enquiry={enquiry} onSend={(subject, message, quoteId) => onSend(enquiry.id, subject, message, quoteId)} /> : null}
+    {tab === 'activity' ? <AdminActivity enquiry={enquiry} /> : null}
+  </article>;
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
-}
+type AdminInboxProps = Parameters<typeof AdminInbox>[0];
+function Tab({ active, icon: Icon, label, onClick }: { active: boolean; icon: typeof UserRound; label: string; onClick: () => void }) { return <button aria-selected={active} className={active ? 'is-active' : ''} onClick={onClick} role="tab" type="button"><Icon size={16} /><span>{label}</span></button>; }
+function formatDate(value: string) { return new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)); }
+function formatShortDate(value: string) { return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(new Date(value)); }
+function toDateTimeInput(value?: string | null) { if (!value) return ''; const date = new Date(value); const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000); return local.toISOString().slice(0, 16); }
+function readSavedFilters(mode: string) { try { const parsed = JSON.parse(window.localStorage.getItem(`cds_admin_filters_${mode}`) ?? '{}'); return { query: typeof parsed.query === 'string' ? parsed.query : '', status: statuses.includes(parsed.status) ? parsed.status as EnquiryStatus : 'all' as const, priority: ['standard', 'medium', 'high'].includes(parsed.priority) ? parsed.priority as AdminEnquiry['priority'] : 'all' as const, archived: parsed.archived === true }; } catch { return { query: '', status: 'all' as const, priority: 'all' as const, archived: false }; } }
