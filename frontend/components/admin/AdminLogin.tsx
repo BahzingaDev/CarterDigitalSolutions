@@ -3,9 +3,11 @@ import { LockKeyhole } from 'lucide-react';
 
 export function AdminLogin({
   configured,
+  configurationError,
   onLogin,
 }: {
   configured: boolean;
+  configurationError?: string;
   onLogin: (email: string, password: string) => Promise<void>;
 }) {
   const [email, setEmail] = useState('');
@@ -38,7 +40,7 @@ export function AdminLogin({
 
         {!configured ? (
           <div className="alert alert-warning" role="alert">
-            Admin authentication has not been configured on the server.
+            {configurationError ?? 'Admin authentication has not been configured on the server.'}
           </div>
         ) : null}
         {error ? <div className="alert alert-danger" role="alert">{error}</div> : null}

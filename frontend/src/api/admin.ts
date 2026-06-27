@@ -4,6 +4,8 @@ export type AdminView = 'overview' | 'enquiries' | 'quotes' | 'account';
 export interface AdminSession {
   authenticated: boolean;
   configured?: boolean;
+  storage_available?: boolean;
+  configuration_error?: string;
   setup_required?: boolean;
   name?: string;
   email?: string;
@@ -39,7 +41,11 @@ export async function fetchAdminSession() {
     credentials: 'same-origin',
     headers: { Accept: 'application/json' },
   });
-  return parseAdminResponse<AdminSession>(response);
+  const data = await readAdminResponse<AdminSession>(response);
+  if (!response.ok && typeof data.authenticated !== 'boolean') {
+    throw new Error(data.error ?? 'Unable to check the admin session');
+  }
+  return data;
 }
 
 export async function loginAdmin(email: string, password: string) {
@@ -98,14 +104,19 @@ export async function updateAdminEnquiry(
 }
 
 async function parseAdminResponse<T>(response: Response): Promise<T> {
-  const contentType = response.headers.get('content-type') ?? '';
-  const data = contentType.includes('application/json')
-    ? ((await response.json()) as { error?: string })
-    : { error: 'Unexpected response from server' };
+  const data = await readAdminResponse<T>(response);
 
   if (!response.ok) {
     throw new Error(data.error ?? 'Admin request failed');
   }
 
-  return data as T;
+  return data;
+}
+
+async function readAdminResponse<T>(response: Response): Promise<T & { error?: string }> {
+  const contentType = response.headers.get('content-type') ?? '';
+  const data = contentType.includes('application/json')
+    ? ((await response.json()) as T & { error?: string })
+    : { error: 'Unexpected response from server' };
+  return data as T & { error?: string };
 }

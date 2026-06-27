@@ -68,8 +68,8 @@ export function AdminPage() {
       })
       .catch((sessionError) => {
         if (!active) return;
-        setSession({ authenticated: false, configured: false });
-        setError(sessionError instanceof Error ? sessionError.message : 'Unable to check admin session');
+        const text = sessionError instanceof Error ? sessionError.message : 'Unable to check admin session';
+        setSession({ authenticated: false, configured: false, configuration_error: text });
         setIsLoading(false);
       });
     return () => { active = false; };
@@ -115,7 +115,13 @@ export function AdminPage() {
     if (session.setup_required) {
       return <AdminSetup onSetup={handleSetup} />;
     }
-    return <AdminLogin configured={session.configured !== false} onLogin={handleLogin} />;
+    return (
+      <AdminLogin
+        configured={session.configured !== false && session.storage_available !== false}
+        configurationError={session.configuration_error}
+        onLogin={handleLogin}
+      />
+    );
   }
 
   const heading = viewTitles[view];

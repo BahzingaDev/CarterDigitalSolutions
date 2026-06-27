@@ -24,12 +24,30 @@ admin_bp = Blueprint("admin", __name__)
 @admin_bp.get("/admin/auth/session")
 def admin_auth_session():
     if not current_app.config.get("ADMIN_EMAIL"):
-        return jsonify({"authenticated": False, "configured": False}), 503
+        return jsonify(
+            {
+                "authenticated": False,
+                "configured": False,
+                "storage_available": True,
+                "configuration_error": "ADMIN_EMAIL is not set on the server.",
+            }
+        ), 503
 
     try:
         setup_required = not admin_account_exists()
     except AdminStorageError:
-        return jsonify({"error": "Admin account storage is unavailable."}), 503
+        current_app.logger.exception("Admin account storage check failed")
+        return jsonify(
+            {
+                "authenticated": False,
+                "configured": True,
+                "storage_available": False,
+                "configuration_error": (
+                    "MongoDB admin storage is unavailable. Check the server logs "
+                    "and MongoDB environment settings."
+                ),
+            }
+        ), 503
 
     if setup_required:
         session.clear()
@@ -37,6 +55,7 @@ def admin_auth_session():
             {
                 "authenticated": False,
                 "configured": True,
+                "storage_available": True,
                 "setup_required": True,
             }
         )
@@ -46,12 +65,18 @@ def admin_auth_session():
             {
                 "authenticated": False,
                 "configured": True,
+                "storage_available": True,
                 "setup_required": False,
             }
         )
 
     return jsonify(
-        {"configured": True, "setup_required": False, **admin_session_payload()}
+        {
+            "configured": True,
+            "storage_available": True,
+            "setup_required": False,
+            **admin_session_payload(),
+        }
     )
 
 
@@ -82,6 +107,7 @@ def admin_setup():
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
     except AdminStorageError:
+        current_app.logger.exception("Admin account creation failed")
         return jsonify({"error": "Admin account storage is unavailable."}), 503
 
     clear_admin_login_attempts(ip_key)
@@ -121,6 +147,7 @@ def admin_login():
             return jsonify({"error": "Complete admin account setup first."}), 409
         account = authenticate_admin_account(email, password)
     except AdminStorageError:
+        current_app.logger.exception("Admin account authentication failed")
         return jsonify({"error": "Admin account storage is unavailable."}), 503
 
     if not email or not password or not account:

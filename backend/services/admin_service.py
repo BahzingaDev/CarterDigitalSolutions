@@ -24,7 +24,9 @@ def admin_account_exists() -> bool:
         return False
 
     try:
-        return _get_collection().count_documents(
+        collection = _get_collection()
+        _ensure_indexes(collection)
+        return collection.count_documents(
             {"email": email, "active": True},
             limit=1,
         ) > 0

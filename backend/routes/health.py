@@ -16,6 +16,8 @@ def health_check():
             "mongo_configured": bool(current_app.config.get("MONGODB_URI")),
             "mongo_database": current_app.config["MONGODB_DATABASE"],
             "mongo_collection": current_app.config["MONGODB_ENQUIRY_COLLECTION"],
+            "mongo_admin_collection": current_app.config["MONGODB_ADMIN_COLLECTION"],
+            "admin_email_configured": bool(current_app.config.get("ADMIN_EMAIL")),
             "email_notifications_configured": email_notifications_configured(),
             "customer_auto_reply_enabled": current_app.config["CUSTOMER_AUTO_REPLY_ENABLED"],
         }
