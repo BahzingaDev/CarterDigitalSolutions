@@ -12,8 +12,11 @@ def main() -> None:
     if password != confirmation:
         raise SystemExit("Passwords do not match.")
 
-    print("\nSet ADMIN_PASSWORD_HASH to:\n")
-    print(generate_password_hash(password))
+    password_hash = generate_password_hash(password, method="scrypt")
+    print("\nRender environment variable")
+    print("Key:   ADMIN_PASSWORD_HASH")
+    print(f"Value: {password_hash}")
+    print("\nPaste the complete Value, beginning with 'scrypt:' and without quotes.")
 
 
 if __name__ == "__main__":

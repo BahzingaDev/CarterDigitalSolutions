@@ -22,12 +22,41 @@ def admin_is_configured() -> bool:
 
 def authenticate_admin(email: str, password: str) -> bool:
     configured_email = current_app.config.get("ADMIN_EMAIL", "")
-    password_hash = current_app.config.get("ADMIN_PASSWORD_HASH", "")
+    password_hash = _normalise_password_hash(
+        current_app.config.get("ADMIN_PASSWORD_HASH", "")
+    )
     email_matches = hmac.compare_digest(email.strip().lower(), configured_email)
 
     # Always perform a password check when configured to reduce account discovery signals.
-    password_matches = bool(password_hash) and check_password_hash(password_hash, password)
+    try:
+        password_matches = bool(password_hash) and check_password_hash(
+            password_hash,
+            password,
+        )
+    except (TypeError, ValueError):
+        current_app.logger.error(
+            "ADMIN_PASSWORD_HASH has an invalid format; regenerate the complete hash."
+        )
+        password_matches = False
+
     return email_matches and password_matches
+
+
+def _normalise_password_hash(value: str) -> str:
+    password_hash = str(value or "").strip().strip('"').strip("'")
+    assignment_prefix = "ADMIN_PASSWORD_HASH="
+    if password_hash.startswith(assignment_prefix):
+        password_hash = password_hash[len(assignment_prefix) :].strip()
+
+    # Werkzeug scrypt hashes begin with scrypt:32768:8:1. Recover safely when
+    # only the algorithm name was omitted while copying the environment value.
+    parameters = password_hash.split("$", 1)[0]
+    if parameters.count(":") == 2 and all(
+        part.isdigit() for part in parameters.split(":")
+    ):
+        password_hash = f"scrypt:{password_hash}"
+
+    return password_hash
 
 
 def start_admin_session() -> str:

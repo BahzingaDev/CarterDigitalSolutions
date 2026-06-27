@@ -63,7 +63,7 @@ Generate the password hash locally. The prompt hides the password so it is not w
 
 `python backend/scripts/generate_admin_password.py`
 
-Paste the complete output into `ADMIN_PASSWORD_HASH` in Render. Values beginning with `scrypt:` and containing `$` characters are expected. Remove the legacy `ADMIN_EXPORT_TOKEN` variable after the new login has been verified.
+Paste the complete value into `ADMIN_PASSWORD_HASH` in Render. It must begin with `scrypt:32768:8:1$`; include the `scrypt:` prefix and every `$`-separated section, without quotes or the `Value:` label. Save the environment changes and allow Render to redeploy before testing. Remove the legacy `ADMIN_EXPORT_TOKEN` variable after the new login has been verified.
 
 Admin write requests use a per-session CSRF token and same-origin validation. Login attempts are rate limited by IP address.
 
