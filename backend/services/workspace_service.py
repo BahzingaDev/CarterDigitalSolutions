@@ -528,6 +528,7 @@ def _project_invoices(value: Any) -> list[dict[str, Any]]:
             "due_date": _optional_text(item.get("due_date"), 40),
             "paid_date": _optional_text(item.get("paid_date"), 40),
             "notes": _optional_text(item.get("notes"), 2000),
+            "consultation_hours": _number(item.get("consultation_hours", 0), "Invoiced consultation hours", 1000),
         })
     return invoices
 

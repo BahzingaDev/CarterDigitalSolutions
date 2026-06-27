@@ -28,6 +28,7 @@ export function AdminInbox({ enquiries, mode, selectedId, onConvertQuote, onCrea
   const [statusFilter, setStatusFilter] = useState<'all' | EnquiryStatus>(savedFilters.status);
   const [priorityFilter, setPriorityFilter] = useState<'all' | AdminEnquiry['priority']>(savedFilters.priority);
   const [showArchived, setShowArchived] = useState(savedFilters.archived);
+  const [workFilter, setWorkFilter] = useState<'all' | 'needs_reply' | 'follow_up' | 'awaiting'>('all');
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -41,8 +42,12 @@ export function AdminInbox({ enquiries, mode, selectedId, onConvertQuote, onCrea
       && (showArchived ? enquiry.archived : !enquiry.archived)
       && (statusFilter === 'all' || enquiry.status === statusFilter)
       && (priorityFilter === 'all' || enquiry.priority === priorityFilter)
+      && (workFilter === 'all'
+        || (workFilter === 'needs_reply' && enquiry.status === 'new')
+        || (workFilter === 'follow_up' && Boolean(enquiry.follow_up_at) && new Date(enquiry.follow_up_at ?? '').getTime() <= Date.now() && enquiry.status !== 'closed')
+        || (workFilter === 'awaiting' && enquiry.status === 'replied'))
       && haystack.includes(query.trim().toLowerCase());
-  }), [enquiries, mode, priorityFilter, query, showArchived, statusFilter]);
+  }), [enquiries, mode, priorityFilter, query, showArchived, statusFilter, workFilter]);
 
   const pageCount = Math.ceil(filtered.length / pageSize);
   useEffect(() => {
@@ -68,10 +73,11 @@ export function AdminInbox({ enquiries, mode, selectedId, onConvertQuote, onCrea
             <select aria-label="Filter by priority" className="form-select" onChange={(event) => setPriorityFilter(event.target.value as 'all' | AdminEnquiry['priority'])} value={priorityFilter}><option value="all">All priorities</option><option value="high">High</option><option value="medium">Medium</option><option value="standard">Standard</option></select>
           </div>
           <label className="admin-archive-toggle"><input checked={showArchived} onChange={(event) => setShowArchived(event.target.checked)} type="checkbox" /> Show archived</label>
+          <div className="admin-saved-views" aria-label="Saved views"><button className={workFilter === 'all' ? 'is-active' : ''} onClick={() => setWorkFilter('all')} type="button">All</button><button className={workFilter === 'needs_reply' ? 'is-active' : ''} onClick={() => setWorkFilter('needs_reply')} type="button">Needs reply</button><button className={workFilter === 'follow_up' ? 'is-active' : ''} onClick={() => setWorkFilter('follow_up')} type="button">Follow-up due</button><button className={workFilter === 'awaiting' ? 'is-active' : ''} onClick={() => setWorkFilter('awaiting')} type="button">Awaiting customer</button></div>
         </div>
 
         <div className="admin-enquiry-list">
-          {pageItems.map((enquiry) => <button className={`admin-enquiry-list-item ${selected?.id === enquiry.id ? 'is-active' : ''}`} key={enquiry.id} onClick={() => onSelect(enquiry.id)} type="button"><span className="admin-avatar" aria-hidden="true">{enquiry.name.charAt(0).toUpperCase()}</span><span className="admin-list-copy"><strong>{enquiry.name}</strong><small>{enquiry.project_type || enquiry.type}</small>{enquiry.follow_up_at ? <small className="admin-follow-up"><CalendarClock size={12} /> {formatShortDate(enquiry.follow_up_at)}</small> : null}</span><span className={`admin-priority admin-priority-${enquiry.priority}`}>{enquiry.priority}</span></button>)}
+          {pageItems.map((enquiry) => <button className={`admin-enquiry-list-item ${selected?.id === enquiry.id ? 'is-active' : ''}`} key={enquiry.id} onClick={() => onSelect(enquiry.id)} type="button"><span className="admin-avatar" aria-hidden="true">{enquiry.name.charAt(0).toUpperCase()}</span><span className="admin-list-copy"><strong>{enquiry.name}</strong><small>{enquiry.project_type || enquiry.type} · {formatAge(enquiry.created_at)}</small>{enquiry.follow_up_at ? <small className="admin-follow-up"><CalendarClock size={12} /> {formatShortDate(enquiry.follow_up_at)}</small> : null}</span><span className={`admin-priority admin-priority-${enquiry.priority}`}>{enquiry.priority}</span></button>)}
           {pageItems.length === 0 ? <p className="admin-empty admin-list-empty">{emptyMessage}</p> : null}
         </div>
         {pageCount > 1 ? <div className="admin-pagination"><button disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button">Previous</button><span>{page} of {pageCount}</span><button disabled={page >= pageCount} onClick={() => setPage((current) => current + 1)} type="button">Next</button></div> : null}
@@ -135,5 +141,6 @@ type AdminInboxProps = Parameters<typeof AdminInbox>[0];
 function Tab({ active, icon: Icon, label, onClick }: { active: boolean; icon: typeof UserRound; label: string; onClick: () => void }) { return <button aria-selected={active} className={active ? 'is-active' : ''} onClick={onClick} role="tab" type="button"><Icon size={16} /><span>{label}</span></button>; }
 function formatDate(value: string) { return new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)); }
 function formatShortDate(value: string) { return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(new Date(value)); }
+function formatAge(value: string) { const days = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86400000)); return days === 0 ? 'today' : `${days}d old`; }
 function toDateTimeInput(value?: string | null) { if (!value) return ''; const date = new Date(value); const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000); return local.toISOString().slice(0, 16); }
 function readSavedFilters(mode: string) { try { const parsed = JSON.parse(window.localStorage.getItem(`cds_admin_filters_${mode}`) ?? '{}'); return { query: typeof parsed.query === 'string' ? parsed.query : '', status: statuses.includes(parsed.status) ? parsed.status as EnquiryStatus : 'all' as const, priority: ['standard', 'medium', 'high'].includes(parsed.priority) ? parsed.priority as AdminEnquiry['priority'] : 'all' as const, archived: parsed.archived === true }; } catch { return { query: '', status: 'all' as const, priority: 'all' as const, archived: false }; } }

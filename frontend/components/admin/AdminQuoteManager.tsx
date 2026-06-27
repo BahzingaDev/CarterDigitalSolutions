@@ -102,7 +102,7 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail
         </div>
         <label className="form-label">Quote notes<textarea className="form-control" maxLength={2000} onChange={(event) => setNotes(event.target.value)} rows={3} value={notes} /></label>
         <div className="admin-quote-summary"><span>Subtotal <strong>{formatCurrency(subtotal)}</strong></span><span>Expenses <strong>{formatCurrency(expenses)}</strong></span><span>Tax <strong>{formatCurrency(taxable * taxRate / 100)}</strong></span><span>Total <strong>{formatCurrency(total)}</strong></span></div>
-        <div className="admin-management-actions"><button className="btn btn-accent" disabled={isSaving} onClick={() => void saveVersion()} type="button">{isSaving ? 'Saving...' : 'Save new version'}</button>{latest?.status === 'draft' ? <button className="btn btn-outline-accent" onClick={() => void onUpdate(latest.id, payload())} type="button">Update latest draft</button> : null}</div>
+        <div className="admin-management-actions">{latest?.status === 'draft' ? <button className="btn btn-accent" disabled={isSaving} onClick={() => void onUpdate(latest.id, payload())} type="button">Save draft</button> : <button className="btn btn-accent" disabled={isSaving} onClick={() => void saveVersion()} type="button">{isSaving ? 'Saving...' : latest ? 'Create new version' : 'Create draft quote'}</button>}</div>
       </section>
 
       <section className="admin-subpanel">
@@ -110,10 +110,9 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail
         {[...enquiry.quote_versions].reverse().map((quote) => (
           <article className="admin-quote-version" key={quote.id}>
             <div><strong>Version {quote.version}</strong><small>{formatDate(quote.created_at)} · {formatCurrency(quote.total)}</small></div>
-            <select aria-label={`Version ${quote.version} status`} className="form-select" onChange={(event) => void onStatus(quote.id, event.target.value as AdminQuoteVersion['status'])} value={quote.status}>
-              <option value="draft">Draft</option><option value="sent">Sent</option><option value="accepted">Accepted</option><option value="declined">Declined</option><option value="expired">Expired</option>
-            </select>
+            <span className={`admin-status admin-quote-${quote.status}`}>{quote.status}</span>
             <div className="admin-quote-actions"><button className="admin-icon-button" onClick={() => void onShare(quote.id).then((url) => { setShareLinks((current) => ({ ...current, [quote.id]: url })); onPrepareEmail(quote, url); })} title="Email approval link" type="button"><Mail size={16} /></button><button className="admin-icon-button" onClick={() => void onShare(quote.id).then((url) => { setShareLinks((current) => ({ ...current, [quote.id]: url })); void navigator.clipboard.writeText(url); })} title="Create and copy approval link" type="button"><Link2 size={16} /></button>{shareLinks[quote.id] ? <button className="admin-icon-button" onClick={() => window.open(shareLinks[quote.id], '_blank', 'noopener,noreferrer')} title="Open printable quote" type="button"><Printer size={16} /></button> : null}<button className="admin-icon-button" disabled={quote.status !== 'accepted' || Boolean(quote.converted_project_id)} onClick={() => void onConvert(quote)} title={quote.converted_project_id ? 'Project workspace created' : quote.status === 'accepted' ? 'Convert quote to project' : 'Accept the quote before creating its project'} type="button"><BriefcaseBusiness size={16} /></button></div>
+            {quote.id === latest?.id ? <QuoteStageActions onConvert={onConvert} onPrepareEmail={onPrepareEmail} onShare={onShare} onStatus={onStatus} quote={quote} /> : <small className="admin-version-locked">Previous version · read only</small>}
             <DepositInvoiceWorkflow onCreateProject={() => onConvert(quote)} quote={quote} />
           </article>
         ))}
@@ -121,6 +120,14 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail
       </section>
     </div>
   );
+}
+
+function QuoteStageActions({ onConvert, onPrepareEmail, onShare, onStatus, quote }: { quote: AdminQuoteVersion; onConvert: (quote: AdminQuoteVersion) => Promise<void>; onPrepareEmail: (quote: AdminQuoteVersion, url: string) => void; onShare: (quoteId: string) => Promise<string>; onStatus: (quoteId: string, status: AdminQuoteVersion['status']) => Promise<void> }) {
+  if (quote.converted_project_id) return <div className="admin-quote-next"><strong>Project created</strong><small>Continue this work from the project workspace.</small></div>;
+  if (quote.status === 'accepted') return <button className="btn btn-accent btn-sm" onClick={() => void onConvert(quote)} type="button"><BriefcaseBusiness size={15} /> Create project</button>;
+  if (quote.status === 'draft') return <div className="admin-quote-next"><button className="btn btn-accent btn-sm" onClick={() => void onShare(quote.id).then((url) => onPrepareEmail(quote, url))} type="button"><Mail size={15} /> Prepare approval email</button></div>;
+  if (quote.status === 'sent') return <div className="admin-quote-next"><strong>Awaiting customer approval</strong><span><button className="btn btn-link btn-sm" onClick={() => void onStatus(quote.id, 'accepted')} type="button">Record acceptance</button><button className="btn btn-link btn-sm" onClick={() => void onStatus(quote.id, 'declined')} type="button">Record decline</button></span></div>;
+  return <button className="btn btn-outline-accent btn-sm" onClick={() => void onStatus(quote.id, 'draft')} type="button">Reopen as draft</button>;
 }
 
 function DepositInvoiceWorkflow({ onCreateProject, quote }: { onCreateProject: () => Promise<void>; quote: AdminQuoteVersion }) {

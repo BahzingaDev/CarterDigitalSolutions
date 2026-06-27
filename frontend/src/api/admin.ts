@@ -1,5 +1,5 @@
 export type EnquiryStatus = 'new' | 'reviewed' | 'replied' | 'closed';
-export type AdminView = 'overview' | 'enquiries' | 'quotes' | 'customers' | 'projects' | 'records' | 'services' | 'templates' | 'account';
+export type AdminView = 'overview' | 'enquiries' | 'quotes' | 'customers' | 'projects' | 'records' | 'services' | 'templates' | 'settings' | 'account';
 
 export interface AdminTemplate { id: string; name: string; subject: string; body: string; created_at: string; updated_at: string; }
 export interface CommunicationSettings { id: string; signature: string; updated_at?: string; }
@@ -10,7 +10,7 @@ export type ProjectStage = 'lead' | 'discovery' | 'quoted' | 'accepted' | 'activ
 export interface ProjectChecklistItem { id: string; title: string; completed: boolean; due_date: string; }
 export interface ProjectService { service: string; category: string; hours: number; rate: number; optional: boolean; included: boolean; }
 export interface ProjectMeeting { id: string; title: string; start_at: string; duration_minutes: number; status: 'scheduled' | 'completed' | 'cancelled'; counts_as_consultation: boolean; location: string; notes: string; calendar_provider: string; external_calendar_id: string; }
-export interface ProjectInvoice { id: string; reference: string; kind: 'deposit' | 'interim' | 'final' | 'consultation' | 'other'; status: 'draft' | 'sent' | 'paid' | 'overdue' | 'void'; subtotal: number; tax_rate: number; tax_amount: number; amount: number; issue_date: string; due_date: string; paid_date: string; notes: string; sent_at?: string; provider_message_id?: string; }
+export interface ProjectInvoice { id: string; reference: string; kind: 'deposit' | 'interim' | 'final' | 'consultation' | 'other'; status: 'draft' | 'sent' | 'paid' | 'overdue' | 'void'; subtotal: number; tax_rate: number; tax_amount: number; amount: number; issue_date: string; due_date: string; paid_date: string; notes: string; consultation_hours?: number; sent_at?: string; provider_message_id?: string; }
 export interface AdminProject { id: string; name: string; client_name: string; client_email: string; stage: ProjectStage; value: number; due_date: string; notes: string; tags: string[]; linked_enquiry_id: string; source_quote_id: string; services: ProjectService[]; included_consultation_hours: number; consultation_rate: number; meetings: ProjectMeeting[]; invoices: ProjectInvoice[]; tasks: ProjectChecklistItem[]; milestones: ProjectChecklistItem[]; completion: number; created_at: string; updated_at: string; }
 export interface AdminCustomer { email: string; name: string; phone: string; organisation: string; notes: string; tags: string[]; enquiries: AdminEnquiry[]; projects: AdminProject[]; }
 export interface AdminServiceCategory { id: string; slug: string; name: string; audience: string; description: string; active: boolean; sort_order: number; status: 'draft' | 'published'; created_at?: string; updated_at?: string; }

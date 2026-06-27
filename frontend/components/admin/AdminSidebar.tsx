@@ -49,7 +49,7 @@ const groups: NavigationGroup[] = [
     items: [
       { id: 'account' as const, label: 'Account', icon: UserRound },
       { id: 'templates', label: 'Email templates', icon: MessageSquareText },
-      { label: 'Settings', icon: Settings, disabled: true },
+      { id: 'settings', label: 'Settings', icon: Settings },
     ],
   },
 ];
@@ -58,6 +58,7 @@ export function AdminSidebar({
   activeView,
   collapsed,
   newCount,
+  actionCount,
   onCollapse,
   onLogout,
   onNavigate,
@@ -65,6 +66,7 @@ export function AdminSidebar({
   activeView: AdminView;
   collapsed: boolean;
   newCount: number;
+  actionCount: number;
   onCollapse: () => void;
   onLogout: () => void;
   onNavigate: (view: AdminView) => void;
@@ -99,6 +101,7 @@ export function AdminSidebar({
                   <Icon size={19} />
                   <span>{item.label}</span>
                   {item.id === 'enquiries' && newCount > 0 ? <em>{newCount}</em> : null}
+                  {item.id === 'overview' && actionCount > 0 ? <em>{actionCount}</em> : null}
                   {item.disabled ? <small>Soon</small> : null}
                 </button>
               );

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { fetchServiceCatalogue, mergeServiceCatalogue } from '../src/api/services';
 import { pricingCategories } from '../src/data/pricing';
+import { useTheme } from '../src/hooks/useTheme';
 
 const standardLinks = [
   { label: 'Home', href: '/' },
@@ -20,21 +21,11 @@ export function Navbar() {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [catalogue, setCatalogue] = useState(pricingCategories);
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    const savedTheme = window.localStorage.getItem('theme');
-    if (savedTheme === 'light' || savedTheme === 'dark') return savedTheme;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  });
+  const [theme, toggleTheme] = useTheme();
 
   useEffect(() => {
     void fetchServiceCatalogue().then((data) => setCatalogue(mergeServiceCatalogue(data.services, data.categories, data.unavailable_slugs)));
   }, []);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.dataset.bsTheme = theme;
-    window.localStorage.setItem('theme', theme);
-  }, [theme]);
 
   const closeNavigation = () => {
     setOpenMenu(null);
@@ -85,7 +76,7 @@ export function Navbar() {
           </ul>
 
           <div className="nav-actions">
-            <button className="theme-toggle" type="button" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}>
+            <button className="theme-toggle" type="button" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} onClick={toggleTheme}>
               <span className="theme-toggle-track" aria-hidden="true"><span className="theme-toggle-thumb" /></span>
             </button>
             <a className="btn btn-accent nav-cta" href="/quote">Start a project</a>
