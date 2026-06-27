@@ -1,7 +1,8 @@
-import { type FormEvent, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
 
 import { submitEnquiry } from '../src/api/enquiries';
 import { formatCurrency, pricingCategories } from '../src/data/pricing';
+import { fetchServiceOverrides, mergeServiceCatalogue } from '../src/api/services';
 
 const complexityLevels = [
   {
@@ -69,7 +70,7 @@ const quoteModifiers = [
   },
 ] as const;
 
-const quoteSections = pricingCategories
+const buildQuoteSections = (categories: typeof pricingCategories) => categories
   .filter((category) => category.category !== 'Working With You')
   .map((category) => ({
     title: category.category,
@@ -85,15 +86,18 @@ const quoteSections = pricingCategories
     ),
   }));
 
-const quoteItems = quoteSections.flatMap((section) => section.items);
-
 export function QuoteBuilder() {
+  const [categories, setCategories] = useState(pricingCategories);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedModifierIds, setSelectedModifierIds] = useState<Set<string>>(new Set());
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [complexity, setComplexity] = useState<ComplexityLevel>(2);
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [error, setError] = useState('');
+  useEffect(() => { void fetchServiceOverrides().then((items) => setCategories(mergeServiceCatalogue(items))); }, []);
+
+  const quoteSections = useMemo(() => buildQuoteSections(categories), [categories]);
+  const quoteItems = useMemo(() => quoteSections.flatMap((section) => section.items), [quoteSections]);
 
   const selectedItems = quoteItems.filter((item) => selectedIds.has(item.id));
   const selectedModifiers = quoteModifiers.filter((modifier) =>

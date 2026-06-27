@@ -1,6 +1,9 @@
+import { useEffect, useState } from 'react';
 import { ContactCTA } from '../components/ContactCTA';
 import { formatCurrency, getPricingServiceBySlug } from '../src/data/pricing';
 import { getServiceBySlug } from '../src/data/services';
+import { fetchServiceOverrides } from '../src/api/services';
+import type { AdminServiceOverride } from '../src/api/admin';
 
 interface ServicePageProps {
   slug: string;
@@ -90,6 +93,8 @@ function getServiceDetail(category: string, title: string) {
 
 export function ServicePage({ slug }: ServicePageProps) {
   const service = getServiceBySlug(slug);
+  const [override, setOverride] = useState<AdminServiceOverride>();
+  useEffect(() => { void fetchServiceOverrides().then((items) => setOverride(items.find((item) => item.slug === slug))); }, [slug]);
 
   if (!service) {
     return (
@@ -116,14 +121,14 @@ export function ServicePage({ slug }: ServicePageProps) {
               <p className="section-kicker">
                 {service.audience} / {service.category}
               </p>
-              <h1>{service.title}</h1>
-              <p>{service.summary}</p>
+              <h1>{override?.name ?? service.title}</h1>
+              <p>{override?.description || service.summary}</p>
             </div>
 
             <aside className="service-summary-box" aria-label="Service summary">
               <p className="deposit-policy-label">Starting from</p>
-              <h2>{formatCurrency(pricing?.service.startingFrom ?? null)}</h2>
-              <p>{pricing?.service.bestFor ?? service.bestFor}</p>
+              <h2>{formatCurrency(override?.starting_from ?? pricing?.service.startingFrom ?? null)}</h2>
+              <p>{override?.best_for || pricing?.service.bestFor || service.bestFor}</p>
             </aside>
           </div>
         </div>

@@ -29,6 +29,8 @@ services:
         value: admin_records
       - key: MONGODB_PROJECT_COLLECTION
         value: projects
+      - key: MONGODB_SERVICE_COLLECTION
+        value: service_catalogue
       - key: ALLOWED_ORIGINS
         sync: false
       - key: ADMIN_EMAIL

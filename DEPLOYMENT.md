@@ -15,6 +15,7 @@ This app is prepared for a single same-origin deployment: Flask serves the built
 - `MONGODB_TEMPLATE_COLLECTION=admin_templates`: reusable email templates.
 - `MONGODB_RECORD_COLLECTION=admin_records`: flexible custom business records.
 - `MONGODB_PROJECT_COLLECTION=projects`: project pipeline records.
+- `MONGODB_SERVICE_COLLECTION=service_catalogue`: public service catalogue overrides.
 - `ALLOWED_ORIGINS`: deployed site origin, for example `https://www.carterdigitalsolutions.co.uk`.
 
 ## Optional Email Notifications

@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   formatCurrency,
   formatHourlyRate,
   pricingCategories,
 } from '../src/data/pricing';
+import { fetchServiceOverrides, mergeServiceCatalogue } from '../src/api/services';
 
 function CategoryIcon({ icon }: { icon: string }) {
   if (icon === 'industry') {
@@ -36,6 +37,8 @@ function CategoryIcon({ icon }: { icon: string }) {
 
 export function PricingTable() {
   const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const [categories, setCategories] = useState(pricingCategories);
+  useEffect(() => { void fetchServiceOverrides().then((items) => setCategories(mergeServiceCatalogue(items))); }, []);
 
   const toggleCategory = (categoryName: string) => {
     setOpenCategory((current) => (current === categoryName ? null : categoryName));
@@ -43,7 +46,7 @@ export function PricingTable() {
 
   return (
     <div className="pricing-category-stack">
-      {pricingCategories.map((category) => {
+      {categories.map((category) => {
         const isOpen = openCategory === category.category;
         const tableId = `pricing-${category.category.toLowerCase().replace(/\s+/g, '-')}`;
 
