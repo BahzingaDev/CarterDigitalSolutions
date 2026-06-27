@@ -1,12 +1,13 @@
-import { CirclePlus, Link2, Mail, Printer, Trash2 } from 'lucide-react';
+import { BriefcaseBusiness, CirclePlus, Link2, Mail, Printer, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import type { AdminEnquiry, AdminQuoteItem, AdminQuoteVersion } from '../../src/api/admin';
 import { formatCurrency } from '../../src/data/pricing';
 
-export function AdminQuoteManager({ enquiry, onCreate, onPrepareEmail, onShare, onStatus }: {
+export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail, onShare, onStatus }: {
   enquiry: AdminEnquiry;
   onCreate: (payload: { items: AdminQuoteItem[]; discount: number; deposit: number; notes: string; valid_until: string | null }) => Promise<void>;
+  onConvert: (quote: AdminQuoteVersion) => Promise<void>;
   onPrepareEmail: (quote: AdminQuoteVersion) => void;
   onShare: (quoteId: string) => Promise<string>;
   onStatus: (quoteId: string, status: AdminQuoteVersion['status']) => Promise<void>;
@@ -67,7 +68,7 @@ export function AdminQuoteManager({ enquiry, onCreate, onPrepareEmail, onShare, 
             <select aria-label={`Version ${quote.version} status`} className="form-select" onChange={(event) => void onStatus(quote.id, event.target.value as AdminQuoteVersion['status'])} value={quote.status}>
               <option value="draft">Draft</option><option value="sent">Sent</option><option value="accepted">Accepted</option><option value="declined">Declined</option><option value="expired">Expired</option>
             </select>
-            <div className="admin-quote-actions"><button className="admin-icon-button" onClick={() => onPrepareEmail(quote)} title="Email quote" type="button"><Mail size={16} /></button><button className="admin-icon-button" onClick={() => void onShare(quote.id).then((url) => { setShareLinks((current) => ({ ...current, [quote.id]: url })); void navigator.clipboard.writeText(url); })} title="Create and copy approval link" type="button"><Link2 size={16} /></button>{shareLinks[quote.id] ? <button className="admin-icon-button" onClick={() => window.open(shareLinks[quote.id], '_blank', 'noopener,noreferrer')} title="Open printable quote" type="button"><Printer size={16} /></button> : null}</div>
+            <div className="admin-quote-actions"><button className="admin-icon-button" onClick={() => onPrepareEmail(quote)} title="Email quote" type="button"><Mail size={16} /></button><button className="admin-icon-button" onClick={() => void onShare(quote.id).then((url) => { setShareLinks((current) => ({ ...current, [quote.id]: url })); void navigator.clipboard.writeText(url); })} title="Create and copy approval link" type="button"><Link2 size={16} /></button>{shareLinks[quote.id] ? <button className="admin-icon-button" onClick={() => window.open(shareLinks[quote.id], '_blank', 'noopener,noreferrer')} title="Open printable quote" type="button"><Printer size={16} /></button> : null}<button className="admin-icon-button" onClick={() => void onConvert(quote)} title="Convert quote to project" type="button"><BriefcaseBusiness size={16} /></button></div>
           </article>
         ))}
         {enquiry.quote_versions.length === 0 ? <p className="admin-empty">No formal quote versions yet.</p> : null}

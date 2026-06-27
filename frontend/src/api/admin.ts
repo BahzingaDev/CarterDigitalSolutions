@@ -1,11 +1,12 @@
 export type EnquiryStatus = 'new' | 'reviewed' | 'replied' | 'closed';
-export type AdminView = 'overview' | 'enquiries' | 'quotes' | 'projects' | 'records' | 'templates' | 'account';
+export type AdminView = 'overview' | 'enquiries' | 'quotes' | 'projects' | 'records' | 'services' | 'templates' | 'account';
 
 export interface AdminTemplate { id: string; name: string; subject: string; body: string; created_at: string; updated_at: string; }
 export interface AdminCustomField { key: string; value: string; }
 export interface AdminRecord { id: string; title: string; record_type: string; tags: string[]; notes: string; fields: AdminCustomField[]; archived: boolean; created_at: string; updated_at: string; }
 export type ProjectStage = 'lead' | 'discovery' | 'quoted' | 'accepted' | 'active' | 'on_hold' | 'completed';
 export interface AdminProject { id: string; name: string; client_name: string; client_email: string; stage: ProjectStage; value: number; due_date: string; notes: string; tags: string[]; linked_enquiry_id: string; created_at: string; updated_at: string; }
+export interface AdminServiceOverride { id: string; slug: string; name: string; audience: string; category: string; description: string; best_for: string; starting_from: number; hourly_rate: number; estimated_hours: number; deposit: string; active: boolean; sort_order: number; }
 
 export interface AdminSession {
   authenticated: boolean;
@@ -207,6 +208,9 @@ export const saveAdminProject = (csrf: string, item: Partial<AdminProject>) => w
 export const deleteAdminTemplate = (csrf: string, id: string) => workspaceDelete('templates', csrf, id);
 export const deleteAdminRecord = (csrf: string, id: string) => workspaceDelete('records', csrf, id);
 export const deleteAdminProject = (csrf: string, id: string) => workspaceDelete('projects', csrf, id);
+export const fetchAdminServices = () => workspaceList<AdminServiceOverride>('services');
+export const saveAdminService = (csrf: string, item: Partial<AdminServiceOverride>) => workspaceSave<AdminServiceOverride>('services', csrf, item);
+export const deleteAdminService = (csrf: string, id: string) => workspaceDelete('services', csrf, id);
 
 async function workspaceList<T>(resource: string): Promise<T[]> {
   const response = await fetch(`/api/admin/${resource}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
@@ -216,7 +220,7 @@ async function workspaceList<T>(resource: string): Promise<T[]> {
 
 async function workspaceSave<T extends { id: string }>(resource: string, csrf: string, item: Partial<T>): Promise<T> {
   const response = await fetch(`/api/admin/${resource}${item.id ? `/${encodeURIComponent(item.id)}` : ''}`, { method: item.id ? 'PUT' : 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(item) });
-  const singular = resource === 'templates' ? 'template' : resource === 'records' ? 'record' : 'project';
+  const singular = resource === 'templates' ? 'template' : resource === 'records' ? 'record' : resource === 'services' ? 'service' : 'project';
   const data = await parseAdminResponse<Record<string, T>>(response);
   return data[singular];
 }

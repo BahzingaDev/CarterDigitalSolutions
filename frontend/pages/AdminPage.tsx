@@ -9,6 +9,7 @@ import { AdminProjects } from '../components/admin/AdminProjects';
 import { AdminRecords } from '../components/admin/AdminRecords';
 import { AdminSidebar } from '../components/admin/AdminSidebar';
 import { AdminSetup } from '../components/admin/AdminSetup';
+import { AdminServices } from '../components/admin/AdminServices';
 import { AdminTemplates } from '../components/admin/AdminTemplates';
 import {
   type AdminEnquiry,
@@ -24,6 +25,7 @@ import {
   loginAdmin,
   logoutAdmin,
   sendAdminCommunication,
+  saveAdminProject,
   setupAdmin,
   updateAdminEnquiry,
   updateAdminQuoteStatus,
@@ -35,6 +37,7 @@ const viewTitles: Record<AdminView, { title: string; description: string }> = {
   quotes: { title: 'Quote requests', description: 'Review customer-built estimates and selected services.' },
   projects: { title: 'Project pipeline', description: 'Move opportunities and active work through delivery stages.' },
   records: { title: 'Custom records', description: 'Keep flexible, structured business records in one place.' },
+  services: { title: 'Service catalogue', description: 'Manage public pricing and quote-builder service values.' },
   templates: { title: 'Email templates', description: 'Create reusable messages for enquiry communications.' },
   account: { title: 'Account', description: 'Your administrator session and security details.' },
 };
@@ -52,7 +55,10 @@ export function AdminPage() {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
-  const newCount = useMemo(() => enquiries.filter((item) => item.status === 'new').length, [enquiries]);
+  const newCount = useMemo(
+    () => enquiries.filter((item) => item.status === 'new' && !item.archived).length,
+    [enquiries],
+  );
 
   const loadEnquiries = async () => {
     setIsLoading(true);
@@ -152,6 +158,23 @@ export function AdminPage() {
     return data.url;
   };
 
+  const handleConvertQuote = async (enquiry: AdminEnquiry, quote: AdminQuoteVersion) => {
+    if (!session?.csrf_token) throw new Error('Authentication required.');
+    await saveAdminProject(session.csrf_token, {
+      name: enquiry.project_type || `${enquiry.name} project`,
+      client_name: enquiry.name,
+      client_email: enquiry.email,
+      stage: quote.status === 'accepted' ? 'accepted' : 'quoted',
+      value: quote.total,
+      due_date: '',
+      notes: quote.notes,
+      tags: ['Quote conversion'],
+      linked_enquiry_id: enquiry.id,
+    });
+    setMessage('Quote converted to a project.');
+    setView('projects');
+  };
+
   if (!session || (isLoading && !session.authenticated)) {
     return <main className="admin-loading" aria-busy="true"><span className="spinner-border" /><p>Checking your session...</p></main>;
   }
@@ -187,14 +210,15 @@ export function AdminPage() {
           {view !== 'account' ? <button className="btn btn-outline-accent admin-refresh" disabled={isLoading} onClick={() => void loadEnquiries()} type="button"><RefreshCw className={isLoading ? 'is-spinning' : ''} size={16} /> {isLoading ? 'Refreshing' : 'Refresh'}</button> : null}
         </header>
 
-        <div className="admin-content">
+        <div className={`admin-content ${view === 'projects' ? 'admin-content-wide' : ''}`}>
           {message ? <div className="alert alert-success" role="status">{message}</div> : null}
           {error ? <div className="alert alert-danger" role="alert">{error}</div> : null}
           {view === 'overview' ? <AdminOverview enquiries={enquiries} onNavigate={setView} onSelect={setSelectedId} /> : null}
-          {view === 'enquiries' ? <AdminInbox enquiries={enquiries} mode="all" onCreateQuote={handleCreateQuote} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} selectedId={selectedId} /> : null}
-          {view === 'quotes' ? <AdminInbox enquiries={enquiries} mode="quotes" onCreateQuote={handleCreateQuote} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} selectedId={selectedId} /> : null}
+          {view === 'enquiries' ? <AdminInbox enquiries={enquiries} mode="all" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} selectedId={selectedId} /> : null}
+          {view === 'quotes' ? <AdminInbox enquiries={enquiries} mode="quotes" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} selectedId={selectedId} /> : null}
           {view === 'projects' ? <AdminProjects csrfToken={session.csrf_token ?? ''} /> : null}
           {view === 'records' ? <AdminRecords csrfToken={session.csrf_token ?? ''} /> : null}
+          {view === 'services' ? <AdminServices csrfToken={session.csrf_token ?? ''} /> : null}
           {view === 'templates' ? <AdminTemplates csrfToken={session.csrf_token ?? ''} /> : null}
           {view === 'account' ? <AdminAccount email={session.email ?? ''} name={session.name ?? 'Administrator'} /> : null}
         </div>

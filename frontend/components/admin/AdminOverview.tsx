@@ -12,9 +12,10 @@ export function AdminOverview({
   onNavigate: (view: AdminView) => void;
   onSelect: (id: string) => void;
 }) {
-  const newCount = enquiries.filter((enquiry) => enquiry.status === 'new').length;
-  const followUpsDue = enquiries.filter((enquiry) => enquiry.follow_up_at && new Date(enquiry.follow_up_at) <= new Date() && enquiry.status !== 'closed').length;
-  const quoteRequests = enquiries.filter((enquiry) => enquiry.type === 'quote');
+  const activeEnquiries = enquiries.filter((enquiry) => !enquiry.archived);
+  const newCount = activeEnquiries.filter((enquiry) => enquiry.status === 'new').length;
+  const followUpsDue = activeEnquiries.filter((enquiry) => enquiry.follow_up_at && new Date(enquiry.follow_up_at) <= new Date() && enquiry.status !== 'closed').length;
+  const quoteRequests = activeEnquiries.filter((enquiry) => enquiry.type === 'quote');
   const pipelineValue = quoteRequests
     .filter((enquiry) => enquiry.status !== 'closed')
     .reduce((total, enquiry) => total + enquiry.estimated_cost, 0);
@@ -25,7 +26,7 @@ export function AdminOverview({
         <Metric icon={Inbox} label="New enquiries" value={String(newCount)} tone="purple" />
         <Metric icon={Clock3} label="Follow-ups due" value={String(followUpsDue)} tone="amber" />
         <Metric icon={PoundSterling} label="Quoted pipeline" value={formatCurrency(pipelineValue)} tone="green" />
-        <Metric icon={CircleCheck} label="Closed" value={String(enquiries.filter((item) => item.status === 'closed').length)} tone="neutral" />
+        <Metric icon={CircleCheck} label="Closed" value={String(activeEnquiries.filter((item) => item.status === 'closed').length)} tone="neutral" />
       </div>
 
       <section className="admin-panel">
@@ -40,7 +41,7 @@ export function AdminOverview({
         </div>
 
         <div className="admin-recent-list">
-          {enquiries.slice(0, 5).map((enquiry) => (
+          {activeEnquiries.slice(0, 5).map((enquiry) => (
             <button
               className="admin-recent-item"
               key={enquiry.id}
@@ -60,7 +61,7 @@ export function AdminOverview({
               <ArrowRight size={17} aria-hidden="true" />
             </button>
           ))}
-          {enquiries.length === 0 ? <p className="admin-empty">No enquiries have been received yet.</p> : null}
+          {activeEnquiries.length === 0 ? <p className="admin-empty">No active enquiries have been received yet.</p> : null}
         </div>
       </section>
     </div>

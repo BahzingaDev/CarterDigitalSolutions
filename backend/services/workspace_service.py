@@ -88,6 +88,32 @@ def delete_project(project_id: str) -> bool:
     return _delete("MONGODB_PROJECT_COLLECTION", project_id)
 
 
+def list_service_overrides() -> list[dict[str, Any]]:
+    return _list("MONGODB_SERVICE_COLLECTION", {"sort_order": 1, "name": 1})
+
+
+def save_service_override(payload: dict[str, Any], service_id: str | None = None) -> dict[str, Any]:
+    document = {
+        "slug": _text(payload.get("slug"), "Service slug", 120).lower(),
+        "name": _text(payload.get("name"), "Service name", 120),
+        "audience": _text(payload.get("audience"), "Audience", 40),
+        "category": _text(payload.get("category"), "Category", 80),
+        "description": _optional_text(payload.get("description"), 500),
+        "best_for": _optional_text(payload.get("best_for"), 500),
+        "starting_from": _number(payload.get("starting_from", 0), "Starting price", 1_000_000),
+        "hourly_rate": _number(payload.get("hourly_rate", 0), "Hourly rate", 1000),
+        "estimated_hours": _number(payload.get("estimated_hours", 0), "Estimated hours", 1000),
+        "deposit": _optional_text(payload.get("deposit"), 80),
+        "active": bool(payload.get("active", True)),
+        "sort_order": int(_number(payload.get("sort_order", 0), "Sort order", 10000)),
+    }
+    return _save("MONGODB_SERVICE_COLLECTION", document, service_id)
+
+
+def delete_service_override(service_id: str) -> bool:
+    return _delete("MONGODB_SERVICE_COLLECTION", service_id)
+
+
 def _save(config_key: str, document: dict[str, Any], item_id: str | None) -> dict[str, Any]:
     now = datetime.now(timezone.utc)
     try:

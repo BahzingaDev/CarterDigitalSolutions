@@ -42,4 +42,15 @@ export function AdminCommunications({ enquiry, draft, onSend }: { enquiry: Admin
 }
 
 function formatDate(value: string) { return new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)); }
-function applyTemplate(value: string, enquiry: AdminEnquiry) { return value.split('{{name}}').join(enquiry.name).split('{{project_type}}').join(enquiry.project_type || 'your project'); }
+function applyTemplate(value: string, enquiry: AdminEnquiry) {
+  const latestQuote = enquiry.quote_versions?.[enquiry.quote_versions.length - 1];
+  const replacements: Record<string, string> = {
+    name: enquiry.name, email: enquiry.email, project_type: enquiry.project_type || 'your project',
+    enquiry_type: enquiry.type, reference: enquiry.id,
+    received_date: new Intl.DateTimeFormat('en-GB', { dateStyle: 'long' }).format(new Date(enquiry.created_at)),
+    estimated_hours: String(enquiry.estimated_hours || 0), estimated_cost: formatMoney(enquiry.estimated_cost),
+    quote_total: formatMoney(latestQuote?.total ?? 0), quote_deposit: formatMoney(latestQuote?.deposit ?? 0),
+  };
+  return Object.entries(replacements).reduce((result, [key, replacement]) => result.split(`{{${key}}}`).join(replacement), value);
+}
+function formatMoney(value: number) { return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(value); }

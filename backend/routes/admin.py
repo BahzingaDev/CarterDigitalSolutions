@@ -12,12 +12,15 @@ from ..services.workspace_service import (
     delete_project,
     delete_record,
     delete_template,
+    delete_service_override,
     list_projects,
     list_records,
     list_templates,
+    list_service_overrides,
     save_project,
     save_record,
     save_template,
+    save_service_override,
 )
 from ..services.enquiry_service import (
     EnquiryStorageError,
@@ -113,6 +116,30 @@ def update_admin_project(item_id: str):
 @require_admin_write
 def remove_admin_project(item_id: str):
     return _workspace_delete(delete_project, item_id)
+
+
+@admin_bp.get("/admin/services")
+@require_admin
+def admin_services():
+    return _workspace_list("services", list_service_overrides)
+
+
+@admin_bp.post("/admin/services")
+@require_admin_write
+def create_admin_service():
+    return _workspace_save("service", save_service_override)
+
+
+@admin_bp.put("/admin/services/<item_id>")
+@require_admin_write
+def update_admin_service(item_id: str):
+    return _workspace_save("service", save_service_override, item_id)
+
+
+@admin_bp.delete("/admin/services/<item_id>")
+@require_admin_write
+def remove_admin_service(item_id: str):
+    return _workspace_delete(delete_service_override, item_id)
 
 
 @admin_bp.get("/admin/auth/session")

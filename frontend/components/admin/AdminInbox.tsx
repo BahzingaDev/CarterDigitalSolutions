@@ -10,11 +10,12 @@ import { AdminQuoteManager } from './AdminQuoteManager';
 const statuses: EnquiryStatus[] = ['new', 'reviewed', 'replied', 'closed'];
 const pageSize = 10;
 
-export function AdminInbox({ enquiries, mode, selectedId, onCreateQuote, onQuoteStatus, onSelect, onSend, onShareQuote, onUpdate }: {
+export function AdminInbox({ enquiries, mode, selectedId, onConvertQuote, onCreateQuote, onQuoteStatus, onSelect, onSend, onShareQuote, onUpdate }: {
   enquiries: AdminEnquiry[];
   mode: 'all' | 'quotes';
   selectedId: string | null;
   onCreateQuote: (id: string, payload: { items: AdminQuoteItem[]; discount: number; deposit: number; notes: string; valid_until: string | null }) => Promise<void>;
+  onConvertQuote: (enquiry: AdminEnquiry, quote: AdminQuoteVersion) => Promise<void>;
   onQuoteStatus: (enquiryId: string, quoteId: string, status: AdminQuoteVersion['status']) => Promise<void>;
   onSelect: (id: string) => void;
   onSend: (id: string, subject: string, message: string, quoteId?: string) => Promise<void>;
@@ -34,7 +35,7 @@ export function AdminInbox({ enquiries, mode, selectedId, onCreateQuote, onQuote
   }, [mode, priorityFilter, query, showArchived, statusFilter]);
 
   const filtered = useMemo(() => enquiries.filter((enquiry) => {
-    const haystack = `${enquiry.name} ${enquiry.email} ${enquiry.project_type} ${enquiry.labels.join(' ')}`.toLowerCase();
+    const haystack = `${enquiry.name} ${enquiry.email} ${enquiry.project_type} ${(enquiry.labels ?? []).join(' ')}`.toLowerCase();
     return (mode === 'all' || enquiry.type === 'quote')
       && (showArchived ? enquiry.archived : !enquiry.archived)
       && (statusFilter === 'all' || enquiry.status === statusFilter)
@@ -42,9 +43,19 @@ export function AdminInbox({ enquiries, mode, selectedId, onCreateQuote, onQuote
       && haystack.includes(query.trim().toLowerCase());
   }), [enquiries, mode, priorityFilter, query, showArchived, statusFilter]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageCount = Math.ceil(filtered.length / pageSize);
+  useEffect(() => {
+    if (pageCount === 0 && page !== 1) setPage(1);
+    if (pageCount > 0 && page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
   const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
   const selected = filtered.find((item) => item.id === selectedId) ?? pageItems[0];
+  const noun = mode === 'quotes' ? 'quote requests' : 'enquiries';
+  const modeItems = enquiries.filter((item) => mode === 'all' || item.type === 'quote');
+  const visibleItems = modeItems.filter((item) => showArchived ? item.archived : !item.archived);
+  const emptyMessage = visibleItems.length === 0
+    ? `No ${showArchived ? 'archived ' : ''}${noun} yet.`
+    : `No ${noun} match the current filters.`;
 
   return (
     <div className="admin-inbox-layout">
@@ -60,13 +71,13 @@ export function AdminInbox({ enquiries, mode, selectedId, onCreateQuote, onQuote
 
         <div className="admin-enquiry-list">
           {pageItems.map((enquiry) => <button className={`admin-enquiry-list-item ${selected?.id === enquiry.id ? 'is-active' : ''}`} key={enquiry.id} onClick={() => onSelect(enquiry.id)} type="button"><span className="admin-avatar" aria-hidden="true">{enquiry.name.charAt(0).toUpperCase()}</span><span className="admin-list-copy"><strong>{enquiry.name}</strong><small>{enquiry.project_type || enquiry.type}</small>{enquiry.follow_up_at ? <small className="admin-follow-up"><CalendarClock size={12} /> {formatShortDate(enquiry.follow_up_at)}</small> : null}</span><span className={`admin-priority admin-priority-${enquiry.priority}`}>{enquiry.priority}</span></button>)}
-          {pageItems.length === 0 ? <p className="admin-empty">No enquiries match these filters.</p> : null}
+          {pageItems.length === 0 ? <p className="admin-empty admin-list-empty">{emptyMessage}</p> : null}
         </div>
-        <div className="admin-pagination"><button disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button">Previous</button><span>{page} of {pageCount}</span><button disabled={page >= pageCount} onClick={() => setPage((current) => current + 1)} type="button">Next</button></div>
+        {pageCount > 1 ? <div className="admin-pagination"><button disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button">Previous</button><span>{page} of {pageCount}</span><button disabled={page >= pageCount} onClick={() => setPage((current) => current + 1)} type="button">Next</button></div> : null}
       </section>
 
       <section className="admin-detail">
-        {selected ? <AdminEnquiryDetail key={`${selected.id}-${mode}`} defaultTab={mode === 'quotes' ? 'quote' : 'details'} enquiry={selected} onCreateQuote={onCreateQuote} onQuoteStatus={onQuoteStatus} onSend={onSend} onShareQuote={onShareQuote} onUpdate={onUpdate} /> : <div className="admin-panel admin-empty">Select an enquiry to view it.</div>}
+        {selected ? <AdminEnquiryDetail key={`${selected.id}-${mode}`} defaultTab={mode === 'quotes' ? 'quote' : 'details'} enquiry={selected} onConvertQuote={onConvertQuote} onCreateQuote={onCreateQuote} onQuoteStatus={onQuoteStatus} onSend={onSend} onShareQuote={onShareQuote} onUpdate={onUpdate} /> : <div className="admin-panel admin-zero-state">{mode === 'quotes' ? <FileText size={28} /> : <UserRound size={28} />}<h2>No {noun} to display</h2><p>{emptyMessage}</p></div>}
       </section>
     </div>
   );
@@ -74,10 +85,11 @@ export function AdminInbox({ enquiries, mode, selectedId, onCreateQuote, onQuote
 
 type DetailTab = 'details' | 'quote' | 'communications' | 'activity';
 
-function AdminEnquiryDetail({ defaultTab, enquiry, onCreateQuote, onQuoteStatus, onSend, onShareQuote, onUpdate }: {
+function AdminEnquiryDetail({ defaultTab, enquiry, onConvertQuote, onCreateQuote, onQuoteStatus, onSend, onShareQuote, onUpdate }: {
   defaultTab: DetailTab;
   enquiry: AdminEnquiry;
   onCreateQuote: AdminInboxProps['onCreateQuote'];
+  onConvertQuote: AdminInboxProps['onConvertQuote'];
   onQuoteStatus: AdminInboxProps['onQuoteStatus'];
   onSend: AdminInboxProps['onSend'];
   onShareQuote: AdminInboxProps['onShareQuote'];
@@ -85,7 +97,7 @@ function AdminEnquiryDetail({ defaultTab, enquiry, onCreateQuote, onQuoteStatus,
 }) {
   const [tab, setTab] = useState<DetailTab>(defaultTab);
   const [notes, setNotes] = useState(enquiry.admin_notes ?? '');
-  const [labels, setLabels] = useState(enquiry.labels.join(', '));
+  const [labels, setLabels] = useState((enquiry.labels ?? []).join(', '));
   const [followUp, setFollowUp] = useState(toDateTimeInput(enquiry.follow_up_at));
   const [isSaving, setIsSaving] = useState(false);
   const [communicationDraft, setCommunicationDraft] = useState<CommunicationDraft>();
@@ -111,7 +123,7 @@ function AdminEnquiryDetail({ defaultTab, enquiry, onCreateQuote, onQuoteStatus,
       <section className="admin-message"><h3>Customer message</h3><p>{enquiry.message}</p></section>
       <section className="admin-notes"><label className="form-label" htmlFor={`notes-${enquiry.id}`}>Private notes</label><textarea className="form-control" id={`notes-${enquiry.id}`} maxLength={4000} onChange={(event) => setNotes(event.target.value)} rows={5} value={notes} /><div className="admin-management-actions"><button className="btn btn-accent" disabled={isSaving} onClick={() => void saveManagement()} type="button">{isSaving ? 'Saving...' : 'Save details'}</button><button className="btn btn-outline-danger" onClick={() => void onUpdate(enquiry.id, { archived: !enquiry.archived })} type="button"><Archive size={16} /> {enquiry.archived ? 'Restore' : 'Archive'}</button></div></section>
     </div> : null}
-    {tab === 'quote' ? <AdminQuoteManager enquiry={enquiry} onCreate={(payload) => onCreateQuote(enquiry.id, payload)} onPrepareEmail={prepareQuoteEmail} onShare={(quoteId) => onShareQuote(enquiry.id, quoteId)} onStatus={(quoteId, status) => onQuoteStatus(enquiry.id, quoteId, status)} /> : null}
+    {tab === 'quote' ? <AdminQuoteManager enquiry={enquiry} onConvert={(quote) => onConvertQuote(enquiry, quote)} onCreate={(payload) => onCreateQuote(enquiry.id, payload)} onPrepareEmail={prepareQuoteEmail} onShare={(quoteId) => onShareQuote(enquiry.id, quoteId)} onStatus={(quoteId, status) => onQuoteStatus(enquiry.id, quoteId, status)} /> : null}
     {tab === 'communications' ? <AdminCommunications draft={communicationDraft} enquiry={enquiry} onSend={(subject, message, quoteId) => onSend(enquiry.id, subject, message, quoteId)} /> : null}
     {tab === 'activity' ? <AdminActivity enquiry={enquiry} /> : null}
   </article>;
