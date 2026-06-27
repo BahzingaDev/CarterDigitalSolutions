@@ -14,14 +14,17 @@ from ..services.workspace_service import (
     delete_record,
     delete_template,
     delete_service_override,
+    delete_service_category,
     list_projects,
     list_records,
     list_templates,
     list_service_overrides,
+    list_service_categories,
     save_project,
     save_record,
     save_template,
     save_service_override,
+    save_service_category,
     get_communication_settings,
     save_communication_settings,
 )
@@ -192,6 +195,30 @@ def update_admin_service(item_id: str):
 @require_admin_write
 def remove_admin_service(item_id: str):
     return _workspace_delete(delete_service_override, item_id)
+
+
+@admin_bp.get("/admin/service-categories")
+@require_admin
+def admin_service_categories():
+    return _workspace_list("categories", list_service_categories)
+
+
+@admin_bp.post("/admin/service-categories")
+@require_admin_write
+def create_admin_service_category():
+    return _workspace_save("category", save_service_category)
+
+
+@admin_bp.put("/admin/service-categories/<item_id>")
+@require_admin_write
+def update_admin_service_category(item_id: str):
+    return _workspace_save("category", save_service_category, item_id)
+
+
+@admin_bp.delete("/admin/service-categories/<item_id>")
+@require_admin_write
+def remove_admin_service_category(item_id: str):
+    return _workspace_delete(delete_service_category, item_id)
 
 
 @admin_bp.get("/admin/auth/session")
@@ -536,6 +563,8 @@ def _workspace_save(key: str, saver, item_id: str | None = None):
 def _workspace_delete(deleter, item_id: str):
     try:
         deleted = deleter(item_id)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
     except WorkspaceStorageError:
         current_app.logger.exception("Admin workspace delete failed")
         return jsonify({"error": "Workspace storage is unavailable."}), 503

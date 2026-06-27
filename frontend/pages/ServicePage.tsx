@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ContactCTA } from '../components/ContactCTA';
 import { formatCurrency, getPricingServiceBySlug } from '../src/data/pricing';
 import { getServiceBySlug, type ServiceDetail } from '../src/data/services';
-import { fetchServiceOverrides } from '../src/api/services';
+import { fetchServiceCatalogue } from '../src/api/services';
 import type { AdminServiceOverride } from '../src/api/admin';
 
 interface ServicePageProps {
@@ -94,15 +94,21 @@ function getServiceDetail(category: string, title: string) {
 export function ServicePage({ slug }: ServicePageProps) {
   const baseline = getServiceBySlug(slug);
   const [override, setOverride] = useState<AdminServiceOverride>();
+  const [isUnavailable, setIsUnavailable] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   useEffect(() => {
     setIsLoaded(false);
-    void fetchServiceOverrides()
-      .then((items) => setOverride(items.find((item) => item.slug === slug)))
+    setOverride(undefined);
+    setIsUnavailable(false);
+    void fetchServiceCatalogue()
+      .then((catalogue) => {
+        setOverride(catalogue.services.find((item) => item.slug === slug));
+        setIsUnavailable(catalogue.unavailable_slugs.includes(slug));
+      })
       .finally(() => setIsLoaded(true));
   }, [slug]);
 
-  const service: ServiceDetail | undefined = baseline ?? (override ? {
+  const service: ServiceDetail | undefined = isUnavailable ? undefined : baseline ?? (override ? {
     slug: override.slug,
     title: override.name,
     audience: override.audience === 'For Individuals' ? 'For Individuals' : 'For Industry',

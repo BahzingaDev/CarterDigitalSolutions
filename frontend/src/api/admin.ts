@@ -9,7 +9,8 @@ export type ProjectStage = 'lead' | 'discovery' | 'quoted' | 'accepted' | 'activ
 export interface ProjectChecklistItem { id: string; title: string; completed: boolean; due_date: string; }
 export interface AdminProject { id: string; name: string; client_name: string; client_email: string; stage: ProjectStage; value: number; due_date: string; notes: string; tags: string[]; linked_enquiry_id: string; source_quote_id: string; tasks: ProjectChecklistItem[]; milestones: ProjectChecklistItem[]; completion: number; created_at: string; updated_at: string; }
 export interface AdminCustomer { email: string; name: string; phone: string; organisation: string; notes: string; tags: string[]; enquiries: AdminEnquiry[]; projects: AdminProject[]; }
-export interface AdminServiceOverride { id: string; slug: string; name: string; audience: string; category: string; description: string; best_for: string; starting_from: number; hourly_rate: number; estimated_hours: number; deposit: string; active: boolean; sort_order: number; status: 'draft' | 'published'; outcomes: string[]; process_notes: string[]; }
+export interface AdminServiceCategory { id: string; slug: string; name: string; audience: string; description: string; active: boolean; sort_order: number; status: 'draft' | 'published'; created_at?: string; updated_at?: string; }
+export interface AdminServiceOverride { id: string; slug: string; name: string; audience: string; category_id: string; category: string; description: string; best_for: string; starting_from: number; hourly_rate: number; estimated_hours: number; deposit: string; active: boolean; sort_order: number; status: 'draft' | 'published'; outcomes: string[]; process_notes: string[]; }
 
 export interface AdminSession {
   authenticated: boolean;
@@ -219,6 +220,9 @@ export const deleteAdminProject = (csrf: string, id: string) => workspaceDelete(
 export const fetchAdminServices = () => workspaceList<AdminServiceOverride>('services');
 export const saveAdminService = (csrf: string, item: Partial<AdminServiceOverride>) => workspaceSave<AdminServiceOverride>('services', csrf, item);
 export const deleteAdminService = (csrf: string, id: string) => workspaceDelete('services', csrf, id);
+export async function fetchAdminServiceCategories() { const response = await fetch('/api/admin/service-categories', { credentials: 'same-origin', headers: { Accept: 'application/json' } }); return (await parseAdminResponse<{ categories: AdminServiceCategory[] }>(response)).categories; }
+export async function saveAdminServiceCategory(csrf: string, item: Partial<AdminServiceCategory>) { const response = await fetch(`/api/admin/service-categories${item.id ? `/${encodeURIComponent(item.id)}` : ''}`, { method: item.id ? 'PUT' : 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(item) }); return (await parseAdminResponse<{ category: AdminServiceCategory }>(response)).category; }
+export const deleteAdminServiceCategory = (csrf: string, id: string) => workspaceDelete('service-categories', csrf, id);
 export async function fetchAdminCustomers() { const response = await fetch('/api/admin/customers', { credentials: 'same-origin', headers: { Accept: 'application/json' } }); return (await parseAdminResponse<{ customers: AdminCustomer[] }>(response)).customers; }
 export async function saveAdminCustomer(csrf: string, customer: Partial<AdminCustomer>) { const response = await fetch(`/api/admin/customers/${encodeURIComponent(customer.email ?? '')}`, { method: 'PUT', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(customer) }); return (await parseAdminResponse<{ customer: AdminCustomer }>(response)).customer; }
 

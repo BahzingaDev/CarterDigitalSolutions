@@ -1,4 +1,5 @@
 import uuid
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -109,18 +110,78 @@ def delete_project(project_id: str) -> bool:
 
 def list_service_overrides(published_only: bool = False) -> list[dict[str, Any]]:
     services = _list("MONGODB_SERVICE_COLLECTION", {"sort_order": 1, "name": 1})
-    return [service for service in services if service.get("status", "published") == "published"] if published_only else services
+    return [
+        service for service in services
+        if service.get("status", "published") == "published" and service.get("active", True)
+    ] if published_only else services
+
+
+def list_service_categories(published_only: bool = False) -> list[dict[str, Any]]:
+    categories = _list("MONGODB_SERVICE_CATEGORY_COLLECTION", {"sort_order": 1, "name": 1})
+    if not published_only:
+        return categories
+    return [
+        category for category in categories
+        if category.get("status", "published") == "published" and category.get("active", True)
+    ]
+
+
+def save_service_category(payload: dict[str, Any], category_id: str | None = None) -> dict[str, Any]:
+    status = str(payload.get("status", "draft")).strip().lower()
+    if status not in {"draft", "published"}:
+        raise ValueError("Category status must be draft or published.")
+    slug = _slug(payload.get("slug") or payload.get("name"), "Category slug")
+    _ensure_unique_slug("MONGODB_SERVICE_CATEGORY_COLLECTION", slug, category_id)
+    document = {
+        "slug": slug,
+        "name": _text(payload.get("name"), "Category name", 80),
+        "audience": _audience(payload.get("audience")),
+        "description": _optional_text(payload.get("description"), 500),
+        "sort_order": int(_number(payload.get("sort_order", 0), "Sort order", 10000)),
+        "status": status,
+        "active": bool(payload.get("active", True)),
+    }
+    return _save("MONGODB_SERVICE_CATEGORY_COLLECTION", document, category_id)
+
+
+def delete_service_category(category_id: str) -> bool:
+    try:
+        if _collection("MONGODB_SERVICE_COLLECTION").find_one({"category_id": category_id}, {"_id": 1}):
+            raise ValueError("Move or archive services in this category before deleting it.")
+    except ValueError:
+        raise
+    except Exception as error:
+        raise WorkspaceStorageError("Unable to check category usage.") from error
+    return _delete("MONGODB_SERVICE_CATEGORY_COLLECTION", category_id)
 
 
 def save_service_override(payload: dict[str, Any], service_id: str | None = None) -> dict[str, Any]:
     status = str(payload.get("status", "draft")).strip().lower()
     if status not in {"draft", "published"}:
         raise ValueError("Service status must be draft or published.")
+    slug = _slug(payload.get("slug") or payload.get("name"), "Service slug")
+    _ensure_unique_slug("MONGODB_SERVICE_COLLECTION", slug, service_id)
+    category_id = _optional_text(payload.get("category_id"), 80)
+    category_name = _text(payload.get("category"), "Category", 80)
+    audience = _audience(payload.get("audience"))
+    if category_id:
+        try:
+            category = _collection("MONGODB_SERVICE_CATEGORY_COLLECTION").find_one(
+                {"id": category_id},
+                {"_id": 0, "name": 1, "audience": 1},
+            )
+        except Exception as error:
+            raise WorkspaceStorageError("Unable to validate the service category.") from error
+        if not category:
+            raise ValueError("The selected service category no longer exists.")
+        category_name = category["name"]
+        audience = category["audience"]
     document = {
-        "slug": _text(payload.get("slug"), "Service slug", 120).lower(),
+        "slug": slug,
         "name": _text(payload.get("name"), "Service name", 120),
-        "audience": _text(payload.get("audience"), "Audience", 40),
-        "category": _text(payload.get("category"), "Category", 80),
+        "audience": audience,
+        "category_id": category_id,
+        "category": category_name,
         "description": _optional_text(payload.get("description"), 500),
         "best_for": _optional_text(payload.get("best_for"), 500),
         "starting_from": _number(payload.get("starting_from", 0), "Starting price", 1_000_000),
@@ -236,6 +297,34 @@ def _number(value: Any, label: str, maximum: float) -> float:
     if number < 0 or number > maximum:
         raise ValueError(f"{label} is outside the permitted range.")
     return number
+
+
+def _slug(value: Any, label: str) -> str:
+    cleaned = str(value or "").strip().lower()
+    cleaned = re.sub(r"[^a-z0-9]+", "-", cleaned).strip("-")
+    if not cleaned or len(cleaned) > 120:
+        raise ValueError(f"{label} must contain between 1 and 120 URL-safe characters.")
+    return cleaned
+
+
+def _audience(value: Any) -> str:
+    audience = _text(value, "Audience", 40)
+    if audience not in {"For Industry", "For Individuals", "Working With You"}:
+        raise ValueError("Audience is not recognised.")
+    return audience
+
+
+def _ensure_unique_slug(config_key: str, slug: str, item_id: str | None) -> None:
+    query: dict[str, Any] = {"slug": slug}
+    if item_id:
+        query["id"] = {"$ne": item_id}
+    try:
+        if _collection(config_key).find_one(query, {"_id": 1}):
+            raise ValueError("That slug is already in use.")
+    except ValueError:
+        raise
+    except Exception as error:
+        raise WorkspaceStorageError("Unable to validate the catalogue slug.") from error
 
 
 def _project_items(value: Any, label: str) -> list[dict[str, Any]]:

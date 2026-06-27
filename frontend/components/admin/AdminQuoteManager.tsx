@@ -1,8 +1,9 @@
 import { BriefcaseBusiness, CirclePlus, Link2, Mail, Printer, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { AdminEnquiry, AdminQuoteItem, AdminQuotePayload, AdminQuoteVersion } from '../../src/api/admin';
 import { formatCurrency } from '../../src/data/pricing';
+import { fetchServiceCatalogue, mergeServiceCatalogue } from '../../src/api/services';
 
 export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail, onShare, onStatus, onUpdate }: {
   enquiry: AdminEnquiry;
@@ -24,6 +25,23 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail
   const [validUntil, setValidUntil] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [shareLinks, setShareLinks] = useState<Record<string, string>>({});
+  const [catalogueServices, setCatalogueServices] = useState<{ name: string; category: string; hours: number; rate: number }[]>([]);
+
+  useEffect(() => {
+    void fetchServiceCatalogue().then((catalogue) => {
+      const categories = mergeServiceCatalogue(catalogue.services, catalogue.categories, catalogue.unavailable_slugs);
+      setCatalogueServices(categories.flatMap((audience) =>
+        audience.groups.flatMap((group) =>
+          group.services.map((service) => ({
+            name: service.name,
+            category: group.subcategory,
+            hours: service.estimatedHours,
+            rate: service.hourlyRate ?? 0,
+          })),
+        ),
+      ));
+    });
+  }, []);
 
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + (!item.optional || item.included ? Number(item.hours || 0) * Number(item.rate || 0) : 0), 0), [items]);
   const taxable = Math.max(0, subtotal - Number(discount || 0) + Number(expenses || 0));
@@ -46,7 +64,8 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail
         <div className="admin-quote-editor-items">
           {items.map((item, index) => (
             <div className="admin-quote-editor-row" key={index}>
-              <input aria-label="Service" className="form-control" onChange={(event) => updateItem(index, { service: event.target.value })} placeholder="Service" value={item.service} />
+              <input aria-label="Service" className="form-control" list={`quote-service-options-${index}`} onChange={(event) => { const selected = catalogueServices.find((service) => service.name === event.target.value); updateItem(index, selected ? { service: selected.name, category: selected.category, hours: selected.hours, rate: selected.rate } : { service: event.target.value }); }} placeholder="Search or enter service" value={item.service} />
+              <datalist id={`quote-service-options-${index}`}>{catalogueServices.map((service) => <option key={`${service.category}-${service.name}`} value={service.name}>{service.category}</option>)}</datalist>
               <input aria-label="Category" className="form-control" onChange={(event) => updateItem(index, { category: event.target.value })} placeholder="Category" value={item.category} />
               <input aria-label="Hours" className="form-control" min="0.25" onChange={(event) => updateItem(index, { hours: Number(event.target.value) })} step="0.25" type="number" value={item.hours} />
               <input aria-label="Hourly rate" className="form-control" min="0.01" onChange={(event) => updateItem(index, { rate: Number(event.target.value) })} step="0.01" type="number" value={item.rate} />

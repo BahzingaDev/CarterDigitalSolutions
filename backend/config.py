@@ -43,6 +43,10 @@ class Config:
     MONGODB_RECORD_COLLECTION = os.environ.get("MONGODB_RECORD_COLLECTION", "admin_records")
     MONGODB_PROJECT_COLLECTION = os.environ.get("MONGODB_PROJECT_COLLECTION", "projects")
     MONGODB_SERVICE_COLLECTION = os.environ.get("MONGODB_SERVICE_COLLECTION", "service_catalogue")
+    MONGODB_SERVICE_CATEGORY_COLLECTION = os.environ.get(
+        "MONGODB_SERVICE_CATEGORY_COLLECTION",
+        "service_categories",
+    )
     MONGODB_CUSTOMER_COLLECTION = os.environ.get("MONGODB_CUSTOMER_COLLECTION", "customers")
     MONGODB_SETTINGS_COLLECTION = os.environ.get("MONGODB_SETTINGS_COLLECTION", "admin_settings")
     MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(

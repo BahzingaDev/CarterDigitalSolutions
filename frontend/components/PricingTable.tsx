@@ -5,7 +5,7 @@ import {
   formatHourlyRate,
   pricingCategories,
 } from '../src/data/pricing';
-import { fetchServiceOverrides, mergeServiceCatalogue } from '../src/api/services';
+import { fetchServiceCatalogue, mergeServiceCatalogue } from '../src/api/services';
 
 function CategoryIcon({ icon }: { icon: string }) {
   if (icon === 'industry') {
@@ -38,7 +38,7 @@ function CategoryIcon({ icon }: { icon: string }) {
 export function PricingTable() {
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [categories, setCategories] = useState(pricingCategories);
-  useEffect(() => { void fetchServiceOverrides().then((items) => setCategories(mergeServiceCatalogue(items))); }, []);
+  useEffect(() => { void fetchServiceCatalogue().then((catalogue) => setCategories(mergeServiceCatalogue(catalogue.services, catalogue.categories, catalogue.unavailable_slugs))); }, []);
 
   const toggleCategory = (categoryName: string) => {
     setOpenCategory((current) => (current === categoryName ? null : categoryName));

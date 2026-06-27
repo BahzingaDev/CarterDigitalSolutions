@@ -2004,6 +2004,39 @@ body {
   grid-template-columns: minmax(240px, 0.32fr) minmax(0, 0.68fr);
 }
 
+.admin-catalogue-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-segmented {
+  display: inline-grid;
+  grid-template-columns: repeat(2, 1fr);
+  padding: 0.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-page);
+}
+
+.admin-segmented button {
+  min-width: 7rem;
+  padding: 0.45rem 0.8rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-muted);
+  font-weight: 800;
+}
+
+.admin-segmented button.is-active {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.admin-catalogue-synced { color: var(--color-muted); font-size: 0.85rem; font-weight: 750; }
+
 .admin-workspace-list,
 .admin-workspace-editor,
 .admin-project-editor {

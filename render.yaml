@@ -31,6 +31,8 @@ services:
         value: projects
       - key: MONGODB_SERVICE_COLLECTION
         value: service_catalogue
+      - key: MONGODB_SERVICE_CATEGORY_COLLECTION
+        value: service_categories
       - key: MONGODB_CUSTOMER_COLLECTION
         value: customers
       - key: MONGODB_SETTINGS_COLLECTION

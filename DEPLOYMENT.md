@@ -18,6 +18,7 @@ This app is prepared for a single same-origin deployment: Flask serves the built
 - `MONGODB_SERVICE_COLLECTION=service_catalogue`: public service catalogue overrides.
 - `MONGODB_CUSTOMER_COLLECTION=customers`: editable CRM customer metadata.
 - `MONGODB_SETTINGS_COLLECTION=admin_settings`: communication signatures and admin preferences.
+- `MONGODB_SERVICE_CATEGORY_COLLECTION=service_categories`: service category structure and display order.
 - `ALLOWED_ORIGINS`: deployed site origin, for example `https://www.carterdigitalsolutions.co.uk`.
 
 ## Optional Email Notifications

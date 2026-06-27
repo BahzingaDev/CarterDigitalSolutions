@@ -2,7 +2,7 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react';
 
 import { submitEnquiry } from '../src/api/enquiries';
 import { formatCurrency, pricingCategories } from '../src/data/pricing';
-import { fetchServiceOverrides, mergeServiceCatalogue } from '../src/api/services';
+import { fetchServiceCatalogue, mergeServiceCatalogue } from '../src/api/services';
 
 const complexityLevels = [
   {
@@ -94,7 +94,7 @@ export function QuoteBuilder() {
   const [complexity, setComplexity] = useState<ComplexityLevel>(2);
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [error, setError] = useState('');
-  useEffect(() => { void fetchServiceOverrides().then((items) => setCategories(mergeServiceCatalogue(items))); }, []);
+  useEffect(() => { void fetchServiceCatalogue().then((catalogue) => setCategories(mergeServiceCatalogue(catalogue.services, catalogue.categories, catalogue.unavailable_slugs))); }, []);
 
   const quoteSections = useMemo(() => buildQuoteSections(categories), [categories]);
   const quoteItems = useMemo(() => quoteSections.flatMap((section) => section.items), [quoteSections]);
