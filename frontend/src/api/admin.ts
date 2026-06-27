@@ -2,13 +2,14 @@ export type EnquiryStatus = 'new' | 'reviewed' | 'replied' | 'closed';
 export type AdminView = 'overview' | 'enquiries' | 'quotes' | 'customers' | 'projects' | 'records' | 'services' | 'templates' | 'account';
 
 export interface AdminTemplate { id: string; name: string; subject: string; body: string; created_at: string; updated_at: string; }
+export interface CommunicationSettings { id: string; signature: string; updated_at?: string; }
 export interface AdminCustomField { key: string; value: string; }
 export interface AdminRecord { id: string; title: string; record_type: string; tags: string[]; notes: string; fields: AdminCustomField[]; archived: boolean; created_at: string; updated_at: string; }
 export type ProjectStage = 'lead' | 'discovery' | 'quoted' | 'accepted' | 'active' | 'on_hold' | 'completed';
 export interface ProjectChecklistItem { id: string; title: string; completed: boolean; due_date: string; }
-export interface AdminProject { id: string; name: string; client_name: string; client_email: string; stage: ProjectStage; value: number; due_date: string; notes: string; tags: string[]; linked_enquiry_id: string; tasks: ProjectChecklistItem[]; milestones: ProjectChecklistItem[]; completion: number; created_at: string; updated_at: string; }
+export interface AdminProject { id: string; name: string; client_name: string; client_email: string; stage: ProjectStage; value: number; due_date: string; notes: string; tags: string[]; linked_enquiry_id: string; source_quote_id: string; tasks: ProjectChecklistItem[]; milestones: ProjectChecklistItem[]; completion: number; created_at: string; updated_at: string; }
 export interface AdminCustomer { email: string; name: string; phone: string; organisation: string; notes: string; tags: string[]; enquiries: AdminEnquiry[]; projects: AdminProject[]; }
-export interface AdminServiceOverride { id: string; slug: string; name: string; audience: string; category: string; description: string; best_for: string; starting_from: number; hourly_rate: number; estimated_hours: number; deposit: string; active: boolean; sort_order: number; }
+export interface AdminServiceOverride { id: string; slug: string; name: string; audience: string; category: string; description: string; best_for: string; starting_from: number; hourly_rate: number; estimated_hours: number; deposit: string; active: boolean; sort_order: number; status: 'draft' | 'published'; outcomes: string[]; process_notes: string[]; }
 
 export interface AdminSession {
   authenticated: boolean;
@@ -26,6 +27,8 @@ export interface AdminQuoteItem {
   category: string;
   hours: number;
   rate: number;
+  optional?: boolean;
+  included?: boolean;
 }
 
 export interface AdminQuoteVersion {
@@ -35,6 +38,9 @@ export interface AdminQuoteVersion {
   items: AdminQuoteItem[];
   subtotal: number;
   discount: number;
+  expenses: number;
+  tax_rate: number;
+  tax_amount: number;
   total: number;
   deposit: number;
   notes: string;
@@ -42,6 +48,7 @@ export interface AdminQuoteVersion {
   created_at: string;
   status_updated_at?: string;
 }
+export interface AdminQuotePayload { items: AdminQuoteItem[]; discount: number; expenses: number; tax_rate: number; deposit: number; notes: string; valid_until: string | null; }
 
 export interface AdminActivity {
   id: string;
@@ -52,10 +59,10 @@ export interface AdminActivity {
 
 export interface AdminCommunication {
   id: string;
-  direction: 'outgoing';
+  direction: 'outgoing' | 'incoming';
   subject: string;
   message: string;
-  status: 'sent' | 'delivered' | 'opened' | 'clicked' | 'delayed' | 'bounced' | 'complained' | 'failed' | 'suppressed';
+  status: 'scheduled' | 'sent' | 'received' | 'delivered' | 'opened' | 'clicked' | 'delayed' | 'bounced' | 'complained' | 'failed' | 'suppressed';
   sent_at: string;
   sent_by: string;
   provider_message_id?: string;
@@ -159,13 +166,7 @@ export async function updateAdminEnquiry(
 export async function createAdminQuote(
   csrfToken: string,
   id: string,
-  payload: {
-    items: AdminQuoteItem[];
-    discount: number;
-    deposit: number;
-    notes: string;
-    valid_until: string | null;
-  },
+  payload: AdminQuotePayload,
 ) {
   const response = await fetch(`/api/admin/enquiries/${encodeURIComponent(id)}/quotes`, {
     method: 'POST',
@@ -175,6 +176,7 @@ export async function createAdminQuote(
   });
   return parseAdminResponse<{ enquiry: AdminEnquiry }>(response);
 }
+export async function updateAdminQuote(csrfToken: string, enquiryId: string, quoteId: string, payload: AdminQuotePayload) { const response = await fetch(`/api/admin/enquiries/${encodeURIComponent(enquiryId)}/quotes/${encodeURIComponent(quoteId)}`, { method: 'PUT', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken }, body: JSON.stringify(payload) }); return parseAdminResponse<{ enquiry: AdminEnquiry }>(response); }
 
 export async function updateAdminQuoteStatus(csrfToken: string, enquiryId: string, quoteId: string, status: AdminQuoteVersion['status']) {
   const response = await fetch(`/api/admin/enquiries/${encodeURIComponent(enquiryId)}/quotes/${encodeURIComponent(quoteId)}`, {
@@ -193,15 +195,17 @@ export async function createQuoteShareLink(csrfToken: string, enquiryId: string,
   return parseAdminResponse<{ url: string }>(response);
 }
 
-export async function sendAdminCommunication(csrfToken: string, enquiryId: string, subject: string, message: string, quoteId?: string) {
+export async function sendAdminCommunication(csrfToken: string, enquiryId: string, subject: string, message: string, quoteId?: string, scheduledAt?: string) {
   const response = await fetch(`/api/admin/enquiries/${encodeURIComponent(enquiryId)}/communications`, {
     method: 'POST',
     credentials: 'same-origin',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-    body: JSON.stringify({ subject, message, quote_id: quoteId ?? '' }),
+    body: JSON.stringify({ subject, message, quote_id: quoteId ?? '', scheduled_at: scheduledAt ?? '' }),
   });
   return parseAdminResponse<{ enquiry: AdminEnquiry }>(response);
 }
+export async function fetchCommunicationSettings() { const response = await fetch('/api/admin/communication-settings', { credentials: 'same-origin', headers: { Accept: 'application/json' } }); return (await parseAdminResponse<{ settings: CommunicationSettings }>(response)).settings; }
+export async function saveCommunicationSettings(csrf: string, signature: string) { const response = await fetch('/api/admin/communication-settings', { method: 'PUT', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify({ signature }) }); return (await parseAdminResponse<{ settings: CommunicationSettings }>(response)).settings; }
 
 export const fetchAdminTemplates = () => workspaceList<AdminTemplate>('templates');
 export const fetchAdminRecords = () => workspaceList<AdminRecord>('records');

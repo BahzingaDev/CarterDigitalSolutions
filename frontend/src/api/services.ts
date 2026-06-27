@@ -20,6 +20,11 @@ export function mergeServiceCatalogue(overrides: AdminServiceOverride[]): Pricin
       target.services.push(override ? { ...service, name: override.name, startingFrom: override.starting_from, hourlyRate: override.hourly_rate, estimatedHours: override.estimated_hours, deposit: override.deposit, bestFor: override.best_for } : service);
       groups.set(groupName, target);
     }));
+    overrides.filter((item) => item.audience === category.category && item.active && !pricingCategories.some((source) => source.groups.some((group) => group.services.some((service) => service.slug === item.slug)))).forEach((item) => {
+      const target = groups.get(item.category) ?? { subcategory: item.category, description: item.description, services: [] };
+      target.services.push({ slug: item.slug, name: item.name, startingFrom: item.starting_from, hourlyRate: item.hourly_rate, estimatedHours: item.estimated_hours, deposit: item.deposit, bestFor: item.best_for });
+      groups.set(item.category, target);
+    });
     return { ...category, groups: [...groups.values()] };
   }).filter((category) => category.groups.length > 0);
 }

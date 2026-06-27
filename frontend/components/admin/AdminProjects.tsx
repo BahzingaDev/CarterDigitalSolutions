@@ -9,7 +9,7 @@ const stages: { id: ProjectStage; label: string }[] = [
   { id: 'active', label: 'Active' }, { id: 'on_hold', label: 'On hold' },
   { id: 'completed', label: 'Completed' },
 ];
-const empty = { name: '', client_name: '', client_email: '', stage: 'lead' as ProjectStage, value: 0, due_date: '', notes: '', tags: [], linked_enquiry_id: '', tasks: [], milestones: [], completion: 0 };
+const empty = { name: '', client_name: '', client_email: '', stage: 'lead' as ProjectStage, value: 0, due_date: '', notes: '', tags: [], linked_enquiry_id: '', source_quote_id: '', tasks: [], milestones: [], completion: 0 };
 
 export function AdminProjects({ csrfToken }: { csrfToken: string }) {
   const [items, setItems] = useState<AdminProject[]>([]);

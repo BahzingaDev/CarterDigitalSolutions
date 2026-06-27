@@ -111,6 +111,14 @@ def save_enquiry(enquiry: dict[str, Any]) -> dict[str, str]:
 
 def list_enquiries(limit: int | None = None) -> list[dict[str, Any]]:
     collection = _get_collection()
+    try:
+        collection.update_many(
+            {},
+            {"$set": {"quote_versions.$[quote].status": "expired", "quote_versions.$[quote].status_updated_at": datetime.now(timezone.utc)}},
+            array_filters=[{"quote.status": {"$in": ["draft", "sent"]}, "quote.valid_until": {"$lt": datetime.now(timezone.utc)}}],
+        )
+    except Exception:
+        current_app.logger.exception("Automatic quote expiry update failed")
     export_limit = min(limit or current_app.config["ADMIN_EXPORT_LIMIT"], 500)
     records = collection.find({}, {"_id": 0}).sort("created_at", -1).limit(export_limit)
     return [_serialise_record(record) for record in records]
@@ -208,9 +216,13 @@ def create_quote_version(
         return None
 
     items = _validate_quote_items(payload.get("items"))
-    subtotal = round(sum(item["hours"] * item["rate"] for item in items), 2)
+    subtotal = round(sum(item["hours"] * item["rate"] for item in items if not item["optional"] or item["included"]), 2)
     discount = _bounded_number(payload.get("discount", 0), "discount", subtotal)
-    total = round(subtotal - discount, 2)
+    expenses = _bounded_number(payload.get("expenses", 0), "expenses", 1_000_000)
+    tax_rate = _bounded_number(payload.get("tax_rate", 0), "tax rate", 100)
+    taxable = round(subtotal - discount + expenses, 2)
+    tax_amount = round(taxable * tax_rate / 100, 2)
+    total = round(taxable + tax_amount, 2)
     deposit = _bounded_number(payload.get("deposit", 0), "deposit", total)
     notes = str(payload.get("notes", "")).strip()
     if len(notes) > 2000:
@@ -226,6 +238,9 @@ def create_quote_version(
         "items": items,
         "subtotal": subtotal,
         "discount": discount,
+        "expenses": expenses,
+        "tax_rate": tax_rate,
+        "tax_amount": tax_amount,
         "total": total,
         "deposit": deposit,
         "notes": notes,
@@ -287,6 +302,38 @@ def update_quote_status(
     return get_enquiry(enquiry_id)
 
 
+def update_draft_quote(enquiry_id: str, quote_id: str, payload: dict[str, Any]) -> dict[str, Any] | None:
+    record = get_enquiry(enquiry_id)
+    if not record:
+        return None
+    quote = next((item for item in record.get("quote_versions", []) if item.get("id") == quote_id), None)
+    if not quote:
+        raise ValueError("Quote not found.")
+    if quote.get("status") != "draft":
+        raise ValueError("Only draft quotes can be edited in place.")
+    items = _validate_quote_items(payload.get("items"))
+    subtotal = round(sum(item["hours"] * item["rate"] for item in items if not item["optional"] or item["included"]), 2)
+    discount = _bounded_number(payload.get("discount", 0), "discount", subtotal)
+    expenses = _bounded_number(payload.get("expenses", 0), "expenses", 1_000_000)
+    tax_rate = _bounded_number(payload.get("tax_rate", 0), "tax rate", 100)
+    taxable = round(subtotal - discount + expenses, 2)
+    tax_amount = round(taxable * tax_rate / 100, 2)
+    total = round(taxable + tax_amount, 2)
+    deposit = _bounded_number(payload.get("deposit", 0), "deposit", total)
+    notes = str(payload.get("notes", "")).strip()
+    if len(notes) > 2000:
+        raise ValueError("Quote notes cannot exceed 2000 characters.")
+    valid_until = _optional_datetime(payload.get("valid_until"), "valid-until date")
+    now = datetime.now(timezone.utc)
+    fields = {"items": items, "subtotal": subtotal, "discount": discount, "expenses": expenses, "tax_rate": tax_rate, "tax_amount": tax_amount, "total": total, "deposit": deposit, "notes": notes, "valid_until": valid_until, "updated_at": now}
+    update = {f"quote_versions.$.{key}": value for key, value in fields.items()}
+    try:
+        _get_collection().update_one({"id": enquiry_id, "quote_versions.id": quote_id}, {"$set": update, "$push": {"activity": _activity("quote", f"Draft quote version {quote.get('version')} updated", now)}})
+    except Exception as error:
+        raise EnquiryStorageError("Unable to update quote.", reason="write_failed") from error
+    return get_enquiry(enquiry_id)
+
+
 def create_quote_approval_link(enquiry_id: str, quote_id: str) -> str | None:
     record = get_enquiry(enquiry_id)
     if not record:
@@ -341,6 +388,10 @@ def approve_public_quote(quote_id: str, token: str, customer_name: str) -> dict[
         raise ValueError("Name must contain between 2 and 120 characters.")
     if public_quote["quote"].get("status") in {"declined", "expired"}:
         raise ValueError("This quote can no longer be approved.")
+    valid_until = public_quote["quote"].get("valid_until")
+    if valid_until and datetime.fromisoformat(str(valid_until).replace("Z", "+00:00")) < datetime.now(timezone.utc):
+        update_quote_status_for_public_expiry(quote_id)
+        raise ValueError("This quote has expired and can no longer be approved.")
 
     token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
     now = datetime.now(timezone.utc)
@@ -361,6 +412,16 @@ def approve_public_quote(quote_id: str, token: str, customer_name: str) -> dict[
     return get_public_quote(quote_id, token) if result.matched_count else None
 
 
+def update_quote_status_for_public_expiry(quote_id: str) -> None:
+    try:
+        _get_collection().update_one(
+            {"quote_versions.id": quote_id},
+            {"$set": {"quote_versions.$.status": "expired", "quote_versions.$.status_updated_at": datetime.now(timezone.utc)}},
+        )
+    except Exception as error:
+        raise EnquiryStorageError("Unable to expire quote.", reason="write_failed") from error
+
+
 def hmac_compare(left: str, right: str) -> bool:
     import hmac
     return hmac.compare_digest(left, right)
@@ -373,6 +434,7 @@ def record_communication(
     status: str,
     admin_email: str,
     provider_message_id: str | None = None,
+    scheduled_at: str = "",
 ) -> dict[str, Any] | None:
     clean_subject = subject.strip()
     clean_message = message.strip()
@@ -380,7 +442,7 @@ def record_communication(
         raise ValueError("Subject must contain between 1 and 180 characters.")
     if not clean_message or len(clean_message) > 5000:
         raise ValueError("Message must contain between 1 and 5000 characters.")
-    if status not in {"sent", "failed"}:
+    if status not in {"sent", "scheduled", "failed"}:
         raise ValueError("Invalid delivery status.")
 
     now = datetime.now(timezone.utc)
@@ -394,6 +456,7 @@ def record_communication(
         "sent_by": admin_email,
         "provider_message_id": provider_message_id or "",
         "delivery_events": [],
+        "scheduled_at": scheduled_at or None,
     }
     try:
         mutation: dict[str, Any] = {
@@ -451,6 +514,30 @@ def record_delivery_event(provider_message_id: str, event_id: str, event_type: s
         raise EnquiryStorageError("Unable to record delivery event.", reason="write_failed") from error
 
 
+def record_incoming_communication(sender_email: str, subject: str, message: str, provider_message_id: str, received_at: str) -> bool:
+    now = _optional_datetime(received_at, "received date") or datetime.now(timezone.utc)
+    communication = {
+        "id": str(uuid.uuid4()), "direction": "incoming", "subject": subject[:180],
+        "message": message[:5000], "status": "received", "sent_at": now,
+        "sent_by": sender_email, "provider_message_id": provider_message_id,
+        "delivery_events": [],
+    }
+    try:
+        collection = _get_collection()
+        if collection.find_one({"communications.provider_message_id": provider_message_id}, {"_id": 1}):
+            return True
+        enquiry = collection.find_one({"email": sender_email.lower()}, {"_id": 0, "id": 1}, sort=[("created_at", -1)])
+        if not enquiry:
+            return False
+        collection.update_one(
+            {"id": enquiry["id"]},
+            {"$push": {"communications": communication, "activity": _activity("communication", f"Customer reply received: {subject[:120]}", now)}},
+        )
+        return True
+    except Exception as error:
+        raise EnquiryStorageError("Unable to record incoming email.", reason="write_failed") from error
+
+
 def _activity(activity_type: str, description: str, created_at: datetime) -> dict[str, Any]:
     return {
         "id": str(uuid.uuid4()),
@@ -503,7 +590,15 @@ def _validate_quote_items(value: Any) -> list[dict[str, Any]]:
         rate = _bounded_number(item.get("rate"), "rate", 1000)
         if hours <= 0 or rate <= 0:
             raise ValueError("Quote item hours and rates must be greater than zero.")
-        items.append({"service": service, "category": category, "hours": hours, "rate": rate})
+        optional = bool(item.get("optional", False))
+        items.append({
+            "service": service,
+            "category": category,
+            "hours": hours,
+            "rate": rate,
+            "optional": optional,
+            "included": bool(item.get("included", False)) if optional else True,
+        })
     return items
 
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ContactCTA } from '../components/ContactCTA';
 import { formatCurrency, getPricingServiceBySlug } from '../src/data/pricing';
-import { getServiceBySlug } from '../src/data/services';
+import { getServiceBySlug, type ServiceDetail } from '../src/data/services';
 import { fetchServiceOverrides } from '../src/api/services';
 import type { AdminServiceOverride } from '../src/api/admin';
 
@@ -92,11 +92,29 @@ function getServiceDetail(category: string, title: string) {
 }
 
 export function ServicePage({ slug }: ServicePageProps) {
-  const service = getServiceBySlug(slug);
+  const baseline = getServiceBySlug(slug);
   const [override, setOverride] = useState<AdminServiceOverride>();
-  useEffect(() => { void fetchServiceOverrides().then((items) => setOverride(items.find((item) => item.slug === slug))); }, [slug]);
+  const [isLoaded, setIsLoaded] = useState(false);
+  useEffect(() => {
+    setIsLoaded(false);
+    void fetchServiceOverrides()
+      .then((items) => setOverride(items.find((item) => item.slug === slug)))
+      .finally(() => setIsLoaded(true));
+  }, [slug]);
 
-  if (!service) {
+  const service: ServiceDetail | undefined = baseline ?? (override ? {
+    slug: override.slug,
+    title: override.name,
+    audience: override.audience === 'For Individuals' ? 'For Individuals' : 'For Industry',
+    category: override.category,
+    summary: override.description,
+    bestFor: override.best_for,
+    startingFrom: formatCurrency(override.starting_from),
+    outcomes: override.outcomes,
+    processNotes: override.process_notes,
+  } : undefined);
+
+  if (!service && isLoaded) {
     return (
       <section className="page-hero">
         <div className="container">
@@ -107,6 +125,8 @@ export function ServicePage({ slug }: ServicePageProps) {
       </section>
     );
   }
+
+  if (!service) return null;
 
   const technologies = technologyByCategory[service.category] ?? [];
   const approaches = approachByCategory[service.category] ?? [];
@@ -139,7 +159,7 @@ export function ServicePage({ slug }: ServicePageProps) {
           <article className="service-detail-panel">
             <p className="section-kicker">Service detail</p>
             <h2>What this can involve</h2>
-            <p>{getServiceDetail(service.category, service.title)}</p>
+            <p>{override?.description || getServiceDetail(service.category, service.title)}</p>
           </article>
 
           <div className="row g-4">
@@ -147,7 +167,7 @@ export function ServicePage({ slug }: ServicePageProps) {
               <article className="workflow-info-panel h-100">
                 <h2>Typical outcomes</h2>
                 <ul className="feature-list">
-                  {service.outcomes.map((outcome) => (
+                  {(override?.outcomes?.length ? override.outcomes : service.outcomes).map((outcome) => (
                     <li key={outcome}>{outcome}</li>
                   ))}
                 </ul>
@@ -158,7 +178,7 @@ export function ServicePage({ slug }: ServicePageProps) {
               <article className="workflow-info-panel h-100">
                 <h2>How this usually works</h2>
                 <ul className="feature-list">
-                  {service.processNotes.map((note) => (
+                  {(override?.process_notes?.length ? override.process_notes : service.processNotes).map((note) => (
                     <li key={note}>{note}</li>
                   ))}
                 </ul>

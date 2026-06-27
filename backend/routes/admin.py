@@ -22,6 +22,8 @@ from ..services.workspace_service import (
     save_record,
     save_template,
     save_service_override,
+    get_communication_settings,
+    save_communication_settings,
 )
 from ..services.enquiry_service import (
     EnquiryStorageError,
@@ -32,6 +34,7 @@ from ..services.enquiry_service import (
     record_communication,
     update_enquiry,
     update_quote_status,
+    update_draft_quote,
 )
 from ..utils.admin_auth import (
     admin_login_rate_limited,
@@ -45,6 +48,28 @@ from ..utils.rate_limit import request_ip_key
 from ..utils.security import origin_is_allowed
 
 admin_bp = Blueprint("admin", __name__)
+
+
+@admin_bp.get("/admin/communication-settings")
+@require_admin
+def admin_communication_settings():
+    try:
+        return jsonify({"settings": get_communication_settings()})
+    except WorkspaceStorageError:
+        return jsonify({"error": "Workspace storage is unavailable."}), 503
+
+
+@admin_bp.put("/admin/communication-settings")
+@require_admin_write
+def update_admin_communication_settings():
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json."}), 415
+    try:
+        return jsonify({"settings": save_communication_settings(request.get_json(silent=True) or {})})
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except WorkspaceStorageError:
+        return jsonify({"error": "Workspace storage is unavailable."}), 503
 
 
 @admin_bp.get("/admin/customers")
@@ -399,6 +424,22 @@ def update_admin_quote(enquiry_id: str, quote_id: str):
     return jsonify({"enquiry": updated})
 
 
+@admin_bp.put("/admin/enquiries/<enquiry_id>/quotes/<quote_id>")
+@require_admin_write
+def edit_admin_quote(enquiry_id: str, quote_id: str):
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json."}), 415
+    try:
+        updated = update_draft_quote(enquiry_id, quote_id, request.get_json(silent=True) or {})
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except EnquiryStorageError:
+        return jsonify({"error": "Enquiry storage is unavailable."}), 503
+    if not updated:
+        return jsonify({"error": "Enquiry not found."}), 404
+    return jsonify({"enquiry": updated})
+
+
 @admin_bp.post("/admin/enquiries/<enquiry_id>/quotes/<quote_id>/share")
 @require_admin_write
 def share_admin_quote(enquiry_id: str, quote_id: str):
@@ -425,12 +466,13 @@ def send_admin_communication(enquiry_id: str):
     subject = str(payload.get("subject", "")).strip()
     message = str(payload.get("message", "")).strip()
     quote_id = str(payload.get("quote_id", "")).strip()
+    scheduled_at = str(payload.get("scheduled_at", "")).strip()
 
     try:
         enquiry = get_enquiry(enquiry_id)
         if not enquiry:
             return jsonify({"error": "Enquiry not found."}), 404
-        provider_message_id = send_customer_message(enquiry, subject, message)
+        provider_message_id = send_customer_message(enquiry, subject, message, scheduled_at)
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
     except EnquiryStorageError:
@@ -454,9 +496,10 @@ def send_admin_communication(enquiry_id: str):
             enquiry_id,
             subject,
             message,
-            "sent",
+            "scheduled" if scheduled_at else "sent",
             session.get("admin_email", ""),
             provider_message_id,
+            scheduled_at,
         )
         if quote_id:
             updated = update_quote_status(enquiry_id, quote_id, "sent")

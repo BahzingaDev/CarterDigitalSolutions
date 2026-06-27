@@ -14,6 +14,6 @@ def site_summary():
 @site_bp.get("/services")
 def services_catalogue():
     try:
-        return jsonify({"services": list_service_overrides()})
+        return jsonify({"services": list_service_overrides(published_only=True)})
     except WorkspaceStorageError:
         return jsonify({"services": []})

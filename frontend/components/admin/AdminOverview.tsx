@@ -1,4 +1,4 @@
-import { ArrowRight, CircleCheck, Clock3, Inbox, PoundSterling } from 'lucide-react';
+import { ArrowRight, CalendarClock, Clock3, Inbox, PoundSterling } from 'lucide-react';
 
 import type { AdminEnquiry, AdminView } from '../../src/api/admin';
 import { formatCurrency } from '../../src/data/pricing';
@@ -19,6 +19,14 @@ export function AdminOverview({
   const pipelineValue = quoteRequests
     .filter((enquiry) => enquiry.status !== 'closed')
     .reduce((total, enquiry) => total + enquiry.estimated_cost, 0);
+  const now = Date.now();
+  const sevenDays = now + 7 * 24 * 60 * 60 * 1000;
+  const expiringQuotes = activeEnquiries.filter((enquiry) => {
+    const quote = enquiry.quote_versions[enquiry.quote_versions.length - 1];
+    if (!quote?.valid_until || !['draft', 'sent'].includes(quote.status)) return false;
+    const expiry = new Date(quote.valid_until).getTime();
+    return expiry >= now && expiry <= sevenDays;
+  }).length;
 
   return (
     <div className="admin-view-stack">
@@ -26,7 +34,7 @@ export function AdminOverview({
         <Metric icon={Inbox} label="New enquiries" value={String(newCount)} tone="purple" />
         <Metric icon={Clock3} label="Follow-ups due" value={String(followUpsDue)} tone="amber" />
         <Metric icon={PoundSterling} label="Quoted pipeline" value={formatCurrency(pipelineValue)} tone="green" />
-        <Metric icon={CircleCheck} label="Closed" value={String(activeEnquiries.filter((item) => item.status === 'closed').length)} tone="neutral" />
+        <Metric icon={CalendarClock} label="Quotes expiring" value={String(expiringQuotes)} tone="neutral" />
       </div>
 
       <section className="admin-panel">

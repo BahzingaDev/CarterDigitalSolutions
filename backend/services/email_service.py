@@ -1,7 +1,7 @@
 import json
 import socket
 import smtplib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from html import escape
 from typing import Any
@@ -61,7 +61,7 @@ def send_enquiry_notification(enquiry: dict[str, Any], saved: dict[str, str]) ->
     _send_smtp_messages(enquiry, saved)
 
 
-def send_customer_message(enquiry: dict[str, Any], subject: str, message: str) -> str | None:
+def send_customer_message(enquiry: dict[str, Any], subject: str, message: str, scheduled_at: str = "") -> str | None:
     if not email_notifications_configured():
         raise RuntimeError("Email delivery is not configured.")
 
@@ -72,9 +72,23 @@ def send_customer_message(enquiry: dict[str, Any], subject: str, message: str) -
     if not clean_message or len(clean_message) > 5000:
         raise ValueError("Message must contain between 1 and 5000 characters.")
 
+    if scheduled_at:
+        try:
+            scheduled_for = datetime.fromisoformat(scheduled_at.replace("Z", "+00:00"))
+        except ValueError as error:
+            raise ValueError("Scheduled delivery must use a valid date and time.") from error
+        if scheduled_for.tzinfo is None:
+            raise ValueError("Scheduled delivery must include a timezone.")
+        now = datetime.now(timezone.utc)
+        scheduled_for = scheduled_for.astimezone(timezone.utc)
+        if scheduled_for <= now:
+            raise ValueError("Scheduled delivery must be in the future.")
+        if scheduled_for > now + timedelta(days=30):
+            raise ValueError("Scheduled delivery cannot be more than 30 days ahead.")
+        scheduled_at = scheduled_for.isoformat().replace("+00:00", "Z")
+
     if current_app.config.get("EMAIL_PROVIDER") == "resend":
-        response = _send_resend_payload(
-            {
+        payload = {
                 "from": current_app.config["CUSTOMER_EMAIL_FROM"],
                 "to": [enquiry["email"]],
                 "subject": clean_subject,
@@ -86,9 +100,13 @@ def send_customer_message(enquiry: dict[str, Any], subject: str, message: str) -
                     {"name": "enquiry_type", "value": _tag_value(enquiry["type"])},
                 ],
             }
-        )
+        if scheduled_at:
+            payload["scheduled_at"] = scheduled_at
+        response = _send_resend_payload(payload)
         return str(response.get("id", "")) or None
 
+    if scheduled_at:
+        raise ValueError("Scheduled delivery is only available with the Resend provider.")
     customer_message = EmailMessage()
     customer_message["Subject"] = clean_subject
     customer_message["From"] = current_app.config["CUSTOMER_EMAIL_FROM"]
@@ -191,6 +209,35 @@ def _send_resend_payload(payload: dict[str, Any]) -> dict[str, Any]:
     except HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"Resend API error {error.code}: {detail}") from error
+
+
+def retrieve_received_email(email_id: str) -> dict[str, Any]:
+    request = Request(
+        f"{current_app.config['RESEND_RECEIVING_API_URL'].rstrip('/')}/{email_id}",
+        headers={
+            "Authorization": f"Bearer {current_app.config['RESEND_API_KEY']}",
+            "Accept": "application/json",
+            "User-Agent": "CarterDigitalSolutions/1.0 (+https://carterdigitalsolutions.onrender.com)",
+        },
+        method="GET",
+    )
+    with urlopen(request, timeout=current_app.config["SMTP_TIMEOUT"]) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def send_quote_approval_notification(approval: dict[str, Any]) -> None:
+    if current_app.config.get("EMAIL_PROVIDER") != "resend" or not email_notifications_configured():
+        return
+    quote = approval.get("quote", {})
+    customer = approval.get("customer_name", "Customer")
+    _send_resend_payload({
+        "from": current_app.config["ENQUIRY_EMAIL_FROM"],
+        "to": [current_app.config["ENQUIRY_EMAIL_TO"]],
+        "subject": f"Quote approved by {customer}",
+        "text": f"{customer} approved quote version {quote.get('version')} for {_money(quote.get('total', 0))}.",
+        "html": f"<p><strong>{escape(customer)}</strong> approved quote version {escape(str(quote.get('version')))}.</p><p>Total: <strong>{escape(_money(quote.get('total', 0)))}</strong></p>",
+        "tags": [{"name": "email_type", "value": "quote_approval"}],
+    })
 
 
 def _send_smtp_messages(enquiry: dict[str, Any], saved: dict[str, str]) -> None:

@@ -76,6 +76,15 @@ def save_project(payload: dict[str, Any], project_id: str | None = None) -> dict
         (sum(1 for item in tasks if item["completed"]) / len(tasks) * 100)
         if tasks else _number(payload.get("completion", 0), "Completion", 100)
     )
+    source_quote_id = _optional_text(payload.get("source_quote_id"), 80)
+    if not project_id and source_quote_id:
+        try:
+            if _collection("MONGODB_PROJECT_COLLECTION").find_one({"source_quote_id": source_quote_id}, {"_id": 1}):
+                raise ValueError("This quote has already been converted to a project.")
+        except ValueError:
+            raise
+        except Exception as error:
+            raise WorkspaceStorageError("Unable to check quote conversion.") from error
     document = {
         "name": _text(payload.get("name"), "Project name", 140),
         "client_name": _optional_text(payload.get("client_name"), 120),
@@ -86,6 +95,7 @@ def save_project(payload: dict[str, Any], project_id: str | None = None) -> dict
         "notes": _optional_text(payload.get("notes"), 5000),
         "tags": _tags(payload.get("tags", [])),
         "linked_enquiry_id": _optional_text(payload.get("linked_enquiry_id"), 80),
+        "source_quote_id": source_quote_id,
         "tasks": tasks,
         "milestones": milestones,
         "completion": completion,
@@ -97,11 +107,15 @@ def delete_project(project_id: str) -> bool:
     return _delete("MONGODB_PROJECT_COLLECTION", project_id)
 
 
-def list_service_overrides() -> list[dict[str, Any]]:
-    return _list("MONGODB_SERVICE_COLLECTION", {"sort_order": 1, "name": 1})
+def list_service_overrides(published_only: bool = False) -> list[dict[str, Any]]:
+    services = _list("MONGODB_SERVICE_COLLECTION", {"sort_order": 1, "name": 1})
+    return [service for service in services if service.get("status", "published") == "published"] if published_only else services
 
 
 def save_service_override(payload: dict[str, Any], service_id: str | None = None) -> dict[str, Any]:
+    status = str(payload.get("status", "draft")).strip().lower()
+    if status not in {"draft", "published"}:
+        raise ValueError("Service status must be draft or published.")
     document = {
         "slug": _text(payload.get("slug"), "Service slug", 120).lower(),
         "name": _text(payload.get("name"), "Service name", 120),
@@ -115,12 +129,34 @@ def save_service_override(payload: dict[str, Any], service_id: str | None = None
         "deposit": _optional_text(payload.get("deposit"), 80),
         "active": bool(payload.get("active", True)),
         "sort_order": int(_number(payload.get("sort_order", 0), "Sort order", 10000)),
+        "status": status,
+        "outcomes": _string_list(payload.get("outcomes", []), "outcomes"),
+        "process_notes": _string_list(payload.get("process_notes", []), "process notes"),
     }
     return _save("MONGODB_SERVICE_COLLECTION", document, service_id)
 
 
 def delete_service_override(service_id: str) -> bool:
     return _delete("MONGODB_SERVICE_COLLECTION", service_id)
+
+
+def get_communication_settings() -> dict[str, Any]:
+    try:
+        record = _collection("MONGODB_SETTINGS_COLLECTION").find_one({"id": "communications"}, {"_id": 0})
+        return _serialise(record or {"id": "communications", "signature": ""})
+    except Exception as error:
+        raise WorkspaceStorageError("Unable to load communication settings.") from error
+
+
+def save_communication_settings(payload: dict[str, Any]) -> dict[str, Any]:
+    signature = _optional_text(payload.get("signature"), 2000)
+    now = datetime.now(timezone.utc)
+    try:
+        collection = _collection("MONGODB_SETTINGS_COLLECTION")
+        collection.update_one({"id": "communications"}, {"$set": {"id": "communications", "signature": signature, "updated_at": now}}, upsert=True)
+        return _serialise(collection.find_one({"id": "communications"}, {"_id": 0}))
+    except Exception as error:
+        raise WorkspaceStorageError("Unable to save communication settings.") from error
 
 
 def _save(config_key: str, document: dict[str, Any], item_id: str | None) -> dict[str, Any]:
@@ -217,6 +253,12 @@ def _project_items(value: Any, label: str) -> list[dict[str, Any]]:
             "due_date": _optional_text(item.get("due_date"), 40),
         })
     return items
+
+
+def _string_list(value: Any, label: str) -> list[str]:
+    if not isinstance(value, list) or len(value) > 20:
+        raise ValueError(f"Service {label} must contain no more than 20 entries.")
+    return [_text(item, f"Service {label}", 240) for item in value]
 
 
 def _serialise(value: Any) -> Any:

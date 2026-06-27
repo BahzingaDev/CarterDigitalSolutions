@@ -1,6 +1,9 @@
 from flask import Blueprint, current_app, jsonify, request
 
-from ..services.enquiry_service import EnquiryStorageError, record_delivery_event
+from email.utils import parseaddr
+
+from ..services.email_service import retrieve_received_email
+from ..services.enquiry_service import EnquiryStorageError, record_delivery_event, record_incoming_communication
 
 webhooks_bp = Blueprint("webhooks", __name__)
 
@@ -30,6 +33,17 @@ def resend_webhook():
     event_id = headers["svix-id"]
     details = data.get("bounce") or data.get("failed") or {}
     try:
+        if event_type == "email.received":
+            received = retrieve_received_email(email_id)
+            sender = parseaddr(str(received.get("from", data.get("from", ""))))[1].lower()
+            record_incoming_communication(
+                sender,
+                str(received.get("subject", data.get("subject", "Customer reply"))),
+                str(received.get("text") or "Email received without a plain-text body."),
+                email_id,
+                str(received.get("created_at", event.get("created_at", ""))),
+            )
+            return jsonify({"received": True})
         record_delivery_event(
             email_id,
             event_id,

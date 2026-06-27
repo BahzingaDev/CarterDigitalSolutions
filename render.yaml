@@ -33,6 +33,8 @@ services:
         value: service_catalogue
       - key: MONGODB_CUSTOMER_COLLECTION
         value: customers
+      - key: MONGODB_SETTINGS_COLLECTION
+        value: admin_settings
       - key: ALLOWED_ORIGINS
         sync: false
       - key: ADMIN_EMAIL

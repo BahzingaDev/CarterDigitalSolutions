@@ -1908,8 +1908,10 @@ body {
   display: grid;
   align-items: center;
   gap: 0.5rem;
-  grid-template-columns: minmax(130px, 1.5fr) minmax(100px, 1fr) 76px 92px 38px;
+  grid-template-columns: minmax(130px, 1.5fr) minmax(100px, 1fr) 76px 92px auto auto 38px;
 }
+
+.admin-quote-option { display: inline-flex; align-items: center; gap: 0.35rem; margin: 0; font-size: 0.75rem; font-weight: 750; white-space: nowrap; }
 
 .admin-inline-action {
   justify-self: start;
@@ -1981,6 +1983,7 @@ body {
 .quote-review-table td { padding: 0.9rem 0.75rem; border-bottom: 1px solid var(--color-border); text-align: right; }
 .quote-review-table td:first-child { display: grid; text-align: left; }
 .quote-review-table small { color: var(--color-muted); }
+.quote-review-table .quote-item-excluded { opacity: 0.62; }
 .quote-review-totals { align-items: flex-end; flex-direction: column; margin-left: auto; padding: 1.5rem 0; }
 .quote-review-totals span { display: flex; justify-content: space-between; gap: 3rem; width: min(320px, 100%); }
 .quote-review-totals .is-total { padding-top: 0.6rem; border-top: 2px solid var(--color-text); font-size: 1.2rem; }
@@ -2017,6 +2020,16 @@ body {
 .admin-template-field { display: grid; gap: 0.5rem; }
 .admin-template-field > label { display: grid; gap: 0.35rem; color: var(--color-muted); font-size: 0.78rem; font-weight: 800; }
 .admin-placeholder-select { width: min(320px, 100%); }
+.admin-signature-panel { max-width: 56rem; }
+.admin-signature-panel .btn { display: inline-flex; align-items: center; justify-self: start; gap: 0.4rem; }
+.admin-signature-preview { margin: 0; padding: 0.75rem; border-left: 3px solid var(--color-accent); background: var(--color-page); color: var(--color-muted); font: inherit; white-space: pre-wrap; }
+.admin-service-preview { padding: 1.25rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-page); }
+.admin-service-preview h2 { font-size: 1.5rem; font-weight: 850; }
+.admin-service-preview h3 { margin-top: 1rem; font-size: 0.95rem; font-weight: 800; }
+.admin-template-preview { min-height: 18rem; padding: 1.25rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-page); }
+.admin-template-preview small { color: var(--color-muted); font-weight: 800; text-transform: uppercase; }
+.admin-template-preview h3 { margin: 0.25rem 0 1.5rem; font-size: 1.15rem; }
+.admin-template-preview p { margin: 0 0 0.75rem; }
 .admin-custom-fields { display: grid; gap: 0.5rem; padding: 1rem 0; border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
 .admin-custom-fields .admin-subpanel-heading h3 { margin: 0; }
 .admin-custom-fields .admin-subpanel-heading .btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0; text-decoration: none; }
@@ -2089,6 +2102,12 @@ body {
 .admin-communication-list article div { display: grid; gap: 0.25rem; }
 .admin-communication-list p { margin: 0; color: var(--color-text); white-space: pre-wrap; }
 .admin-communication-list small { color: var(--color-muted); }
+.admin-communication-list .admin-message-incoming {
+  margin-inline: -0.75rem;
+  padding-inline: 0.75rem;
+  border-left: 3px solid var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent-soft) 24%, transparent);
+}
 
 .admin-reuse-message {
   display: inline-flex;
@@ -2110,6 +2129,8 @@ body {
 }
 
 .admin-delivery-sent { color: #166534; background: #dcfce7; }
+.admin-delivery-scheduled { color: #5b21b6; background: #ede9fe; }
+.admin-delivery-received { color: #1e40af; background: #dbeafe; }
 .admin-delivery-failed { color: #991b1b; background: #fee2e2; }
 .admin-delivery-delivered, .admin-delivery-opened, .admin-delivery-clicked { color: #166534; background: #dcfce7; }
 .admin-delivery-delayed { color: #92400e; background: #fef3c7; }
@@ -2149,6 +2170,8 @@ body {
 .admin-activity-list small { color: var(--color-muted); }
 
 :root[data-theme='dark'] .admin-delivery-sent { color: #bbf7d0; background: #173e2a; }
+:root[data-theme='dark'] .admin-delivery-scheduled { color: #ddd6fe; background: #39236b; }
+:root[data-theme='dark'] .admin-delivery-received { color: #bfdbfe; background: #1e3a5f; }
 :root[data-theme='dark'] .admin-delivery-failed { color: #fecaca; background: #4a2025; }
 :root[data-theme='dark'] .admin-delivery-delivered,
 :root[data-theme='dark'] .admin-delivery-opened,
@@ -2866,7 +2889,7 @@ body {
   }
 
   .admin-quote-editor-row {
-    grid-template-columns: minmax(130px, 1.5fr) minmax(100px, 1fr) 76px 92px 38px;
+    grid-template-columns: minmax(130px, 1.5fr) minmax(100px, 1fr) 76px 92px auto auto 38px;
     overflow-x: auto;
   }
 }
