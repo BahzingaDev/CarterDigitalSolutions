@@ -2036,6 +2036,22 @@ body {
 .admin-project-card small, .admin-project-card time { color: var(--color-muted); font-size: 0.75rem; }
 .admin-project-card > span { margin-top: 0.3rem; font-weight: 800; }
 .admin-project-card .form-select { margin-top: 0.45rem; font-size: 0.75rem; }
+.admin-customer-heading { display: flex; align-items: center; gap: 0.85rem; }
+.admin-customer-heading h2 { margin: 0; font-size: 1.25rem; }
+.admin-customer-heading a { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--color-accent-strong); font-size: 0.82rem; }
+.admin-customer-history { display: grid; gap: 0.5rem; padding-top: 1rem; border-top: 1px solid var(--color-border); }
+.admin-customer-history h3 { margin: 0.75rem 0 0; font-size: 0.95rem; }
+.admin-customer-history article { display: flex; justify-content: space-between; gap: 1rem; padding: 0.65rem; border: 1px solid var(--color-border); border-radius: 6px; }
+.admin-customer-history small { color: var(--color-muted); }
+.admin-project-progress { display: grid; align-items: center; gap: 0.65rem; grid-template-columns: auto minmax(0, 1fr) auto; font-size: 0.8rem; }
+.admin-project-progress > div, .admin-card-progress { height: 7px; overflow: hidden; border-radius: 999px; background: var(--color-border); }
+.admin-project-progress i, .admin-card-progress i { display: block; height: 100%; background: var(--color-accent); }
+.admin-checklist-grid { display: grid; gap: 1rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.admin-checklist { display: grid; align-content: start; gap: 0.5rem; padding: 0.85rem; border: 1px solid var(--color-border); border-radius: 6px; }
+.admin-checklist .btn { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0; text-decoration: none; }
+.admin-checklist-item { display: grid; align-items: center; gap: 0.4rem; grid-template-columns: auto minmax(100px, 1fr) 135px 38px; }
+.admin-checklist-item input[type='checkbox'] { width: 1rem; height: 1rem; accent-color: var(--color-accent); }
+.admin-card-progress { margin: 0.35rem 0; }
 
 .admin-zero-state {
   display: grid;
@@ -2095,6 +2111,11 @@ body {
 
 .admin-delivery-sent { color: #166534; background: #dcfce7; }
 .admin-delivery-failed { color: #991b1b; background: #fee2e2; }
+.admin-delivery-delivered, .admin-delivery-opened, .admin-delivery-clicked { color: #166534; background: #dcfce7; }
+.admin-delivery-delayed { color: #92400e; background: #fef3c7; }
+.admin-delivery-bounced, .admin-delivery-complained, .admin-delivery-suppressed { color: #991b1b; background: #fee2e2; }
+.admin-delivery-events { display: flex !important; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.25rem; }
+.admin-delivery-events small { padding: 0.2rem 0.4rem; border-radius: 4px; background: var(--color-page); }
 
 .admin-activity-list {
   display: grid;
@@ -2129,6 +2150,9 @@ body {
 
 :root[data-theme='dark'] .admin-delivery-sent { color: #bbf7d0; background: #173e2a; }
 :root[data-theme='dark'] .admin-delivery-failed { color: #fecaca; background: #4a2025; }
+:root[data-theme='dark'] .admin-delivery-delivered,
+:root[data-theme='dark'] .admin-delivery-opened,
+:root[data-theme='dark'] .admin-delivery-clicked { color: #bbf7d0; background: #173e2a; }
 
 .testimonial-card {
   margin-bottom: 0;
@@ -2835,6 +2859,7 @@ body {
   }
 
   .admin-workspace-split { grid-template-columns: 1fr; }
+  .admin-checklist-grid { grid-template-columns: 1fr; }
 
   .admin-inbox-list-panel .admin-enquiry-list {
     max-height: 28rem;

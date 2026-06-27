@@ -43,6 +43,7 @@ class Config:
     MONGODB_RECORD_COLLECTION = os.environ.get("MONGODB_RECORD_COLLECTION", "admin_records")
     MONGODB_PROJECT_COLLECTION = os.environ.get("MONGODB_PROJECT_COLLECTION", "projects")
     MONGODB_SERVICE_COLLECTION = os.environ.get("MONGODB_SERVICE_COLLECTION", "service_catalogue")
+    MONGODB_CUSTOMER_COLLECTION = os.environ.get("MONGODB_CUSTOMER_COLLECTION", "customers")
     MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(
         os.environ.get("MONGODB_SERVER_SELECTION_TIMEOUT_MS", "5000"),
     )
@@ -52,6 +53,7 @@ class Config:
     )
     EMAIL_NOTIFICATIONS_ENABLED = os.environ.get("EMAIL_NOTIFICATIONS_ENABLED", "1") == "1"
     RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+    RESEND_WEBHOOK_SECRET = os.environ.get("RESEND_WEBHOOK_SECRET", "")
     RESEND_API_URL = os.environ.get("RESEND_API_URL", "https://api.resend.com/emails")
     EMAIL_PROVIDER = os.environ.get(
         "EMAIL_PROVIDER",

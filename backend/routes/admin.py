@@ -7,6 +7,7 @@ from ..services.admin_service import (
     create_admin_account,
 )
 from ..services.email_service import send_customer_message
+from ..services.customer_service import CustomerStorageError, list_customer_profiles, save_customer_profile
 from ..services.workspace_service import (
     WorkspaceStorageError,
     delete_project,
@@ -44,6 +45,32 @@ from ..utils.rate_limit import request_ip_key
 from ..utils.security import origin_is_allowed
 
 admin_bp = Blueprint("admin", __name__)
+
+
+@admin_bp.get("/admin/customers")
+@require_admin
+def admin_customers():
+    try:
+        return jsonify({"customers": list_customer_profiles()})
+    except CustomerStorageError:
+        current_app.logger.exception("Admin customer list failed")
+        return jsonify({"error": "Customer storage is unavailable."}), 503
+
+
+@admin_bp.put("/admin/customers/<path:email>")
+@require_admin_write
+def update_admin_customer(email: str):
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json."}), 415
+    payload = request.get_json(silent=True) or {}
+    payload["email"] = email
+    try:
+        return jsonify({"customer": save_customer_profile(payload)})
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except CustomerStorageError:
+        current_app.logger.exception("Admin customer save failed")
+        return jsonify({"error": "Customer storage is unavailable."}), 503
 
 
 @admin_bp.get("/admin/templates")
@@ -403,7 +430,7 @@ def send_admin_communication(enquiry_id: str):
         enquiry = get_enquiry(enquiry_id)
         if not enquiry:
             return jsonify({"error": "Enquiry not found."}), 404
-        send_customer_message(enquiry, subject, message)
+        provider_message_id = send_customer_message(enquiry, subject, message)
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
     except EnquiryStorageError:
@@ -429,6 +456,7 @@ def send_admin_communication(enquiry_id: str):
             message,
             "sent",
             session.get("admin_email", ""),
+            provider_message_id,
         )
         if quote_id:
             updated = update_quote_status(enquiry_id, quote_id, "sent")

@@ -372,6 +372,7 @@ def record_communication(
     message: str,
     status: str,
     admin_email: str,
+    provider_message_id: str | None = None,
 ) -> dict[str, Any] | None:
     clean_subject = subject.strip()
     clean_message = message.strip()
@@ -391,6 +392,8 @@ def record_communication(
         "status": status,
         "sent_at": now,
         "sent_by": admin_email,
+        "provider_message_id": provider_message_id or "",
+        "delivery_events": [],
     }
     try:
         mutation: dict[str, Any] = {
@@ -413,6 +416,39 @@ def record_communication(
     except Exception as error:
         raise EnquiryStorageError("Unable to record communication.", reason="write_failed") from error
     return get_enquiry(enquiry_id) if result.matched_count else None
+
+
+def record_delivery_event(provider_message_id: str, event_id: str, event_type: str, created_at: str, details: dict[str, Any]) -> bool:
+    if not provider_message_id or not event_id:
+        return False
+    try:
+        collection = _get_collection()
+        record = collection.find_one(
+            {"communications.provider_message_id": provider_message_id},
+            {"_id": 0, "id": 1, "communications": 1},
+        )
+        if not record:
+            return False
+        communication = next((item for item in record.get("communications", []) if item.get("provider_message_id") == provider_message_id), None)
+        if not communication or any(item.get("id") == event_id for item in communication.get("delivery_events", [])):
+            return True
+        status_map = {
+            "email.sent": "sent", "email.delivered": "delivered", "email.opened": "opened",
+            "email.clicked": "clicked", "email.delivery_delayed": "delayed",
+            "email.bounced": "bounced", "email.complained": "complained",
+            "email.failed": "failed", "email.suppressed": "suppressed",
+        }
+        event = {"id": event_id, "type": event_type, "created_at": created_at, "details": details}
+        update: dict[str, Any] = {"$push": {"communications.$.delivery_events": event}}
+        if event_type in status_map:
+            update["$set"] = {"communications.$.status": status_map[event_type]}
+        collection.update_one(
+            {"id": record["id"], "communications.provider_message_id": provider_message_id},
+            update,
+        )
+        return True
+    except Exception as error:
+        raise EnquiryStorageError("Unable to record delivery event.", reason="write_failed") from error
 
 
 def _activity(activity_type: str, description: str, created_at: datetime) -> dict[str, Any]:

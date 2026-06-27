@@ -61,7 +61,7 @@ def send_enquiry_notification(enquiry: dict[str, Any], saved: dict[str, str]) ->
     _send_smtp_messages(enquiry, saved)
 
 
-def send_customer_message(enquiry: dict[str, Any], subject: str, message: str) -> None:
+def send_customer_message(enquiry: dict[str, Any], subject: str, message: str) -> str | None:
     if not email_notifications_configured():
         raise RuntimeError("Email delivery is not configured.")
 
@@ -73,7 +73,7 @@ def send_customer_message(enquiry: dict[str, Any], subject: str, message: str) -
         raise ValueError("Message must contain between 1 and 5000 characters.")
 
     if current_app.config.get("EMAIL_PROVIDER") == "resend":
-        _send_resend_payload(
+        response = _send_resend_payload(
             {
                 "from": current_app.config["CUSTOMER_EMAIL_FROM"],
                 "to": [enquiry["email"]],
@@ -87,7 +87,7 @@ def send_customer_message(enquiry: dict[str, Any], subject: str, message: str) -
                 ],
             }
         )
-        return
+        return str(response.get("id", "")) or None
 
     customer_message = EmailMessage()
     customer_message["Subject"] = clean_subject
@@ -113,6 +113,7 @@ def send_customer_message(enquiry: dict[str, Any], subject: str, message: str) -
         if username and password:
             smtp.login(username, password)
         smtp.send_message(customer_message)
+    return None
 
 
 def _customer_message_html(name: str, message: str) -> str:
@@ -167,7 +168,7 @@ def _send_resend_customer_auto_reply(enquiry: dict[str, Any], saved: dict[str, s
     _send_resend_payload(payload)
 
 
-def _send_resend_payload(payload: dict[str, Any]) -> None:
+def _send_resend_payload(payload: dict[str, Any]) -> dict[str, Any]:
     data = json.dumps(payload).encode("utf-8")
     request = Request(
         current_app.config["RESEND_API_URL"],
@@ -185,6 +186,8 @@ def _send_resend_payload(payload: dict[str, Any]) -> None:
         with urlopen(request, timeout=current_app.config["SMTP_TIMEOUT"]) as response:
             if response.status >= 400:
                 raise RuntimeError(f"Resend API returned status {response.status}.")
+            response_body = response.read().decode("utf-8")
+            return json.loads(response_body) if response_body else {}
     except HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"Resend API error {error.code}: {detail}") from error

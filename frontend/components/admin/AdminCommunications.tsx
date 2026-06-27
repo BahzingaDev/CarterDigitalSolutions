@@ -33,7 +33,7 @@ export function AdminCommunications({ enquiry, draft, onSend }: { enquiry: Admin
       <section className="admin-subpanel">
         <div className="admin-subpanel-heading"><div><h3>Communication history</h3><p>Delivery attempts recorded for this enquiry.</p></div></div>
         <div className="admin-communication-list">
-          {[...enquiry.communications].reverse().map((item) => <article key={item.id}><span className={`admin-delivery admin-delivery-${item.status}`}>{item.status}</span><div><strong>{item.subject}</strong><p>{item.message}</p><small>{formatDate(item.sent_at)} by {item.sent_by}</small><button className="btn btn-link admin-reuse-message" onClick={() => { setSubject(item.subject); setMessage(item.message); setQuoteId(undefined); }} type="button"><RotateCcw size={14} /> Use again</button></div></article>)}
+          {[...enquiry.communications].reverse().map((item) => <article key={item.id}><span className={`admin-delivery admin-delivery-${item.status}`}>{item.status}</span><div><strong>{item.subject}</strong><p>{item.message}</p><small>{formatDate(item.sent_at)} by {item.sent_by}</small>{(item.delivery_events ?? []).length > 0 ? <div className="admin-delivery-events">{[...(item.delivery_events ?? [])].reverse().map((event) => <small key={event.id}>{event.type.replace('email.', '')} · {formatDate(event.created_at)}</small>)}</div> : null}<button className="btn btn-link admin-reuse-message" onClick={() => { setSubject(item.subject); setMessage(item.message); setQuoteId(undefined); }} type="button"><RotateCcw size={14} /> Use again</button></div></article>)}
           {enquiry.communications.length === 0 ? <p className="admin-empty">No messages have been sent from the dashboard.</p> : null}
         </div>
       </section>

@@ -16,6 +16,7 @@ This app is prepared for a single same-origin deployment: Flask serves the built
 - `MONGODB_RECORD_COLLECTION=admin_records`: flexible custom business records.
 - `MONGODB_PROJECT_COLLECTION=projects`: project pipeline records.
 - `MONGODB_SERVICE_COLLECTION=service_catalogue`: public service catalogue overrides.
+- `MONGODB_CUSTOMER_COLLECTION=customers`: editable CRM customer metadata.
 - `ALLOWED_ORIGINS`: deployed site origin, for example `https://www.carterdigitalsolutions.co.uk`.
 
 ## Optional Email Notifications
@@ -28,6 +29,7 @@ Set these environment variables to forward each saved enquiry to email. HTTPS pr
 
 - `EMAIL_PROVIDER=resend`
 - `RESEND_API_KEY`: Resend API key.
+- `RESEND_WEBHOOK_SECRET`: signing secret for the Resend webhook endpoint.
 - `ENQUIRY_EMAIL_TO`: destination inbox for enquiries.
 - `ENQUIRY_EMAIL_FROM`: verified sender address, for example `Carter Digital Solutions <hello@yourdomain.com>`.
 - `ENQUIRY_TIMEZONE=Europe/London`: timezone used when formatting enquiry timestamps.
@@ -35,6 +37,8 @@ Set these environment variables to forward each saved enquiry to email. HTTPS pr
 - `CUSTOMER_EMAIL_FROM`: verified sender used for the customer confirmation email.
 
 Resend tags are included for `email_type`, `enquiry_type`, `project_type`, and `priority`.
+
+Register `https://your-domain.example/api/webhooks/resend` in Resend and select the email delivery events you want to track. The endpoint verifies `svix-id`, `svix-timestamp`, and `svix-signature` against `RESEND_WEBHOOK_SECRET`; unsigned requests are rejected. Enable at least sent, delivered, delayed, bounced, complained, failed, opened, clicked, and suppressed events.
 
 Resend sends through `https://api.resend.com/emails` using the `from`, `to`, `subject`, and `text` fields required by their send email API.
 

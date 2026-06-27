@@ -39,6 +39,7 @@ const groups: NavigationGroup[] = [
     label: 'Operations',
     items: [
       { id: 'projects', label: 'Projects', icon: FolderKanban },
+      { id: 'customers', label: 'Customers', icon: UserRound },
       { id: 'records', label: 'Custom records', icon: BriefcaseBusiness },
       { id: 'services', label: 'Services', icon: Settings },
     ],

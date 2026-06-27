@@ -70,6 +70,12 @@ def save_project(payload: dict[str, Any], project_id: str | None = None) -> dict
     if stage not in PROJECT_STAGES:
         raise ValueError("Invalid project stage.")
     value = _number(payload.get("value", 0), "Project value", 1_000_000)
+    tasks = _project_items(payload.get("tasks", []), "task")
+    milestones = _project_items(payload.get("milestones", []), "milestone")
+    completion = round(
+        (sum(1 for item in tasks if item["completed"]) / len(tasks) * 100)
+        if tasks else _number(payload.get("completion", 0), "Completion", 100)
+    )
     document = {
         "name": _text(payload.get("name"), "Project name", 140),
         "client_name": _optional_text(payload.get("client_name"), 120),
@@ -80,6 +86,9 @@ def save_project(payload: dict[str, Any], project_id: str | None = None) -> dict
         "notes": _optional_text(payload.get("notes"), 5000),
         "tags": _tags(payload.get("tags", [])),
         "linked_enquiry_id": _optional_text(payload.get("linked_enquiry_id"), 80),
+        "tasks": tasks,
+        "milestones": milestones,
+        "completion": completion,
     }
     return _save("MONGODB_PROJECT_COLLECTION", document, project_id)
 
@@ -191,6 +200,23 @@ def _number(value: Any, label: str, maximum: float) -> float:
     if number < 0 or number > maximum:
         raise ValueError(f"{label} is outside the permitted range.")
     return number
+
+
+def _project_items(value: Any, label: str) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or len(value) > 100:
+        raise ValueError(f"Project {label}s must be a list containing no more than 100 entries.")
+    items = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise ValueError(f"Each project {label} must be an object.")
+        title = _text(item.get("title"), f"{label.title()} title", 160)
+        items.append({
+            "id": str(item.get("id") or uuid.uuid4()),
+            "title": title,
+            "completed": bool(item.get("completed", False)),
+            "due_date": _optional_text(item.get("due_date"), 40),
+        })
+    return items
 
 
 def _serialise(value: Any) -> Any:

@@ -1,11 +1,13 @@
 export type EnquiryStatus = 'new' | 'reviewed' | 'replied' | 'closed';
-export type AdminView = 'overview' | 'enquiries' | 'quotes' | 'projects' | 'records' | 'services' | 'templates' | 'account';
+export type AdminView = 'overview' | 'enquiries' | 'quotes' | 'customers' | 'projects' | 'records' | 'services' | 'templates' | 'account';
 
 export interface AdminTemplate { id: string; name: string; subject: string; body: string; created_at: string; updated_at: string; }
 export interface AdminCustomField { key: string; value: string; }
 export interface AdminRecord { id: string; title: string; record_type: string; tags: string[]; notes: string; fields: AdminCustomField[]; archived: boolean; created_at: string; updated_at: string; }
 export type ProjectStage = 'lead' | 'discovery' | 'quoted' | 'accepted' | 'active' | 'on_hold' | 'completed';
-export interface AdminProject { id: string; name: string; client_name: string; client_email: string; stage: ProjectStage; value: number; due_date: string; notes: string; tags: string[]; linked_enquiry_id: string; created_at: string; updated_at: string; }
+export interface ProjectChecklistItem { id: string; title: string; completed: boolean; due_date: string; }
+export interface AdminProject { id: string; name: string; client_name: string; client_email: string; stage: ProjectStage; value: number; due_date: string; notes: string; tags: string[]; linked_enquiry_id: string; tasks: ProjectChecklistItem[]; milestones: ProjectChecklistItem[]; completion: number; created_at: string; updated_at: string; }
+export interface AdminCustomer { email: string; name: string; phone: string; organisation: string; notes: string; tags: string[]; enquiries: AdminEnquiry[]; projects: AdminProject[]; }
 export interface AdminServiceOverride { id: string; slug: string; name: string; audience: string; category: string; description: string; best_for: string; starting_from: number; hourly_rate: number; estimated_hours: number; deposit: string; active: boolean; sort_order: number; }
 
 export interface AdminSession {
@@ -53,9 +55,11 @@ export interface AdminCommunication {
   direction: 'outgoing';
   subject: string;
   message: string;
-  status: 'sent' | 'failed';
+  status: 'sent' | 'delivered' | 'opened' | 'clicked' | 'delayed' | 'bounced' | 'complained' | 'failed' | 'suppressed';
   sent_at: string;
   sent_by: string;
+  provider_message_id?: string;
+  delivery_events: { id: string; type: string; created_at: string; details: Record<string, unknown> }[];
 }
 
 export interface AdminEnquiry {
@@ -211,6 +215,8 @@ export const deleteAdminProject = (csrf: string, id: string) => workspaceDelete(
 export const fetchAdminServices = () => workspaceList<AdminServiceOverride>('services');
 export const saveAdminService = (csrf: string, item: Partial<AdminServiceOverride>) => workspaceSave<AdminServiceOverride>('services', csrf, item);
 export const deleteAdminService = (csrf: string, id: string) => workspaceDelete('services', csrf, id);
+export async function fetchAdminCustomers() { const response = await fetch('/api/admin/customers', { credentials: 'same-origin', headers: { Accept: 'application/json' } }); return (await parseAdminResponse<{ customers: AdminCustomer[] }>(response)).customers; }
+export async function saveAdminCustomer(csrf: string, customer: Partial<AdminCustomer>) { const response = await fetch(`/api/admin/customers/${encodeURIComponent(customer.email ?? '')}`, { method: 'PUT', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(customer) }); return (await parseAdminResponse<{ customer: AdminCustomer }>(response)).customer; }
 
 async function workspaceList<T>(resource: string): Promise<T[]> {
   const response = await fetch(`/api/admin/${resource}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { AdminAccount } from '../components/admin/AdminAccount';
 import { AdminInbox } from '../components/admin/AdminInbox';
+import { AdminCustomers } from '../components/admin/AdminCustomers';
 import { AdminLogin } from '../components/admin/AdminLogin';
 import { AdminOverview } from '../components/admin/AdminOverview';
 import { AdminProjects } from '../components/admin/AdminProjects';
@@ -36,6 +37,7 @@ const viewTitles: Record<AdminView, { title: string; description: string }> = {
   enquiries: { title: 'Enquiries', description: 'Review contact requests, priorities, and follow-up notes.' },
   quotes: { title: 'Quote requests', description: 'Review customer-built estimates and selected services.' },
   projects: { title: 'Project pipeline', description: 'Move opportunities and active work through delivery stages.' },
+  customers: { title: 'Customers', description: 'See each customer’s enquiries, projects, and CRM notes together.' },
   records: { title: 'Custom records', description: 'Keep flexible, structured business records in one place.' },
   services: { title: 'Service catalogue', description: 'Manage public pricing and quote-builder service values.' },
   templates: { title: 'Email templates', description: 'Create reusable messages for enquiry communications.' },
@@ -217,6 +219,7 @@ export function AdminPage() {
           {view === 'enquiries' ? <AdminInbox enquiries={enquiries} mode="all" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} selectedId={selectedId} /> : null}
           {view === 'quotes' ? <AdminInbox enquiries={enquiries} mode="quotes" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} selectedId={selectedId} /> : null}
           {view === 'projects' ? <AdminProjects csrfToken={session.csrf_token ?? ''} /> : null}
+          {view === 'customers' ? <AdminCustomers csrfToken={session.csrf_token ?? ''} /> : null}
           {view === 'records' ? <AdminRecords csrfToken={session.csrf_token ?? ''} /> : null}
           {view === 'services' ? <AdminServices csrfToken={session.csrf_token ?? ''} /> : null}
           {view === 'templates' ? <AdminTemplates csrfToken={session.csrf_token ?? ''} /> : null}
