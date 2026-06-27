@@ -87,6 +87,8 @@ def save_project(payload: dict[str, Any], project_id: str | None = None) -> dict
     services = _project_services(payload.get("services", []))
     meetings = _project_meetings(payload.get("meetings", []))
     invoices = _project_invoices(payload.get("invoices", []))
+    if stage == "accepted" and any(invoice["kind"] == "deposit" and invoice["status"] == "paid" for invoice in invoices):
+        stage = "active"
     completion = round(
         (sum(1 for item in tasks if item["completed"]) / len(tasks) * 100)
         if tasks else _number(payload.get("completion", 0), "Completion", 100)
@@ -128,7 +130,31 @@ def save_project(payload: dict[str, Any], project_id: str | None = None) -> dict
         "milestones": milestones,
         "completion": completion,
     }
-    return _save("MONGODB_PROJECT_COLLECTION", document, project_id)
+    saved = _save("MONGODB_PROJECT_COLLECTION", document, project_id)
+    if not project_id and source_quote_id and document["linked_enquiry_id"]:
+        try:
+            now = datetime.now(timezone.utc)
+            link_result = _collection("MONGODB_ENQUIRY_COLLECTION").update_one(
+                {"id": document["linked_enquiry_id"], "quote_versions.id": source_quote_id},
+                {
+                    "$set": {
+                        "quote_versions.$.converted_project_id": saved["id"],
+                        "quote_versions.$.converted_at": now,
+                        "status": "closed",
+                        "status_updated_at": now,
+                    },
+                    "$push": {"activity": {"id": str(uuid.uuid4()), "type": "project", "description": f"Quote converted to project {saved['name']}", "created_at": now}},
+                },
+            )
+            if not link_result.matched_count:
+                raise ValueError("The source quote could not be linked.")
+        except Exception as error:
+            try:
+                _collection("MONGODB_PROJECT_COLLECTION").delete_one({"id": saved["id"]})
+            except Exception:
+                pass
+            raise WorkspaceStorageError("Unable to link the converted project to its quote.") from error
+    return saved
 
 
 def delete_project(project_id: str) -> bool:

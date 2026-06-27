@@ -241,6 +241,16 @@ def send_admin_project_invoice(project_id: str, invoice_id: str):
         pdf = generate_invoice_pdf(project, invoice, settings)
         provider_message_id = send_project_invoice(project, invoice, pdf, settings)
         updated = mark_project_invoice_sent(project_id, invoice_id, provider_message_id, due_date, invoice.get("status", "draft"))
+        if invoice.get("kind") == "deposit" and project.get("linked_enquiry_id") and project.get("source_quote_id"):
+            try:
+                update_deposit_invoice_status(
+                    project["linked_enquiry_id"],
+                    project["source_quote_id"],
+                    "sent",
+                    invoice["reference"],
+                )
+            except Exception:
+                current_app.logger.exception("Sent deposit invoice could not be synced to its source quote")
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
     except (WorkspaceStorageError, RuntimeError):

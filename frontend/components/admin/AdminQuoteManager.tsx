@@ -6,12 +6,11 @@ import { fetchCommercialSettings } from '../../src/api/admin';
 import { formatCurrency } from '../../src/data/pricing';
 import { fetchServiceCatalogue, mergeServiceCatalogue } from '../../src/api/services';
 
-export function AdminQuoteManager({ enquiry, onConvert, onCreate, onDepositInvoice, onPrepareEmail, onShare, onStatus, onUpdate }: {
+export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail, onShare, onStatus, onUpdate }: {
   enquiry: AdminEnquiry;
   onCreate: (payload: AdminQuotePayload) => Promise<void>;
   onUpdate: (quoteId: string, payload: AdminQuotePayload) => Promise<void>;
   onConvert: (quote: AdminQuoteVersion) => Promise<void>;
-  onDepositInvoice: (quoteId: string, status: 'pending' | 'sent' | 'paid', reference?: string) => Promise<void>;
   onPrepareEmail: (quote: AdminQuoteVersion, approvalUrl: string) => void;
   onShare: (quoteId: string) => Promise<string>;
   onStatus: (quoteId: string, status: AdminQuoteVersion['status']) => Promise<void>;
@@ -28,7 +27,6 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onDepositInvoi
   const [isSaving, setIsSaving] = useState(false);
   const [shareLinks, setShareLinks] = useState<Record<string, string>>({});
   const [catalogueServices, setCatalogueServices] = useState<{ name: string; category: string; hours: number; rate: number; deposit: number }[]>([]);
-  const [invoiceReferences, setInvoiceReferences] = useState<Record<string, string>>({});
 
   useEffect(() => {
     void fetchServiceCatalogue().then((catalogue) => {
@@ -115,8 +113,8 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onDepositInvoi
             <select aria-label={`Version ${quote.version} status`} className="form-select" onChange={(event) => void onStatus(quote.id, event.target.value as AdminQuoteVersion['status'])} value={quote.status}>
               <option value="draft">Draft</option><option value="sent">Sent</option><option value="accepted">Accepted</option><option value="declined">Declined</option><option value="expired">Expired</option>
             </select>
-            <div className="admin-quote-actions"><button className="admin-icon-button" onClick={() => void onShare(quote.id).then((url) => { setShareLinks((current) => ({ ...current, [quote.id]: url })); onPrepareEmail(quote, url); })} title="Email approval link" type="button"><Mail size={16} /></button><button className="admin-icon-button" onClick={() => void onShare(quote.id).then((url) => { setShareLinks((current) => ({ ...current, [quote.id]: url })); void navigator.clipboard.writeText(url); })} title="Create and copy approval link" type="button"><Link2 size={16} /></button>{shareLinks[quote.id] ? <button className="admin-icon-button" onClick={() => window.open(shareLinks[quote.id], '_blank', 'noopener,noreferrer')} title="Open printable quote" type="button"><Printer size={16} /></button> : null}<button className="admin-icon-button" onClick={() => void onConvert(quote)} title="Convert quote to project" type="button"><BriefcaseBusiness size={16} /></button></div>
-            <DepositInvoiceWorkflow invoiceReferences={invoiceReferences} onReference={(value) => setInvoiceReferences((current) => ({ ...current, [quote.id]: value }))} onStatus={(status, reference) => onDepositInvoice(quote.id, status, reference)} quote={quote} />
+            <div className="admin-quote-actions"><button className="admin-icon-button" onClick={() => void onShare(quote.id).then((url) => { setShareLinks((current) => ({ ...current, [quote.id]: url })); onPrepareEmail(quote, url); })} title="Email approval link" type="button"><Mail size={16} /></button><button className="admin-icon-button" onClick={() => void onShare(quote.id).then((url) => { setShareLinks((current) => ({ ...current, [quote.id]: url })); void navigator.clipboard.writeText(url); })} title="Create and copy approval link" type="button"><Link2 size={16} /></button>{shareLinks[quote.id] ? <button className="admin-icon-button" onClick={() => window.open(shareLinks[quote.id], '_blank', 'noopener,noreferrer')} title="Open printable quote" type="button"><Printer size={16} /></button> : null}<button className="admin-icon-button" disabled={quote.status !== 'accepted' || Boolean(quote.converted_project_id)} onClick={() => void onConvert(quote)} title={quote.converted_project_id ? 'Project workspace created' : quote.status === 'accepted' ? 'Convert quote to project' : 'Accept the quote before creating its project'} type="button"><BriefcaseBusiness size={16} /></button></div>
+            <DepositInvoiceWorkflow onCreateProject={() => onConvert(quote)} quote={quote} />
           </article>
         ))}
         {enquiry.quote_versions.length === 0 ? <p className="admin-empty">No formal quote versions yet.</p> : null}
@@ -125,24 +123,17 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onDepositInvoi
   );
 }
 
-function DepositInvoiceWorkflow({ invoiceReferences, onReference, onStatus, quote }: {
-  invoiceReferences: Record<string, string>;
-  onReference: (value: string) => void;
-  onStatus: (status: 'pending' | 'sent' | 'paid', reference?: string) => Promise<void>;
-  quote: AdminQuoteVersion;
-}) {
+function DepositInvoiceWorkflow({ onCreateProject, quote }: { onCreateProject: () => Promise<void>; quote: AdminQuoteVersion }) {
   if (quote.status !== 'accepted' || quote.deposit <= 0) return null;
   const status = quote.deposit_invoice_status ?? 'pending';
-  const reference = invoiceReferences[quote.id] ?? quote.deposit_invoice_reference ?? '';
   const services = quote.items.filter((item) => !item.optional || item.included).map((item) => item.service).join(', ');
   return (
     <div className={`admin-deposit-workflow is-${status}`}>
       <span className="admin-deposit-icon"><ReceiptText size={18} /></span>
       <div><strong>Deposit invoice · {formatCurrency(quote.deposit)}</strong><small>{services}</small></div>
       <span className={`admin-status admin-invoice-${status}`}>{status.replace('_', ' ')}</span>
-      {status !== 'paid' ? <input aria-label="Invoice reference" className="form-control" maxLength={80} onChange={(event) => onReference(event.target.value)} placeholder="Invoice reference" value={reference} /> : <small>{quote.deposit_invoice_reference || 'Payment recorded'}</small>}
-      {status === 'pending' ? <button className="btn btn-accent btn-sm" disabled={!reference.trim()} onClick={() => void onStatus('sent', reference)} type="button">Mark invoice sent</button> : null}
-      {status === 'sent' ? <button className="btn btn-accent btn-sm" onClick={() => void onStatus('paid', reference)} type="button">Mark deposit paid</button> : null}
+      <small>{quote.converted_project_id ? 'Manage and send this invoice from the project workspace.' : 'Create the project workspace to issue the PDF invoice.'}</small>
+      {!quote.converted_project_id ? <button className="btn btn-accent btn-sm" onClick={() => void onCreateProject()} type="button">Create project & invoice</button> : null}
     </div>
   );
 }

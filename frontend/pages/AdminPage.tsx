@@ -32,7 +32,6 @@ import {
   saveAdminProject,
   setupAdmin,
   updateAdminEnquiry,
-  updateAdminDepositInvoice,
   updateAdminQuoteStatus,
   updateAdminQuote,
 } from '../src/api/admin';
@@ -58,6 +57,7 @@ export function AdminPage() {
   });
   const [enquiries, setEnquiries] = useState<AdminEnquiry[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -150,18 +150,6 @@ export function AdminPage() {
     try { const data = await updateAdminQuoteStatus(session.csrf_token, enquiryId, quoteId, status); replaceEnquiry(data.enquiry); setMessage('Quote status updated.'); }
     catch (quoteError) { setError(quoteError instanceof Error ? quoteError.message : 'Unable to update quote'); }
   };
-  const handleDepositInvoice = async (enquiryId: string, quoteId: string, status: 'pending' | 'sent' | 'paid', reference?: string) => {
-    if (!session?.csrf_token) return;
-    setError(''); setMessage('');
-    try {
-      const data = await updateAdminDepositInvoice(session.csrf_token, enquiryId, quoteId, status, reference);
-      replaceEnquiry(data.enquiry);
-      setMessage(`Deposit invoice marked ${status}.`);
-    } catch (invoiceError) {
-      setError(invoiceError instanceof Error ? invoiceError.message : 'Unable to update deposit invoice');
-      throw invoiceError;
-    }
-  };
   const handleUpdateQuote = async (enquiryId: string, quoteId: string, payload: AdminQuotePayload) => {
     if (!session?.csrf_token) return;
     const data = await updateAdminQuote(session.csrf_token, enquiryId, quoteId, payload);
@@ -185,6 +173,7 @@ export function AdminPage() {
 
   const handleConvertQuote = async (enquiry: AdminEnquiry, quote: AdminQuoteVersion) => {
     if (!session?.csrf_token) throw new Error('Authentication required.');
+    if (quote.status !== 'accepted') throw new Error('Accept the quote before creating its project workspace.');
     const confirmedServices = quote.items.filter((item) => !item.optional || item.included);
     const consultationRate = confirmedServices.length
       ? confirmedServices.reduce((total, item) => total + item.rate, 0) / confirmedServices.length
@@ -192,7 +181,7 @@ export function AdminPage() {
     const depositInvoiceStatus = quote.deposit_invoice_status === 'paid'
       ? 'paid'
       : quote.deposit_invoice_status === 'sent' ? 'sent' : 'draft';
-    await saveAdminProject(session.csrf_token, {
+    const project = await saveAdminProject(session.csrf_token, {
       name: enquiry.project_type || `${enquiry.name} project`,
       client_name: enquiry.name,
       client_email: enquiry.email,
@@ -207,7 +196,7 @@ export function AdminPage() {
       included_consultation_hours: 8,
       consultation_rate: Number(consultationRate.toFixed(2)),
       meetings: [],
-      invoices: quote.deposit > 0 ? [{
+      invoices: quote.status === 'accepted' && quote.deposit > 0 ? [{
         id: crypto.randomUUID(),
         reference: quote.deposit_invoice_reference || `DEP-${quote.version}-${enquiry.id.slice(0, 6).toUpperCase()}`,
         kind: 'deposit',
@@ -222,7 +211,9 @@ export function AdminPage() {
         notes: `Deposit for quote version ${quote.version}`,
       }] : [],
     });
-    setMessage('Quote converted to a project.');
+    await loadEnquiries();
+    setSelectedProjectId(project.id);
+    setMessage(`Project workspace created for ${project.client_name || enquiry.name}. The deposit invoice is ready in its invoice register.`);
     setView('projects');
   };
 
@@ -264,10 +255,10 @@ export function AdminPage() {
         <div className={`admin-content ${view === 'projects' ? 'admin-content-wide' : ''}`}>
           {message ? <div className="alert alert-success" role="status">{message}</div> : null}
           {error ? <div className="alert alert-danger" role="alert">{error}</div> : null}
-          {view === 'overview' ? <AdminOverview enquiries={enquiries} onNavigate={setView} onSelect={setSelectedId} /> : null}
-          {view === 'enquiries' ? <AdminInbox enquiries={enquiries} mode="all" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onDepositInvoice={handleDepositInvoice} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
-          {view === 'quotes' ? <AdminInbox enquiries={enquiries} mode="quotes" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onDepositInvoice={handleDepositInvoice} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
-          {view === 'projects' ? <div className="admin-view-stack"><AdminCommercialSettings csrfToken={session.csrf_token ?? ''} /><AdminProjects csrfToken={session.csrf_token ?? ''} /></div> : null}
+          {view === 'overview' ? <AdminOverview enquiries={enquiries} onNavigate={setView} onOpenProject={(projectId) => { setSelectedProjectId(projectId); setView('projects'); }} onSelect={setSelectedId} /> : null}
+          {view === 'enquiries' ? <AdminInbox enquiries={enquiries} mode="all" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
+          {view === 'quotes' ? <AdminInbox enquiries={enquiries} mode="quotes" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
+          {view === 'projects' ? <div className="admin-view-stack"><AdminCommercialSettings csrfToken={session.csrf_token ?? ''} /><AdminProjects csrfToken={session.csrf_token ?? ''} initialProjectId={selectedProjectId} onInvoiceSent={loadEnquiries} /></div> : null}
           {view === 'customers' ? <AdminCustomers csrfToken={session.csrf_token ?? ''} /> : null}
           {view === 'records' ? <AdminRecords csrfToken={session.csrf_token ?? ''} /> : null}
           {view === 'services' ? <AdminServices csrfToken={session.csrf_token ?? ''} /> : null}

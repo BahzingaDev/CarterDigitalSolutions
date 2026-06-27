@@ -6,10 +6,12 @@ import { formatCurrency } from '../../src/data/pricing';
 export function AdminOverview({
   enquiries,
   onNavigate,
+  onOpenProject,
   onSelect,
 }: {
   enquiries: AdminEnquiry[];
   onNavigate: (view: AdminView) => void;
+  onOpenProject: (projectId: string) => void;
   onSelect: (id: string) => void;
 }) {
   const activeEnquiries = enquiries.filter((enquiry) => !enquiry.archived);
@@ -42,13 +44,13 @@ export function AdminOverview({
       </div>
 
       {depositInvoiceActions.length > 0 ? <section className="admin-panel admin-invoice-prompts">
-        <div className="admin-panel-heading"><div><h2>Deposit invoices required</h2><p>These services have been accepted and are waiting for a deposit invoice.</p></div></div>
+        <div className="admin-panel-heading"><div><h2>Deposit invoices required</h2><p>Accepted work is grouped by its next action, from creating the project through sending the PDF invoice.</p></div></div>
         <div className="admin-invoice-prompt-list">
           {depositInvoiceActions.map(({ enquiry, quote }) => <article key={quote.id}>
             <span className="admin-deposit-icon"><ReceiptText size={18} /></span>
             <div><strong>{enquiry.name}</strong><small>{enquiry.email}</small></div>
             <div><strong>{formatCurrency(quote.deposit)} deposit</strong><small>{quote.items.filter((item) => !item.optional || item.included).map((item) => item.service).join(', ')}</small></div>
-            <button className="btn btn-outline-accent" onClick={() => { onSelect(enquiry.id); onNavigate('quotes'); }} type="button">Review invoice <ArrowRight size={16} /></button>
+            <button className="btn btn-outline-accent" onClick={() => { if (quote.converted_project_id) onOpenProject(quote.converted_project_id); else { onSelect(enquiry.id); onNavigate('quotes'); } }} type="button">{quote.converted_project_id ? 'Open project invoices' : 'Create project & invoice'} <ArrowRight size={16} /></button>
           </article>)}
         </div>
       </section> : null}

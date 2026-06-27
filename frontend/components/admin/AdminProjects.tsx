@@ -28,7 +28,7 @@ const empty: Partial<AdminProject> = {
 };
 type WorkspaceTab = 'delivery' | 'meetings' | 'invoices';
 
-export function AdminProjects({ csrfToken }: { csrfToken: string }) {
+export function AdminProjects({ csrfToken, initialProjectId, onInvoiceSent }: { csrfToken: string; initialProjectId?: string | null; onInvoiceSent?: () => Promise<void> }) {
   const [items, setItems] = useState<AdminProject[]>([]);
   const [draft, setDraft] = useState<Partial<AdminProject>>(empty);
   const [tags, setTags] = useState('');
@@ -40,9 +40,14 @@ export function AdminProjects({ csrfToken }: { csrfToken: string }) {
 
   useEffect(() => {
     void fetchAdminProjects()
-      .then((projects) => setItems(projects.map(normaliseProject)))
+      .then((projects) => {
+        const normalised = projects.map(normaliseProject);
+        setItems(normalised);
+        const target = normalised.find((project) => project.id === initialProjectId);
+        if (target) { setDraft(target); setTags(target.tags.join(', ')); setEditing(true); setTab(target.invoices.length ? 'invoices' : 'delivery'); }
+      })
       .catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load projects'));
-  }, []);
+  }, [initialProjectId]);
   useEffect(() => { void fetchCommercialSettings().then((settings) => setTaxRate(settings.tax_rate)); }, []);
 
   const select = (item: AdminProject) => { setDraft(normaliseProject(item)); setTags(item.tags.join(', ')); setEditing(true); setTab('delivery'); setError(''); };
@@ -79,8 +84,8 @@ export function AdminProjects({ csrfToken }: { csrfToken: string }) {
       <div className="admin-project-workspace-heading"><div><p className="section-kicker">Client project</p><h2>{draft.name || 'New project'}</h2><span>{draft.client_name || 'No client assigned'}</span></div><div className="admin-management-actions"><button className="btn btn-accent" disabled={isSaving} onClick={() => void save()} type="button"><Save size={16} /> {isSaving ? 'Saving...' : 'Save project'}</button><button className="btn btn-outline-secondary" onClick={() => setEditing(false)} type="button">Close</button>{draft.id ? <button className="admin-icon-button is-danger" onClick={() => void remove()} title="Delete project" type="button"><Trash2 size={16} /></button> : null}</div></div>
       <div className="admin-project-tabs" role="tablist"><ProjectTab active={tab === 'delivery'} label="Delivery" onClick={() => setTab('delivery')} /><ProjectTab active={tab === 'meetings'} label="Meetings" onClick={() => setTab('meetings')} /><ProjectTab active={tab === 'invoices'} label="Invoices" onClick={() => setTab('invoices')} /></div>
       {tab === 'delivery' ? <DeliveryWorkspace draft={draft} onChange={setDraft} tags={tags} onTags={setTags} /> : null}
-      {tab === 'meetings' ? <MeetingWorkspace draft={draft} onChange={setDraft} taxRate={taxRate} /> : null}
-      {tab === 'invoices' ? <InvoiceWorkspace draft={draft} onChange={setDraft} taxRate={taxRate} onDownload={async (invoice) => { const saved = await save(); if (saved) await downloadAdminProjectInvoice(saved.id, invoice.id, invoice.reference); }} onSend={async (invoice) => { const saved = await save(); if (!saved) return; try { const updated = normaliseProject(await sendAdminProjectInvoice(csrfToken, saved.id, invoice.id)); setDraft(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to send invoice'); } }} /> : null}
+      {tab === 'meetings' ? <MeetingWorkspace draft={draft} onChange={setDraft} onInvoiceCreated={() => setTab('invoices')} taxRate={taxRate} /> : null}
+      {tab === 'invoices' ? <InvoiceWorkspace draft={draft} onChange={setDraft} taxRate={taxRate} onDownload={async (invoice) => { const saved = await save(); if (saved) await downloadAdminProjectInvoice(saved.id, invoice.id, invoice.reference); }} onSend={async (invoice) => { const saved = await save(); if (!saved) return; try { const updated = normaliseProject(await sendAdminProjectInvoice(csrfToken, saved.id, invoice.id)); setDraft(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)); await onInvoiceSent?.(); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to send invoice'); } }} /> : null}
     </section> : null}
     <div className="admin-kanban">{stages.map((stage) => <section className="admin-kanban-column" key={stage.id}><header><span>{stage.label}</span><em>{items.filter((item) => item.stage === stage.id).length}</em></header><div>{items.filter((item) => item.stage === stage.id).map((project) => <article className="admin-project-card" key={project.id} onClick={() => select(project)}><strong>{project.name}</strong><small>{project.client_name || 'No client assigned'}</small><span>{formatCurrency(project.value)}</span><div className="admin-card-progress"><i style={{ width: `${project.completion ?? 0}%` }} /></div><small>{project.meetings.filter((meeting) => meeting.status === 'scheduled').length} upcoming · {project.invoices.filter((invoice) => invoice.status === 'draft' || invoice.status === 'overdue').length} invoice actions</small>{project.due_date ? <time>{project.due_date}</time> : null}<select aria-label={`Move ${project.name}`} onClick={(event) => event.stopPropagation()} onChange={(event) => void move(project, event.target.value as ProjectStage)} value={project.stage}>{stages.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></article>)}</div></section>)}</div>
   </div>;
@@ -104,7 +109,7 @@ function DeliveryWorkspace({ draft, onChange, tags, onTags }: { draft: Partial<A
   </div>;
 }
 
-function MeetingWorkspace({ draft, onChange, taxRate }: { draft: Partial<AdminProject>; onChange: (value: Partial<AdminProject>) => void; taxRate: number }) {
+function MeetingWorkspace({ draft, onChange, onInvoiceCreated, taxRate }: { draft: Partial<AdminProject>; onChange: (value: Partial<AdminProject>) => void; onInvoiceCreated: () => void; taxRate: number }) {
   const meetings = draft.meetings ?? [];
   const bookedHours = consultationHours(meetings, (meeting) => meeting.status !== 'cancelled');
   const completedHours = consultationHours(meetings, (meeting) => meeting.status === 'completed');
@@ -118,6 +123,7 @@ function MeetingWorkspace({ draft, onChange, taxRate }: { draft: Partial<AdminPr
     const subtotal = Number((billableHours * rate).toFixed(2));
     const taxAmount = Number((subtotal * taxRate / 100).toFixed(2));
     onChange({ ...draft, invoices: [...invoices, { id: crypto.randomUUID(), reference: `CONS-${new Date().toISOString().slice(0, 10)}`, kind: 'consultation', status: 'draft', subtotal, tax_rate: taxRate, tax_amount: taxAmount, amount: subtotal + taxAmount, issue_date: '', due_date: '', paid_date: '', notes: `${billableHours.toFixed(2)} billable consultation hours` }] });
+    onInvoiceCreated();
   };
   return <div className="admin-project-workspace">
     <div className="admin-management-grid"><label>Included consultation hours<input className="form-control" min="0" onChange={(event) => onChange({ ...draft, included_consultation_hours: Number(event.target.value) })} step="0.25" type="number" value={included} /></label><label>Billable consultation rate (£/hour)<input className="form-control" min="0" onChange={(event) => onChange({ ...draft, consultation_rate: Number(event.target.value) })} step="0.01" type="number" value={rate} /></label></div>
