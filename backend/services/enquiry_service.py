@@ -243,6 +243,7 @@ def create_quote_version(
         "tax_amount": tax_amount,
         "total": total,
         "deposit": deposit,
+        "deposit_invoice_status": "not_required",
         "notes": notes,
         "valid_until": valid_until,
         "created_at": now,
@@ -286,6 +287,11 @@ def update_quote_status(
         raise ValueError("Quote not found.")
 
     now = datetime.now(timezone.utc)
+    invoice_status = quote.get("deposit_invoice_status", "not_required")
+    if clean_status == "accepted" and quote.get("deposit", 0) > 0 and invoice_status not in {"sent", "paid"}:
+        invoice_status = "pending"
+    elif clean_status != "accepted" and invoice_status == "pending":
+        invoice_status = "not_required"
     try:
         _get_collection().update_one(
             {"id": enquiry_id, "quote_versions.id": quote_id},
@@ -293,6 +299,8 @@ def update_quote_status(
                 "$set": {
                     "quote_versions.$.status": clean_status,
                     "quote_versions.$.status_updated_at": now,
+                    "quote_versions.$.deposit_invoice_status": invoice_status,
+                    "quote_versions.$.deposit_invoice_updated_at": now,
                 },
                 "$push": {"activity": _activity("quote", f"Quote marked {clean_status}", now)},
             },
@@ -331,6 +339,53 @@ def update_draft_quote(enquiry_id: str, quote_id: str, payload: dict[str, Any]) 
         _get_collection().update_one({"id": enquiry_id, "quote_versions.id": quote_id}, {"$set": update, "$push": {"activity": _activity("quote", f"Draft quote version {quote.get('version')} updated", now)}})
     except Exception as error:
         raise EnquiryStorageError("Unable to update quote.", reason="write_failed") from error
+    return get_enquiry(enquiry_id)
+
+
+def update_deposit_invoice_status(
+    enquiry_id: str,
+    quote_id: str,
+    status: str,
+    reference: str = "",
+) -> dict[str, Any] | None:
+    clean_status = status.strip().lower()
+    if clean_status not in {"pending", "sent", "paid"}:
+        raise ValueError("Invalid deposit invoice status.")
+    record = get_enquiry(enquiry_id)
+    if not record:
+        return None
+    quote = next((item for item in record.get("quote_versions", []) if item.get("id") == quote_id), None)
+    if not quote:
+        raise ValueError("Quote not found.")
+    if quote.get("status") != "accepted" or float(quote.get("deposit") or 0) <= 0:
+        raise ValueError("A deposit invoice is only available for an accepted quote with a deposit.")
+    clean_reference = str(reference or quote.get("deposit_invoice_reference") or "").strip()
+    if len(clean_reference) > 80:
+        raise ValueError("Invoice reference cannot exceed 80 characters.")
+    if clean_status == "sent" and not clean_reference:
+        raise ValueError("Add an invoice reference before marking the invoice sent.")
+
+    now = datetime.now(timezone.utc)
+    fields: dict[str, Any] = {
+        "quote_versions.$.deposit_invoice_status": clean_status,
+        "quote_versions.$.deposit_invoice_updated_at": now,
+    }
+    if clean_reference:
+        fields["quote_versions.$.deposit_invoice_reference"] = clean_reference
+    if clean_status == "sent":
+        fields["quote_versions.$.deposit_invoice_sent_at"] = now
+    if clean_status == "paid":
+        fields["quote_versions.$.deposit_paid_at"] = now
+    try:
+        _get_collection().update_one(
+            {"id": enquiry_id, "quote_versions.id": quote_id},
+            {
+                "$set": fields,
+                "$push": {"activity": _activity("invoice", f"Deposit invoice marked {clean_status}", now)},
+            },
+        )
+    except Exception as error:
+        raise EnquiryStorageError("Unable to update deposit invoice.", reason="write_failed") from error
     return get_enquiry(enquiry_id)
 
 
@@ -386,6 +441,8 @@ def approve_public_quote(quote_id: str, token: str, customer_name: str) -> dict[
         return None
     if len(clean_name) < 2 or len(clean_name) > 120:
         raise ValueError("Name must contain between 2 and 120 characters.")
+    if public_quote["quote"].get("status") == "accepted":
+        raise ValueError("This quote has already been approved.")
     if public_quote["quote"].get("status") in {"declined", "expired"}:
         raise ValueError("This quote can no longer be approved.")
     valid_until = public_quote["quote"].get("valid_until")
@@ -403,6 +460,8 @@ def approve_public_quote(quote_id: str, token: str, customer_name: str) -> dict[
                     "quote_versions.$.status": "accepted",
                     "quote_versions.$.accepted_at": now,
                     "quote_versions.$.accepted_by": clean_name,
+                    "quote_versions.$.deposit_invoice_status": "pending" if float(public_quote["quote"].get("deposit") or 0) > 0 else "not_required",
+                    "quote_versions.$.deposit_invoice_updated_at": now,
                 },
                 "$push": {"activity": _activity("quote", f"Quote approved by {clean_name}", now)},
             },

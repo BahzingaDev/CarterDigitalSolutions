@@ -1,15 +1,16 @@
-import { BriefcaseBusiness, CirclePlus, Link2, Mail, Printer, Trash2 } from 'lucide-react';
+import { BriefcaseBusiness, CirclePlus, Link2, Mail, Printer, ReceiptText, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import type { AdminEnquiry, AdminQuoteItem, AdminQuotePayload, AdminQuoteVersion } from '../../src/api/admin';
 import { formatCurrency } from '../../src/data/pricing';
 import { fetchServiceCatalogue, mergeServiceCatalogue } from '../../src/api/services';
 
-export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail, onShare, onStatus, onUpdate }: {
+export function AdminQuoteManager({ enquiry, onConvert, onCreate, onDepositInvoice, onPrepareEmail, onShare, onStatus, onUpdate }: {
   enquiry: AdminEnquiry;
   onCreate: (payload: AdminQuotePayload) => Promise<void>;
   onUpdate: (quoteId: string, payload: AdminQuotePayload) => Promise<void>;
   onConvert: (quote: AdminQuoteVersion) => Promise<void>;
+  onDepositInvoice: (quoteId: string, status: 'pending' | 'sent' | 'paid', reference?: string) => Promise<void>;
   onPrepareEmail: (quote: AdminQuoteVersion) => void;
   onShare: (quoteId: string) => Promise<string>;
   onStatus: (quoteId: string, status: AdminQuoteVersion['status']) => Promise<void>;
@@ -26,6 +27,7 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail
   const [isSaving, setIsSaving] = useState(false);
   const [shareLinks, setShareLinks] = useState<Record<string, string>>({});
   const [catalogueServices, setCatalogueServices] = useState<{ name: string; category: string; hours: number; rate: number }[]>([]);
+  const [invoiceReferences, setInvoiceReferences] = useState<Record<string, string>>({});
 
   useEffect(() => {
     void fetchServiceCatalogue().then((catalogue) => {
@@ -97,10 +99,33 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail
               <option value="draft">Draft</option><option value="sent">Sent</option><option value="accepted">Accepted</option><option value="declined">Declined</option><option value="expired">Expired</option>
             </select>
             <div className="admin-quote-actions"><button className="admin-icon-button" onClick={() => onPrepareEmail(quote)} title="Email quote" type="button"><Mail size={16} /></button><button className="admin-icon-button" onClick={() => void onShare(quote.id).then((url) => { setShareLinks((current) => ({ ...current, [quote.id]: url })); void navigator.clipboard.writeText(url); })} title="Create and copy approval link" type="button"><Link2 size={16} /></button>{shareLinks[quote.id] ? <button className="admin-icon-button" onClick={() => window.open(shareLinks[quote.id], '_blank', 'noopener,noreferrer')} title="Open printable quote" type="button"><Printer size={16} /></button> : null}<button className="admin-icon-button" onClick={() => void onConvert(quote)} title="Convert quote to project" type="button"><BriefcaseBusiness size={16} /></button></div>
+            <DepositInvoiceWorkflow invoiceReferences={invoiceReferences} onReference={(value) => setInvoiceReferences((current) => ({ ...current, [quote.id]: value }))} onStatus={(status, reference) => onDepositInvoice(quote.id, status, reference)} quote={quote} />
           </article>
         ))}
         {enquiry.quote_versions.length === 0 ? <p className="admin-empty">No formal quote versions yet.</p> : null}
       </section>
+    </div>
+  );
+}
+
+function DepositInvoiceWorkflow({ invoiceReferences, onReference, onStatus, quote }: {
+  invoiceReferences: Record<string, string>;
+  onReference: (value: string) => void;
+  onStatus: (status: 'pending' | 'sent' | 'paid', reference?: string) => Promise<void>;
+  quote: AdminQuoteVersion;
+}) {
+  if (quote.status !== 'accepted' || quote.deposit <= 0) return null;
+  const status = quote.deposit_invoice_status ?? 'pending';
+  const reference = invoiceReferences[quote.id] ?? quote.deposit_invoice_reference ?? '';
+  const services = quote.items.filter((item) => !item.optional || item.included).map((item) => item.service).join(', ');
+  return (
+    <div className={`admin-deposit-workflow is-${status}`}>
+      <span className="admin-deposit-icon"><ReceiptText size={18} /></span>
+      <div><strong>Deposit invoice · {formatCurrency(quote.deposit)}</strong><small>{services}</small></div>
+      <span className={`admin-status admin-invoice-${status}`}>{status.replace('_', ' ')}</span>
+      {status !== 'paid' ? <input aria-label="Invoice reference" className="form-control" maxLength={80} onChange={(event) => onReference(event.target.value)} placeholder="Invoice reference" value={reference} /> : <small>{quote.deposit_invoice_reference || 'Payment recorded'}</small>}
+      {status === 'pending' ? <button className="btn btn-accent btn-sm" disabled={!reference.trim()} onClick={() => void onStatus('sent', reference)} type="button">Mark invoice sent</button> : null}
+      {status === 'sent' ? <button className="btn btn-accent btn-sm" onClick={() => void onStatus('paid', reference)} type="button">Mark deposit paid</button> : null}
     </div>
   );
 }

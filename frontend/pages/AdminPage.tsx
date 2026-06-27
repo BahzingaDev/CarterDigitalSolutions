@@ -31,6 +31,7 @@ import {
   saveAdminProject,
   setupAdmin,
   updateAdminEnquiry,
+  updateAdminDepositInvoice,
   updateAdminQuoteStatus,
   updateAdminQuote,
 } from '../src/api/admin';
@@ -148,6 +149,18 @@ export function AdminPage() {
     try { const data = await updateAdminQuoteStatus(session.csrf_token, enquiryId, quoteId, status); replaceEnquiry(data.enquiry); setMessage('Quote status updated.'); }
     catch (quoteError) { setError(quoteError instanceof Error ? quoteError.message : 'Unable to update quote'); }
   };
+  const handleDepositInvoice = async (enquiryId: string, quoteId: string, status: 'pending' | 'sent' | 'paid', reference?: string) => {
+    if (!session?.csrf_token) return;
+    setError(''); setMessage('');
+    try {
+      const data = await updateAdminDepositInvoice(session.csrf_token, enquiryId, quoteId, status, reference);
+      replaceEnquiry(data.enquiry);
+      setMessage(`Deposit invoice marked ${status}.`);
+    } catch (invoiceError) {
+      setError(invoiceError instanceof Error ? invoiceError.message : 'Unable to update deposit invoice');
+      throw invoiceError;
+    }
+  };
   const handleUpdateQuote = async (enquiryId: string, quoteId: string, payload: AdminQuotePayload) => {
     if (!session?.csrf_token) return;
     const data = await updateAdminQuote(session.csrf_token, enquiryId, quoteId, payload);
@@ -226,8 +239,8 @@ export function AdminPage() {
           {message ? <div className="alert alert-success" role="status">{message}</div> : null}
           {error ? <div className="alert alert-danger" role="alert">{error}</div> : null}
           {view === 'overview' ? <AdminOverview enquiries={enquiries} onNavigate={setView} onSelect={setSelectedId} /> : null}
-          {view === 'enquiries' ? <AdminInbox enquiries={enquiries} mode="all" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
-          {view === 'quotes' ? <AdminInbox enquiries={enquiries} mode="quotes" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
+          {view === 'enquiries' ? <AdminInbox enquiries={enquiries} mode="all" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onDepositInvoice={handleDepositInvoice} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
+          {view === 'quotes' ? <AdminInbox enquiries={enquiries} mode="quotes" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onDepositInvoice={handleDepositInvoice} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
           {view === 'projects' ? <AdminProjects csrfToken={session.csrf_token ?? ''} /> : null}
           {view === 'customers' ? <AdminCustomers csrfToken={session.csrf_token ?? ''} /> : null}
           {view === 'records' ? <AdminRecords csrfToken={session.csrf_token ?? ''} /> : null}

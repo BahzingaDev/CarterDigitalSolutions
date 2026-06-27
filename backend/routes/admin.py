@@ -38,6 +38,7 @@ from ..services.enquiry_service import (
     update_enquiry,
     update_quote_status,
     update_draft_quote,
+    update_deposit_invoice_status,
 )
 from ..utils.admin_auth import (
     admin_login_rate_limited,
@@ -461,6 +462,29 @@ def edit_admin_quote(enquiry_id: str, quote_id: str):
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
     except EnquiryStorageError:
+        return jsonify({"error": "Enquiry storage is unavailable."}), 503
+    if not updated:
+        return jsonify({"error": "Enquiry not found."}), 404
+    return jsonify({"enquiry": updated})
+
+
+@admin_bp.patch("/admin/enquiries/<enquiry_id>/quotes/<quote_id>/deposit-invoice")
+@require_admin_write
+def update_admin_deposit_invoice(enquiry_id: str, quote_id: str):
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json."}), 415
+    payload = request.get_json(silent=True) or {}
+    try:
+        updated = update_deposit_invoice_status(
+            enquiry_id,
+            quote_id,
+            str(payload.get("status", "")),
+            str(payload.get("reference", "")),
+        )
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except EnquiryStorageError:
+        current_app.logger.exception("Deposit invoice update failed")
         return jsonify({"error": "Enquiry storage is unavailable."}), 503
     if not updated:
         return jsonify({"error": "Enquiry not found."}), 404

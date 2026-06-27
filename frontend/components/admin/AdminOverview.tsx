@@ -1,4 +1,4 @@
-import { ArrowRight, CalendarClock, Clock3, Inbox, PoundSterling } from 'lucide-react';
+import { ArrowRight, CalendarClock, Clock3, Inbox, PoundSterling, ReceiptText } from 'lucide-react';
 
 import type { AdminEnquiry, AdminView } from '../../src/api/admin';
 import { formatCurrency } from '../../src/data/pricing';
@@ -27,6 +27,9 @@ export function AdminOverview({
     const expiry = new Date(quote.valid_until).getTime();
     return expiry >= now && expiry <= sevenDays;
   }).length;
+  const depositInvoiceActions = activeEnquiries.flatMap((enquiry) => enquiry.quote_versions
+    .filter((quote) => quote.status === 'accepted' && quote.deposit > 0 && (quote.deposit_invoice_status ?? 'pending') === 'pending')
+    .map((quote) => ({ enquiry, quote })));
 
   return (
     <div className="admin-view-stack">
@@ -35,7 +38,20 @@ export function AdminOverview({
         <Metric icon={Clock3} label="Follow-ups due" value={String(followUpsDue)} tone="amber" />
         <Metric icon={PoundSterling} label="Quoted pipeline" value={formatCurrency(pipelineValue)} tone="green" />
         <Metric icon={CalendarClock} label="Quotes expiring" value={String(expiringQuotes)} tone="neutral" />
+        <Metric icon={ReceiptText} label="Invoices needed" value={String(depositInvoiceActions.length)} tone="amber" />
       </div>
+
+      {depositInvoiceActions.length > 0 ? <section className="admin-panel admin-invoice-prompts">
+        <div className="admin-panel-heading"><div><h2>Deposit invoices required</h2><p>These services have been accepted and are waiting for a deposit invoice.</p></div></div>
+        <div className="admin-invoice-prompt-list">
+          {depositInvoiceActions.map(({ enquiry, quote }) => <article key={quote.id}>
+            <span className="admin-deposit-icon"><ReceiptText size={18} /></span>
+            <div><strong>{enquiry.name}</strong><small>{enquiry.email}</small></div>
+            <div><strong>{formatCurrency(quote.deposit)} deposit</strong><small>{quote.items.filter((item) => !item.optional || item.included).map((item) => item.service).join(', ')}</small></div>
+            <button className="btn btn-outline-accent" onClick={() => { onSelect(enquiry.id); onNavigate('quotes'); }} type="button">Review invoice <ArrowRight size={16} /></button>
+          </article>)}
+        </div>
+      </section> : null}
 
       <section className="admin-panel">
         <div className="admin-panel-heading">

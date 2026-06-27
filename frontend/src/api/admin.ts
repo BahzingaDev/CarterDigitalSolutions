@@ -44,6 +44,11 @@ export interface AdminQuoteVersion {
   tax_amount: number;
   total: number;
   deposit: number;
+  deposit_invoice_status?: 'not_required' | 'pending' | 'sent' | 'paid';
+  deposit_invoice_reference?: string;
+  deposit_invoice_updated_at?: string;
+  deposit_invoice_sent_at?: string;
+  deposit_paid_at?: string;
   notes: string;
   valid_until?: string | null;
   created_at: string;
@@ -185,6 +190,16 @@ export async function updateAdminQuoteStatus(csrfToken: string, enquiryId: strin
     credentials: 'same-origin',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
     body: JSON.stringify({ status }),
+  });
+  return parseAdminResponse<{ enquiry: AdminEnquiry }>(response);
+}
+
+export async function updateAdminDepositInvoice(csrfToken: string, enquiryId: string, quoteId: string, status: 'pending' | 'sent' | 'paid', reference = '') {
+  const response = await fetch(`/api/admin/enquiries/${encodeURIComponent(enquiryId)}/quotes/${encodeURIComponent(quoteId)}/deposit-invoice`, {
+    method: 'PATCH',
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+    body: JSON.stringify({ status, reference }),
   });
   return parseAdminResponse<{ enquiry: AdminEnquiry }>(response);
 }
