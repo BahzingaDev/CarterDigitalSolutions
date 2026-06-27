@@ -23,6 +23,12 @@ services:
         value: enquiries
       - key: MONGODB_ADMIN_COLLECTION
         value: admin_users
+      - key: MONGODB_TEMPLATE_COLLECTION
+        value: admin_templates
+      - key: MONGODB_RECORD_COLLECTION
+        value: admin_records
+      - key: MONGODB_PROJECT_COLLECTION
+        value: projects
       - key: ALLOWED_ORIGINS
         sync: false
       - key: ADMIN_EMAIL

@@ -12,6 +12,9 @@ This app is prepared for a single same-origin deployment: Flask serves the built
 - `MONGODB_DATABASE=carter_digital_solutions`. `MONGO_DATABASE` is also supported.
 - `MONGODB_ENQUIRY_COLLECTION=enquiries`. `MONGO_ENQUIRY_COLLECTION` is also supported.
 - `MONGODB_ADMIN_COLLECTION=admin_users`: collection used for administrator accounts.
+- `MONGODB_TEMPLATE_COLLECTION=admin_templates`: reusable email templates.
+- `MONGODB_RECORD_COLLECTION=admin_records`: flexible custom business records.
+- `MONGODB_PROJECT_COLLECTION=projects`: project pipeline records.
 - `ALLOWED_ORIGINS`: deployed site origin, for example `https://www.carterdigitalsolutions.co.uk`.
 
 ## Optional Email Notifications

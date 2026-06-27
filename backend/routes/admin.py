@@ -7,6 +7,18 @@ from ..services.admin_service import (
     create_admin_account,
 )
 from ..services.email_service import send_customer_message
+from ..services.workspace_service import (
+    WorkspaceStorageError,
+    delete_project,
+    delete_record,
+    delete_template,
+    list_projects,
+    list_records,
+    list_templates,
+    save_project,
+    save_record,
+    save_template,
+)
 from ..services.enquiry_service import (
     EnquiryStorageError,
     create_quote_version,
@@ -29,6 +41,78 @@ from ..utils.rate_limit import request_ip_key
 from ..utils.security import origin_is_allowed
 
 admin_bp = Blueprint("admin", __name__)
+
+
+@admin_bp.get("/admin/templates")
+@require_admin
+def admin_templates():
+    return _workspace_list("templates", list_templates)
+
+
+@admin_bp.post("/admin/templates")
+@require_admin_write
+def create_admin_template():
+    return _workspace_save("template", save_template)
+
+
+@admin_bp.put("/admin/templates/<item_id>")
+@require_admin_write
+def update_admin_template(item_id: str):
+    return _workspace_save("template", save_template, item_id)
+
+
+@admin_bp.delete("/admin/templates/<item_id>")
+@require_admin_write
+def remove_admin_template(item_id: str):
+    return _workspace_delete(delete_template, item_id)
+
+
+@admin_bp.get("/admin/records")
+@require_admin
+def admin_records():
+    return _workspace_list("records", list_records)
+
+
+@admin_bp.post("/admin/records")
+@require_admin_write
+def create_admin_record():
+    return _workspace_save("record", save_record)
+
+
+@admin_bp.put("/admin/records/<item_id>")
+@require_admin_write
+def update_admin_record(item_id: str):
+    return _workspace_save("record", save_record, item_id)
+
+
+@admin_bp.delete("/admin/records/<item_id>")
+@require_admin_write
+def remove_admin_record(item_id: str):
+    return _workspace_delete(delete_record, item_id)
+
+
+@admin_bp.get("/admin/projects")
+@require_admin
+def admin_projects():
+    return _workspace_list("projects", list_projects)
+
+
+@admin_bp.post("/admin/projects")
+@require_admin_write
+def create_admin_project():
+    return _workspace_save("project", save_project)
+
+
+@admin_bp.put("/admin/projects/<item_id>")
+@require_admin_write
+def update_admin_project(item_id: str):
+    return _workspace_save("project", save_project, item_id)
+
+
+@admin_bp.delete("/admin/projects/<item_id>")
+@require_admin_write
+def remove_admin_project(item_id: str):
+    return _workspace_delete(delete_project, item_id)
 
 
 @admin_bp.get("/admin/auth/session")
@@ -328,3 +412,35 @@ def send_admin_communication(enquiry_id: str):
         ), 500
 
     return jsonify({"enquiry": updated})
+
+
+def _workspace_list(key: str, loader):
+    try:
+        return jsonify({key: loader()})
+    except WorkspaceStorageError:
+        current_app.logger.exception("Admin workspace list failed")
+        return jsonify({"error": "Workspace storage is unavailable."}), 503
+
+
+def _workspace_save(key: str, saver, item_id: str | None = None):
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json."}), 415
+    try:
+        item = saver(request.get_json(silent=True) or {}, item_id)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except WorkspaceStorageError:
+        current_app.logger.exception("Admin workspace save failed")
+        return jsonify({"error": "Workspace storage is unavailable."}), 503
+    return jsonify({key: item}), 201 if item_id is None else 200
+
+
+def _workspace_delete(deleter, item_id: str):
+    try:
+        deleted = deleter(item_id)
+    except WorkspaceStorageError:
+        current_app.logger.exception("Admin workspace delete failed")
+        return jsonify({"error": "Workspace storage is unavailable."}), 503
+    if not deleted:
+        return jsonify({"error": "Record not found."}), 404
+    return "", 204

@@ -5,8 +5,11 @@ import { AdminAccount } from '../components/admin/AdminAccount';
 import { AdminInbox } from '../components/admin/AdminInbox';
 import { AdminLogin } from '../components/admin/AdminLogin';
 import { AdminOverview } from '../components/admin/AdminOverview';
+import { AdminProjects } from '../components/admin/AdminProjects';
+import { AdminRecords } from '../components/admin/AdminRecords';
 import { AdminSidebar } from '../components/admin/AdminSidebar';
 import { AdminSetup } from '../components/admin/AdminSetup';
+import { AdminTemplates } from '../components/admin/AdminTemplates';
 import {
   type AdminEnquiry,
   type AdminEnquiryUpdate,
@@ -30,6 +33,9 @@ const viewTitles: Record<AdminView, { title: string; description: string }> = {
   overview: { title: 'Overview', description: 'A clear view of current enquiries and potential work.' },
   enquiries: { title: 'Enquiries', description: 'Review contact requests, priorities, and follow-up notes.' },
   quotes: { title: 'Quote requests', description: 'Review customer-built estimates and selected services.' },
+  projects: { title: 'Project pipeline', description: 'Move opportunities and active work through delivery stages.' },
+  records: { title: 'Custom records', description: 'Keep flexible, structured business records in one place.' },
+  templates: { title: 'Email templates', description: 'Create reusable messages for enquiry communications.' },
   account: { title: 'Account', description: 'Your administrator session and security details.' },
 };
 
@@ -187,6 +193,9 @@ export function AdminPage() {
           {view === 'overview' ? <AdminOverview enquiries={enquiries} onNavigate={setView} onSelect={setSelectedId} /> : null}
           {view === 'enquiries' ? <AdminInbox enquiries={enquiries} mode="all" onCreateQuote={handleCreateQuote} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} selectedId={selectedId} /> : null}
           {view === 'quotes' ? <AdminInbox enquiries={enquiries} mode="quotes" onCreateQuote={handleCreateQuote} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} selectedId={selectedId} /> : null}
+          {view === 'projects' ? <AdminProjects csrfToken={session.csrf_token ?? ''} /> : null}
+          {view === 'records' ? <AdminRecords csrfToken={session.csrf_token ?? ''} /> : null}
+          {view === 'templates' ? <AdminTemplates csrfToken={session.csrf_token ?? ''} /> : null}
           {view === 'account' ? <AdminAccount email={session.email ?? ''} name={session.name ?? 'Administrator'} /> : null}
         </div>
       </main>

@@ -6,6 +6,7 @@ import {
   Gauge,
   Inbox,
   LogOut,
+  MessageSquareText,
   Settings,
   UserRound,
   type LucideIcon,
@@ -37,14 +38,15 @@ const groups: NavigationGroup[] = [
   {
     label: 'Operations',
     items: [
-      { label: 'Projects', icon: FolderKanban, disabled: true },
-      { label: 'Clients', icon: BriefcaseBusiness, disabled: true },
+      { id: 'projects', label: 'Projects', icon: FolderKanban },
+      { id: 'records', label: 'Custom records', icon: BriefcaseBusiness },
     ],
   },
   {
     label: 'Administration',
     items: [
       { id: 'account' as const, label: 'Account', icon: UserRound },
+      { id: 'templates', label: 'Email templates', icon: MessageSquareText },
       { label: 'Settings', icon: Settings, disabled: true },
     ],
   },

@@ -1,14 +1,7 @@
 import { RotateCcw, Send } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-import type { AdminEnquiry } from '../../src/api/admin';
-
-const templates = {
-  blank: { label: 'Blank message', subject: '', message: '' },
-  follow_up: { label: 'Project follow-up', subject: 'Following up on your enquiry', message: 'I wanted to follow up on your recent enquiry and see whether you would like to discuss the next steps.' },
-  clarification: { label: 'Scope clarification', subject: 'A few details about your project', message: 'Thank you for your enquiry. Before I prepare the next steps, I would like to clarify a few details about the scope, intended users, and preferred timeline.' },
-  availability: { label: 'Availability update', subject: 'Project availability update', message: 'Thank you for getting in touch. I have reviewed your request and would be happy to discuss availability and a suitable start date.' },
-};
+import { fetchAdminTemplates, type AdminEnquiry, type AdminTemplate } from '../../src/api/admin';
 
 export interface CommunicationDraft { subject: string; message: string; quoteId?: string; }
 
@@ -17,8 +10,10 @@ export function AdminCommunications({ enquiry, draft, onSend }: { enquiry: Admin
   const [message, setMessage] = useState(draft?.message ?? '');
   const [quoteId, setQuoteId] = useState(draft?.quoteId);
   const [isSending, setIsSending] = useState(false);
+  const [templates, setTemplates] = useState<AdminTemplate[]>([]);
 
   useEffect(() => { if (draft) { setSubject(draft.subject); setMessage(draft.message); setQuoteId(draft.quoteId); } }, [draft]);
+  useEffect(() => { void fetchAdminTemplates().then(setTemplates); }, []);
 
   const send = async () => {
     setIsSending(true);
@@ -29,7 +24,7 @@ export function AdminCommunications({ enquiry, draft, onSend }: { enquiry: Admin
     <div className="admin-workflow-stack">
       <section className="admin-subpanel admin-compose-panel">
         <div className="admin-subpanel-heading"><div><h3>Send email</h3><p>To {enquiry.name} at {enquiry.email}</p></div></div>
-        <label>Template<select className="form-select" onChange={(event) => { const template = templates[event.target.value as keyof typeof templates]; setSubject(template.subject); setMessage(template.message); setQuoteId(undefined); }}><option value="blank">Blank message</option><option value="follow_up">Project follow-up</option><option value="clarification">Scope clarification</option><option value="availability">Availability update</option></select></label>
+        <label>Template<select className="form-select" onChange={(event) => { const template = templates.find((item) => item.id === event.target.value); setSubject(applyTemplate(template?.subject ?? '', enquiry)); setMessage(applyTemplate(template?.body ?? '', enquiry)); setQuoteId(undefined); }}><option value="">Blank message</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></label>
         <label>Subject<input className="form-control" maxLength={180} onChange={(event) => setSubject(event.target.value)} value={subject} /></label>
         <label>Message<textarea className="form-control" maxLength={5000} onChange={(event) => setMessage(event.target.value)} rows={8} value={message} /></label>
         <button className="btn btn-accent" disabled={isSending || !subject.trim() || !message.trim()} onClick={() => void send()} type="button"><Send size={16} /> {isSending ? 'Sending...' : 'Send email'}</button>
@@ -47,3 +42,4 @@ export function AdminCommunications({ enquiry, draft, onSend }: { enquiry: Admin
 }
 
 function formatDate(value: string) { return new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)); }
+function applyTemplate(value: string, enquiry: AdminEnquiry) { return value.split('{{name}}').join(enquiry.name).split('{{project_type}}').join(enquiry.project_type || 'your project'); }

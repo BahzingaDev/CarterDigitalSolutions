@@ -1988,6 +1988,46 @@ body {
 .quote-approved h2, .quote-approved p { margin: 0; }
 .quote-review-state { display: grid; place-items: center; min-height: 55vh; padding: 2rem; text-align: center; }
 
+.admin-workspace-split {
+  display: grid;
+  align-items: start;
+  gap: 1.25rem;
+  grid-template-columns: minmax(240px, 0.32fr) minmax(0, 0.68fr);
+}
+
+.admin-workspace-list,
+.admin-workspace-editor,
+.admin-project-editor {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.admin-workspace-list > .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; }
+.admin-workspace-list > button:not(.btn) { display: grid; gap: 0.15rem; width: 100%; padding: 0.75rem; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--color-text); text-align: left; }
+.admin-workspace-list > button:not(.btn):hover, .admin-workspace-list > button.is-active { border-color: var(--color-accent); background: var(--color-accent-soft); }
+.admin-workspace-list small { overflow: hidden; color: var(--color-muted); text-overflow: ellipsis; white-space: nowrap; }
+.admin-workspace-editor > label, .admin-project-editor > label { display: grid; gap: 0.35rem; color: var(--color-muted); font-size: 0.78rem; font-weight: 800; }
+.admin-custom-fields { display: grid; gap: 0.5rem; padding: 1rem 0; border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
+.admin-custom-fields .admin-subpanel-heading h3 { margin: 0; }
+.admin-custom-fields .admin-subpanel-heading .btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0; text-decoration: none; }
+.admin-custom-fields > div:not(.admin-subpanel-heading) { display: grid; gap: 0.5rem; grid-template-columns: minmax(120px, 0.4fr) minmax(0, 0.6fr) 38px; }
+
+.admin-pipeline-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.admin-pipeline-toolbar > div { display: grid; }
+.admin-pipeline-toolbar span { color: var(--color-muted); font-size: 0.82rem; }
+.admin-pipeline-toolbar .btn { display: inline-flex; align-items: center; gap: 0.4rem; }
+.admin-kanban { display: grid; align-items: start; gap: 0.75rem; grid-template-columns: repeat(7, minmax(230px, 1fr)); overflow-x: auto; padding-bottom: 1rem; }
+.admin-kanban-column { min-height: 340px; border: 1px solid var(--color-border); border-radius: 8px; background: color-mix(in srgb, var(--color-surface) 55%, var(--color-page)); }
+.admin-kanban-column > header { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; border-bottom: 1px solid var(--color-border); font-size: 0.78rem; font-weight: 850; text-transform: uppercase; }
+.admin-kanban-column > header em { display: grid; place-items: center; min-width: 1.5rem; height: 1.5rem; border-radius: 999px; background: var(--color-accent-soft); color: var(--color-accent-strong); font-style: normal; }
+.admin-kanban-column > div { display: grid; gap: 0.5rem; padding: 0.5rem; }
+.admin-project-card { display: grid; gap: 0.25rem; padding: 0.75rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface); box-shadow: 0 5px 14px var(--color-shadow); cursor: pointer; }
+.admin-project-card:hover { border-color: var(--color-accent); }
+.admin-project-card small, .admin-project-card time { color: var(--color-muted); font-size: 0.75rem; }
+.admin-project-card > span { margin-top: 0.3rem; font-weight: 800; }
+.admin-project-card .form-select { margin-top: 0.45rem; font-size: 0.75rem; }
+
 @media print {
   .site-navbar, .site-footer, .no-print { display: none !important; }
   .quote-review-page { width: 100%; margin: 0; padding: 0; border: 0; box-shadow: none; }
@@ -2770,6 +2810,8 @@ body {
   .admin-account-grid {
     grid-template-columns: 1fr;
   }
+
+  .admin-workspace-split { grid-template-columns: 1fr; }
 
   .admin-inbox-list-panel .admin-enquiry-list {
     max-height: 28rem;
