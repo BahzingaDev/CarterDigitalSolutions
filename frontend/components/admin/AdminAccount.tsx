@@ -1,11 +1,11 @@
 import { Clock3, KeyRound, ShieldCheck } from 'lucide-react';
 
-export function AdminAccount({ email }: { email: string }) {
+export function AdminAccount({ email, name }: { email: string; name: string }) {
   return (
     <div className="admin-account-grid">
       <section className="admin-panel admin-account-profile">
         <span className="admin-account-avatar" aria-hidden="true">{email.charAt(0).toUpperCase()}</span>
-        <div><p className="section-kicker">Administrator</p><h2>{email}</h2><p>Owner account with access to enquiries and quote requests.</p></div>
+        <div><p className="section-kicker">Administrator</p><h2>{name}</h2><p>{email}</p></div>
       </section>
       <section className="admin-panel admin-security-panel">
         <div><ShieldCheck size={21} /><span><strong>Secure session</strong><small>Authentication is held in an HTTP-only cookie.</small></span></div>

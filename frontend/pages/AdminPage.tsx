@@ -6,6 +6,7 @@ import { AdminInbox } from '../components/admin/AdminInbox';
 import { AdminLogin } from '../components/admin/AdminLogin';
 import { AdminOverview } from '../components/admin/AdminOverview';
 import { AdminSidebar } from '../components/admin/AdminSidebar';
+import { AdminSetup } from '../components/admin/AdminSetup';
 import {
   type AdminEnquiry,
   type AdminSession,
@@ -14,6 +15,7 @@ import {
   fetchAdminSession,
   loginAdmin,
   logoutAdmin,
+  setupAdmin,
   updateAdminEnquiry,
 } from '../src/api/admin';
 
@@ -79,6 +81,12 @@ export function AdminPage() {
     await loadEnquiries();
   };
 
+  const handleSetup = async (name: string, email: string, password: string) => {
+    const nextSession = await setupAdmin(name, email, password);
+    setSession(nextSession);
+    await loadEnquiries();
+  };
+
   const handleLogout = async () => {
     if (session?.csrf_token) await logoutAdmin(session.csrf_token);
     setSession({ authenticated: false, configured: true });
@@ -104,6 +112,9 @@ export function AdminPage() {
   }
 
   if (!session.authenticated) {
+    if (session.setup_required) {
+      return <AdminSetup onSetup={handleSetup} />;
+    }
     return <AdminLogin configured={session.configured !== false} onLogin={handleLogin} />;
   }
 
@@ -131,7 +142,7 @@ export function AdminPage() {
           {view === 'overview' ? <AdminOverview enquiries={enquiries} onNavigate={setView} onSelect={setSelectedId} /> : null}
           {view === 'enquiries' ? <AdminInbox enquiries={enquiries} mode="all" onSelect={setSelectedId} onUpdate={handleUpdate} selectedId={selectedId} /> : null}
           {view === 'quotes' ? <AdminInbox enquiries={enquiries} mode="quotes" onSelect={setSelectedId} onUpdate={handleUpdate} selectedId={selectedId} /> : null}
-          {view === 'account' ? <AdminAccount email={session.email ?? ''} /> : null}
+          {view === 'account' ? <AdminAccount email={session.email ?? ''} name={session.name ?? 'Administrator'} /> : null}
         </div>
       </main>
     </div>

@@ -1736,6 +1736,11 @@ body {
 .admin-login-intro { margin-bottom: 1.5rem; color: var(--color-muted); }
 .admin-login-panel form { display: grid; }
 .admin-login-panel .form-control { margin-bottom: 1rem; }
+.admin-login-panel .admin-field-hint {
+  margin: -0.55rem 0 1rem;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}
 .admin-login-panel .btn { margin-top: 0.35rem; }
 .admin-back-link { display: block; margin-top: 1.25rem; color: var(--color-muted); font-size: 0.85rem; text-align: center; }
 

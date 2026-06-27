@@ -4,6 +4,8 @@ export type AdminView = 'overview' | 'enquiries' | 'quotes' | 'account';
 export interface AdminSession {
   authenticated: boolean;
   configured?: boolean;
+  setup_required?: boolean;
+  name?: string;
   email?: string;
   csrf_token?: string;
 }
@@ -46,6 +48,16 @@ export async function loginAdmin(email: string, password: string) {
     credentials: 'same-origin',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
+  });
+  return parseAdminResponse<AdminSession>(response);
+}
+
+export async function setupAdmin(name: string, email: string, password: string) {
+  const response = await fetch('/api/admin/auth/setup', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, password }),
   });
   return parseAdminResponse<AdminSession>(response);
 }

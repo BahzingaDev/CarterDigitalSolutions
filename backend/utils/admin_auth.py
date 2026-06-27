@@ -5,7 +5,6 @@ from collections import defaultdict, deque
 from functools import wraps
 
 from flask import current_app, jsonify, request, session
-from werkzeug.security import check_password_hash
 
 from .security import origin_is_allowed
 
@@ -13,56 +12,11 @@ from .security import origin_is_allowed
 _login_attempts: dict[str, deque[float]] = defaultdict(deque)
 
 
-def admin_is_configured() -> bool:
-    return bool(
-        current_app.config.get("ADMIN_EMAIL")
-        and current_app.config.get("ADMIN_PASSWORD_HASH")
-    )
-
-
-def authenticate_admin(email: str, password: str) -> bool:
-    configured_email = current_app.config.get("ADMIN_EMAIL", "")
-    password_hash = _normalise_password_hash(
-        current_app.config.get("ADMIN_PASSWORD_HASH", "")
-    )
-    email_matches = hmac.compare_digest(email.strip().lower(), configured_email)
-
-    # Always perform a password check when configured to reduce account discovery signals.
-    try:
-        password_matches = bool(password_hash) and check_password_hash(
-            password_hash,
-            password,
-        )
-    except (TypeError, ValueError):
-        current_app.logger.error(
-            "ADMIN_PASSWORD_HASH has an invalid format; regenerate the complete hash."
-        )
-        password_matches = False
-
-    return email_matches and password_matches
-
-
-def _normalise_password_hash(value: str) -> str:
-    password_hash = str(value or "").strip().strip('"').strip("'")
-    assignment_prefix = "ADMIN_PASSWORD_HASH="
-    if password_hash.startswith(assignment_prefix):
-        password_hash = password_hash[len(assignment_prefix) :].strip()
-
-    # Werkzeug scrypt hashes begin with scrypt:32768:8:1. Recover safely when
-    # only the algorithm name was omitted while copying the environment value.
-    parameters = password_hash.split("$", 1)[0]
-    if parameters.count(":") == 2 and all(
-        part.isdigit() for part in parameters.split(":")
-    ):
-        password_hash = f"scrypt:{password_hash}"
-
-    return password_hash
-
-
-def start_admin_session() -> str:
+def start_admin_session(account: dict[str, str]) -> str:
     session.clear()
     session["admin_authenticated"] = True
-    session["admin_email"] = current_app.config["ADMIN_EMAIL"]
+    session["admin_name"] = account["name"]
+    session["admin_email"] = account["email"]
     session["csrf_token"] = secrets.token_urlsafe(32)
     session.permanent = True
     return session["csrf_token"]
@@ -71,6 +25,7 @@ def start_admin_session() -> str:
 def admin_session_payload() -> dict[str, str | bool]:
     return {
         "authenticated": True,
+        "name": session.get("admin_name", "Administrator"),
         "email": session.get("admin_email", ""),
         "csrf_token": session.get("csrf_token", ""),
     }

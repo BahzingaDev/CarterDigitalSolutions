@@ -11,6 +11,7 @@ This app is prepared for a single same-origin deployment: Flask serves the built
 - `MONGODB_URI`: MongoDB connection string, for example from MongoDB Atlas. `MONGO_URI` is also supported.
 - `MONGODB_DATABASE=carter_digital_solutions`. `MONGO_DATABASE` is also supported.
 - `MONGODB_ENQUIRY_COLLECTION=enquiries`. `MONGO_ENQUIRY_COLLECTION` is also supported.
+- `MONGODB_ADMIN_COLLECTION=admin_users`: collection used for administrator accounts.
 - `ALLOWED_ORIGINS`: deployed site origin, for example `https://www.carterdigitalsolutions.co.uk`.
 
 ## Optional Email Notifications
@@ -50,20 +51,18 @@ Email delivery is non-blocking for users: if MongoDB saves the enquiry but SMTP 
 
 ## Admin Authentication
 
-The admin area at `/admin` uses an HTTP-only, secure Flask session. Configure these Render environment variables:
+The admin area at `/admin` uses an HTTP-only, secure Flask session. Administrator credentials are stored in MongoDB with scrypt password hashing. Configure these Render environment variables:
 
-- `ADMIN_EMAIL`: the email address used to sign in.
-- `ADMIN_PASSWORD_HASH`: a Werkzeug password hash, never the plain-text password.
+- `ADMIN_EMAIL`: the only email address authorised to create and use the owner account.
+- `MONGODB_ADMIN_COLLECTION=admin_users`: MongoDB collection used for the account.
 - `ADMIN_SESSION_MINUTES=60`: rolling session lifetime.
 - `ADMIN_LOGIN_RATE_LIMIT_MAX=5`: failed attempts permitted in the window.
 - `ADMIN_LOGIN_RATE_LIMIT_WINDOW_SECONDS=900`: login throttling window.
 - `ADMIN_EXPORT_LIMIT=100`: maximum enquiries loaded by the dashboard, capped internally at 500.
 
-Generate the password hash locally. The prompt hides the password so it is not written to shell history:
+After deployment, visit `/admin`. If no account exists for `ADMIN_EMAIL`, the guarded first-run screen lets you choose your name and password. The submitted email must exactly match `ADMIN_EMAIL`; the server hashes the password before inserting the account into MongoDB. Once created, public account registration closes automatically.
 
-`python backend/scripts/generate_admin_password.py`
-
-Paste the complete value into `ADMIN_PASSWORD_HASH` in Render. It must begin with `scrypt:32768:8:1$`; include the `scrypt:` prefix and every `$`-separated section, without quotes or the `Value:` label. Save the environment changes and allow Render to redeploy before testing. Remove the legacy `ADMIN_EXPORT_TOKEN` variable after the new login has been verified.
+Remove the obsolete `ADMIN_PASSWORD_HASH` and `ADMIN_EXPORT_TOKEN` environment variables after the new login has been verified.
 
 Admin write requests use a per-session CSRF token and same-origin validation. Login attempts are rate limited by IP address.
 

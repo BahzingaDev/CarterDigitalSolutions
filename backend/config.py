@@ -35,6 +35,10 @@ class Config:
     MONGODB_ENQUIRY_COLLECTION = os.environ.get(
         "MONGODB_ENQUIRY_COLLECTION",
     ) or os.environ.get("MONGO_ENQUIRY_COLLECTION", "enquiries")
+    MONGODB_ADMIN_COLLECTION = os.environ.get(
+        "MONGODB_ADMIN_COLLECTION",
+        "admin_users",
+    )
     MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(
         os.environ.get("MONGODB_SERVER_SELECTION_TIMEOUT_MS", "5000"),
     )
@@ -63,7 +67,6 @@ class Config:
     CUSTOMER_AUTO_REPLY_ENABLED = os.environ.get("CUSTOMER_AUTO_REPLY_ENABLED", "1") == "1"
     CUSTOMER_EMAIL_FROM = os.environ.get("CUSTOMER_EMAIL_FROM", ENQUIRY_EMAIL_FROM)
     ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "").strip().lower()
-    ADMIN_PASSWORD_HASH = os.environ.get("ADMIN_PASSWORD_HASH", "")
     ADMIN_EXPORT_LIMIT = int(os.environ.get("ADMIN_EXPORT_LIMIT", "100"))
     ADMIN_LOGIN_RATE_LIMIT_MAX = int(os.environ.get("ADMIN_LOGIN_RATE_LIMIT_MAX", "5"))
     ADMIN_LOGIN_RATE_LIMIT_WINDOW_SECONDS = int(
