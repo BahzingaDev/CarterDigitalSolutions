@@ -1,18 +1,76 @@
-import hmac
-
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify, request, session
 
 from ..services.enquiry_service import EnquiryStorageError, list_enquiries, update_enquiry
+from ..utils.admin_auth import (
+    admin_is_configured,
+    admin_login_rate_limited,
+    admin_session_payload,
+    authenticate_admin,
+    clear_admin_login_attempts,
+    require_admin,
+    require_admin_write,
+    start_admin_session,
+)
+from ..utils.rate_limit import request_ip_key
+from ..utils.security import origin_is_allowed
 
 admin_bp = Blueprint("admin", __name__)
 
 
-@admin_bp.get("/admin/enquiries")
-def export_enquiries():
-    auth_error = _require_admin()
-    if auth_error:
-        return auth_error
+@admin_bp.get("/admin/auth/session")
+def admin_auth_session():
+    if not admin_is_configured():
+        return jsonify({"authenticated": False, "configured": False}), 503
 
+    if not session.get("admin_authenticated"):
+        return jsonify({"authenticated": False, "configured": True})
+
+    return jsonify({"configured": True, **admin_session_payload()})
+
+
+@admin_bp.post("/admin/auth/login")
+def admin_login():
+    if not admin_is_configured():
+        return jsonify({"error": "Admin authentication is not configured."}), 503
+
+    if not origin_is_allowed(current_app, request.headers.get("Origin")):
+        return jsonify({"error": "Origin is not allowed."}), 403
+
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json."}), 415
+
+    payload = request.get_json(silent=True) or {}
+    email = str(payload.get("email", "")).strip().lower()
+    password = str(payload.get("password", ""))
+    ip_key = request_ip_key()
+
+    if admin_login_rate_limited(ip_key):
+        return jsonify({"error": "Too many login attempts. Try again later."}), 429
+
+    if not email or not password or not authenticate_admin(email, password):
+        return jsonify({"error": "Invalid email or password."}), 401
+
+    clear_admin_login_attempts(ip_key)
+    csrf_token = start_admin_session()
+    return jsonify(
+        {
+            "authenticated": True,
+            "email": current_app.config["ADMIN_EMAIL"],
+            "csrf_token": csrf_token,
+        }
+    )
+
+
+@admin_bp.post("/admin/auth/logout")
+@require_admin_write
+def admin_logout():
+    session.clear()
+    return jsonify({"authenticated": False})
+
+
+@admin_bp.get("/admin/enquiries")
+@require_admin
+def export_enquiries():
     try:
         requested_limit = int(request.args.get("limit", current_app.config["ADMIN_EXPORT_LIMIT"]))
     except ValueError:
@@ -27,11 +85,8 @@ def export_enquiries():
 
 
 @admin_bp.patch("/admin/enquiries/<enquiry_id>")
+@require_admin_write
 def update_admin_enquiry(enquiry_id: str):
-    auth_error = _require_admin()
-    if auth_error:
-        return auth_error
-
     if not request.is_json:
         return jsonify({"error": "Content-Type must be application/json."}), 415
 
@@ -46,24 +101,3 @@ def update_admin_enquiry(enquiry_id: str):
         return jsonify({"error": "Enquiry not found."}), 404
 
     return jsonify({"enquiry": updated})
-
-
-def _require_admin():
-    configured_token = current_app.config.get("ADMIN_EXPORT_TOKEN")
-    if not configured_token:
-        return jsonify({"error": "Admin export is not configured."}), 404
-
-    provided_token = _bearer_token()
-    if not provided_token or not hmac.compare_digest(provided_token, configured_token):
-        return jsonify({"error": "Unauthorized."}), 401
-
-    return None
-
-
-def _bearer_token() -> str:
-    header = request.headers.get("Authorization", "")
-    prefix = "Bearer "
-    if not header.startswith(prefix):
-        return ""
-
-    return header[len(prefix) :].strip()

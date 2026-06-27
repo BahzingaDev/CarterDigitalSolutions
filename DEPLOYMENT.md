@@ -48,21 +48,24 @@ Resend sends through `https://api.resend.com/emails` using the `from`, `to`, `su
 
 Email delivery is non-blocking for users: if MongoDB saves the enquiry but SMTP fails, the API still returns success and the SMTP error is logged.
 
-## Admin Export
+## Admin Authentication
 
-Set `ADMIN_EXPORT_TOKEN` to a long random value to enable a protected JSON export endpoint:
+The admin area at `/admin` uses an HTTP-only, secure Flask session. Configure these Render environment variables:
 
-`GET /api/admin/enquiries`
+- `ADMIN_EMAIL`: the email address used to sign in.
+- `ADMIN_PASSWORD_HASH`: a Werkzeug password hash, never the plain-text password.
+- `ADMIN_SESSION_MINUTES=60`: rolling session lifetime.
+- `ADMIN_LOGIN_RATE_LIMIT_MAX=5`: failed attempts permitted in the window.
+- `ADMIN_LOGIN_RATE_LIMIT_WINDOW_SECONDS=900`: login throttling window.
+- `ADMIN_EXPORT_LIMIT=100`: maximum enquiries loaded by the dashboard, capped internally at 500.
 
-Send the token as a bearer token:
+Generate the password hash locally. The prompt hides the password so it is not written to shell history:
 
-`Authorization: Bearer <ADMIN_EXPORT_TOKEN>`
+`python backend/scripts/generate_admin_password.py`
 
-Optional query parameter:
+Paste the complete output into `ADMIN_PASSWORD_HASH` in Render. Values beginning with `scrypt:` and containing `$` characters are expected. Remove the legacy `ADMIN_EXPORT_TOKEN` variable after the new login has been verified.
 
-- `limit`: number of latest enquiries to return, capped at 500.
-
-If `ADMIN_EXPORT_TOKEN` is not set, the export endpoint returns `404`.
+Admin write requests use a per-session CSRF token and same-origin validation. Login attempts are rate limited by IP address.
 
 ## Enquiry Rate Limiting
 

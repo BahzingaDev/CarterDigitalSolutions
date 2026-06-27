@@ -1,4 +1,12 @@
 export type EnquiryStatus = 'new' | 'reviewed' | 'replied' | 'closed';
+export type AdminView = 'overview' | 'enquiries' | 'quotes' | 'account';
+
+export interface AdminSession {
+  authenticated: boolean;
+  configured?: boolean;
+  email?: string;
+  csrf_token?: string;
+}
 
 export interface AdminQuoteItem {
   service: string;
@@ -24,32 +32,56 @@ export interface AdminEnquiry {
   admin_notes: string;
 }
 
-export async function fetchAdminEnquiries(token: string) {
-  const response = await fetch('/api/admin/enquiries?limit=100', {
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
+export async function fetchAdminSession() {
+  const response = await fetch('/api/admin/auth/session', {
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json' },
   });
+  return parseAdminResponse<AdminSession>(response);
+}
 
+export async function loginAdmin(email: string, password: string) {
+  const response = await fetch('/api/admin/auth/login', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  return parseAdminResponse<AdminSession>(response);
+}
+
+export async function logoutAdmin(csrfToken: string) {
+  const response = await fetch('/api/admin/auth/logout', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json', 'X-CSRF-Token': csrfToken },
+  });
+  return parseAdminResponse<AdminSession>(response);
+}
+
+export async function fetchAdminEnquiries() {
+  const response = await fetch('/api/admin/enquiries?limit=100', {
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json' },
+  });
   return parseAdminResponse<{ enquiries: AdminEnquiry[] }>(response);
 }
 
 export async function updateAdminEnquiry(
-  token: string,
+  csrfToken: string,
   id: string,
   payload: Partial<Pick<AdminEnquiry, 'status' | 'admin_notes'>>,
 ) {
   const response = await fetch(`/api/admin/enquiries/${encodeURIComponent(id)}`, {
     method: 'PATCH',
+    credentials: 'same-origin',
     headers: {
       Accept: 'application/json',
-      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken,
     },
     body: JSON.stringify(payload),
   });
-
   return parseAdminResponse<{ enquiry: AdminEnquiry }>(response);
 }
 

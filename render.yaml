@@ -23,3 +23,7 @@ services:
         value: enquiries
       - key: ALLOWED_ORIGINS
         sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD_HASH
+        sync: false

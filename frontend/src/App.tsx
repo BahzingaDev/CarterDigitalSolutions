@@ -50,14 +50,14 @@ function getCurrentPage() {
     return <PrivacyPage />;
   }
 
-  if (window.location.pathname === '/admin') {
-    return <AdminPage />;
-  }
-
   return <HomePage />;
 }
 
 export function App() {
+  if (window.location.pathname === '/admin') {
+    return <AdminPage />;
+  }
+
   return (
     <ShellLayout>
       {getCurrentPage()}

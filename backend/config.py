@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from pathlib import Path
 
 
@@ -7,8 +8,12 @@ class Config:
     JSON_SORT_KEYS = False
     MAX_CONTENT_LENGTH = 1024 * 1024
     SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_NAME = "cds_admin_session"
     SESSION_COOKIE_SAMESITE = "Lax"
     SESSION_COOKIE_SECURE = os.environ.get("FLASK_ENV") == "production"
+    PERMANENT_SESSION_LIFETIME = timedelta(
+        minutes=int(os.environ.get("ADMIN_SESSION_MINUTES", "60"))
+    )
     FORCE_HTTPS = os.environ.get("FORCE_HTTPS") == "1"
     ALLOWED_ORIGINS = [
         origin.strip().rstrip("/")
@@ -57,8 +62,13 @@ class Config:
     ENQUIRY_TIMEZONE = os.environ.get("ENQUIRY_TIMEZONE", "Europe/London")
     CUSTOMER_AUTO_REPLY_ENABLED = os.environ.get("CUSTOMER_AUTO_REPLY_ENABLED", "1") == "1"
     CUSTOMER_EMAIL_FROM = os.environ.get("CUSTOMER_EMAIL_FROM", ENQUIRY_EMAIL_FROM)
-    ADMIN_EXPORT_TOKEN = os.environ.get("ADMIN_EXPORT_TOKEN", "")
+    ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "").strip().lower()
+    ADMIN_PASSWORD_HASH = os.environ.get("ADMIN_PASSWORD_HASH", "")
     ADMIN_EXPORT_LIMIT = int(os.environ.get("ADMIN_EXPORT_LIMIT", "100"))
+    ADMIN_LOGIN_RATE_LIMIT_MAX = int(os.environ.get("ADMIN_LOGIN_RATE_LIMIT_MAX", "5"))
+    ADMIN_LOGIN_RATE_LIMIT_WINDOW_SECONDS = int(
+        os.environ.get("ADMIN_LOGIN_RATE_LIMIT_WINDOW_SECONDS", "900")
+    )
     ENQUIRY_RATE_LIMIT_MAX = int(os.environ.get("ENQUIRY_RATE_LIMIT_MAX", "5"))
     ENQUIRY_RATE_LIMIT_WINDOW_SECONDS = int(
         os.environ.get("ENQUIRY_RATE_LIMIT_WINDOW_SECONDS", "900")
