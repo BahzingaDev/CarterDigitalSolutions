@@ -11,7 +11,6 @@ class AdminStorageError(RuntimeError):
 
 
 _client = None
-_indexes_ready = False
 _dummy_password_hash = generate_password_hash(
     "not-a-real-administrator-password",
     method="scrypt",
@@ -25,11 +24,10 @@ def admin_account_exists() -> bool:
 
     try:
         collection = _get_collection()
-        _ensure_indexes(collection)
-        return collection.count_documents(
+        return collection.find_one(
             {"email": email, "active": True},
-            limit=1,
-        ) > 0
+            {"_id": 1},
+        ) is not None
     except AdminStorageError:
         raise
     except Exception as error:
@@ -51,13 +49,15 @@ def create_admin_account(name: str, email: str, password: str) -> dict[str, str]
 
     try:
         collection = _get_collection()
-        _ensure_indexes(collection)
         if collection.find_one({"email": normalized_email}, {"_id": 1}):
             raise ValueError("An admin account already exists.")
 
         now = datetime.now(timezone.utc)
         collection.insert_one(
             {
+                # MongoDB's default unique _id index safely permits one owner
+                # account without relying on custom index creation privileges.
+                "_id": "primary-admin",
                 "id": str(uuid.uuid4()),
                 "name": clean_name,
                 "email": normalized_email,
@@ -150,14 +150,3 @@ def _get_collection():
 
     database = _client[current_app.config["MONGODB_DATABASE"]]
     return database[current_app.config["MONGODB_ADMIN_COLLECTION"]]
-
-
-def _ensure_indexes(collection) -> None:
-    global _indexes_ready
-
-    if _indexes_ready:
-        return
-
-    collection.create_index("email", unique=True)
-    collection.create_index("active")
-    _indexes_ready = True

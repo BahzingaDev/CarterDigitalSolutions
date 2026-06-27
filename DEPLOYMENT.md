@@ -60,7 +60,7 @@ The admin area at `/admin` uses an HTTP-only, secure Flask session. Administrato
 - `ADMIN_LOGIN_RATE_LIMIT_WINDOW_SECONDS=900`: login throttling window.
 - `ADMIN_EXPORT_LIMIT=100`: maximum enquiries loaded by the dashboard, capped internally at 500.
 
-After deployment, visit `/admin`. If no account exists for `ADMIN_EMAIL`, the guarded first-run screen lets you choose your name and password. The submitted email must exactly match `ADMIN_EMAIL`; the server hashes the password before inserting the account into MongoDB. Once created, public account registration closes automatically.
+After deployment, visit `/admin`. If no account exists for `ADMIN_EMAIL`, the guarded first-run screen lets you choose your name and password. The submitted email must exactly match `ADMIN_EMAIL`; the server hashes the password before inserting the account into MongoDB. MongoDB creates `admin_users` on that first insert, so the collection may not be visible before setup is submitted. Once created, public account registration closes automatically.
 
 Remove the obsolete `ADMIN_PASSWORD_HASH` and `ADMIN_EXPORT_TOKEN` environment variables after the new login has been verified.
 
