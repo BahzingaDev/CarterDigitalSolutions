@@ -2126,6 +2126,32 @@ body {
 .admin-checklist-item input[type='checkbox'] { width: 1rem; height: 1rem; accent-color: var(--color-accent); }
 .admin-card-progress { margin: 0.35rem 0; }
 
+.admin-project-workspace-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--color-border); }
+.admin-project-workspace-heading h2 { margin: 0; font-size: 1.45rem; font-weight: 850; }
+.admin-project-workspace-heading span { color: var(--color-muted); }
+.admin-project-tabs { display: flex; gap: 1.25rem; border-bottom: 1px solid var(--color-border); }
+.admin-project-tabs button { padding: 0.7rem 0; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--color-muted); font-weight: 800; }
+.admin-project-tabs button.is-active { border-bottom-color: var(--color-accent); color: var(--color-text); }
+.admin-project-workspace { display: grid; gap: 1.25rem; }
+.admin-project-workspace > label, .admin-meeting-list label, .admin-invoice-register label { display: grid; gap: 0.35rem; color: var(--color-muted); font-size: 0.78rem; font-weight: 800; }
+.admin-project-services { display: grid; gap: 0; padding: 0.9rem; border: 1px solid var(--color-border); border-radius: 6px; }
+.admin-project-services h3 { margin: 0 0 0.5rem; font-size: 0.95rem; font-weight: 850; }
+.admin-project-services > div { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.55rem 0; border-top: 1px solid var(--color-border); }
+.admin-project-services > div > span:first-child { display: grid; }
+.admin-project-services small { color: var(--color-muted); }
+.admin-consultation-summary { display: grid; gap: 0.75rem; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.admin-consultation-summary > div { display: grid; gap: 0.15rem; padding: 0.85rem; border-left: 3px solid var(--color-accent); background: var(--color-page); }
+.admin-consultation-summary span { color: var(--color-muted); font-size: 0.75rem; font-weight: 750; }
+.admin-consultation-summary strong { font-size: 1.05rem; }
+.admin-meeting-list, .admin-invoice-register { display: grid; gap: 0.75rem; }
+.admin-meeting-list article, .admin-invoice-register article { position: relative; display: grid; gap: 0.75rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-page); }
+.admin-meeting-grid { display: grid; gap: 0.75rem; grid-template-columns: minmax(180px, 1fr) minmax(170px, 0.8fr) 90px 130px minmax(170px, 1fr); }
+.admin-invoice-grid { display: grid; gap: 0.75rem; grid-template-columns: minmax(130px, 1fr) 120px 120px 120px 140px 140px; }
+.admin-invoice-register article > .admin-icon-button { position: absolute; top: 0.4rem; right: 0.4rem; }
+.admin-consultation-billing { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem; border-left: 4px solid #d97706; background: color-mix(in srgb, #f59e0b 10%, var(--color-page)); }
+.admin-consultation-billing p { margin: 0; color: var(--color-muted); }
+.admin-consultation-billing .btn, .admin-project-workspace .admin-subpanel-heading .btn { display: inline-flex; align-items: center; gap: 0.4rem; }
+
 .admin-zero-state {
   display: grid;
   place-items: center;
@@ -2943,6 +2969,8 @@ body {
 
   .admin-workspace-split { grid-template-columns: 1fr; }
   .admin-checklist-grid { grid-template-columns: 1fr; }
+  .admin-consultation-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-meeting-grid, .admin-invoice-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
   .admin-inbox-list-panel .admin-enquiry-list {
     max-height: 28rem;
@@ -3048,4 +3076,9 @@ body {
 
   .admin-deposit-workflow .btn,
   .admin-invoice-prompt-list .btn { justify-content: center; }
+
+  .admin-project-workspace-heading,
+  .admin-consultation-billing,
+  .admin-project-services > div { align-items: stretch; flex-direction: column; }
+  .admin-consultation-summary, .admin-meeting-grid, .admin-invoice-grid { grid-template-columns: 1fr; }
 }

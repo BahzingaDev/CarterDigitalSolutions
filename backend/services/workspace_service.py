@@ -11,6 +11,9 @@ class WorkspaceStorageError(RuntimeError):
 
 
 PROJECT_STAGES = {"lead", "discovery", "quoted", "accepted", "active", "on_hold", "completed"}
+MEETING_STATUSES = {"scheduled", "completed", "cancelled"}
+INVOICE_STATUSES = {"draft", "sent", "paid", "overdue", "void"}
+INVOICE_KINDS = {"deposit", "interim", "final", "consultation", "other"}
 _client = None
 
 
@@ -73,6 +76,9 @@ def save_project(payload: dict[str, Any], project_id: str | None = None) -> dict
     value = _number(payload.get("value", 0), "Project value", 1_000_000)
     tasks = _project_items(payload.get("tasks", []), "task")
     milestones = _project_items(payload.get("milestones", []), "milestone")
+    services = _project_services(payload.get("services", []))
+    meetings = _project_meetings(payload.get("meetings", []))
+    invoices = _project_invoices(payload.get("invoices", []))
     completion = round(
         (sum(1 for item in tasks if item["completed"]) / len(tasks) * 100)
         if tasks else _number(payload.get("completion", 0), "Completion", 100)
@@ -97,6 +103,19 @@ def save_project(payload: dict[str, Any], project_id: str | None = None) -> dict
         "tags": _tags(payload.get("tags", [])),
         "linked_enquiry_id": _optional_text(payload.get("linked_enquiry_id"), 80),
         "source_quote_id": source_quote_id,
+        "services": services,
+        "included_consultation_hours": _number(
+            payload.get("included_consultation_hours", 8),
+            "Included consultation hours",
+            1000,
+        ),
+        "consultation_rate": _number(
+            payload.get("consultation_rate", 16.5),
+            "Consultation rate",
+            1000,
+        ),
+        "meetings": meetings,
+        "invoices": invoices,
         "tasks": tasks,
         "milestones": milestones,
         "completion": completion,
@@ -342,6 +361,77 @@ def _project_items(value: Any, label: str) -> list[dict[str, Any]]:
             "due_date": _optional_text(item.get("due_date"), 40),
         })
     return items
+
+
+def _project_services(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or len(value) > 50:
+        raise ValueError("Project services must contain no more than 50 entries.")
+    services = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise ValueError("Each project service must be an object.")
+        services.append({
+            "service": _text(item.get("service"), "Service name", 120),
+            "category": _optional_text(item.get("category"), 120),
+            "hours": _number(item.get("hours", 0), "Service hours", 1000),
+            "rate": _number(item.get("rate", 0), "Service rate", 1000),
+            "optional": bool(item.get("optional", False)),
+            "included": bool(item.get("included", True)),
+        })
+    return services
+
+
+def _project_meetings(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or len(value) > 200:
+        raise ValueError("Project meetings must contain no more than 200 entries.")
+    meetings = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise ValueError("Each meeting must be an object.")
+        status = str(item.get("status", "scheduled")).strip().lower()
+        if status not in MEETING_STATUSES:
+            raise ValueError("Invalid meeting status.")
+        duration = int(_number(item.get("duration_minutes", 60), "Meeting duration", 480))
+        if duration < 15:
+            raise ValueError("Meeting duration must be at least 15 minutes.")
+        meetings.append({
+            "id": str(item.get("id") or uuid.uuid4()),
+            "title": _text(item.get("title"), "Meeting title", 160),
+            "start_at": _text(item.get("start_at"), "Meeting date", 50),
+            "duration_minutes": duration,
+            "status": status,
+            "counts_as_consultation": bool(item.get("counts_as_consultation", True)),
+            "location": _optional_text(item.get("location"), 240),
+            "notes": _optional_text(item.get("notes"), 2000),
+            "calendar_provider": _optional_text(item.get("calendar_provider"), 40),
+            "external_calendar_id": _optional_text(item.get("external_calendar_id"), 200),
+        })
+    return meetings
+
+
+def _project_invoices(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or len(value) > 200:
+        raise ValueError("Project invoices must contain no more than 200 entries.")
+    invoices = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise ValueError("Each invoice must be an object.")
+        status = str(item.get("status", "draft")).strip().lower()
+        kind = str(item.get("kind", "other")).strip().lower()
+        if status not in INVOICE_STATUSES or kind not in INVOICE_KINDS:
+            raise ValueError("Invalid invoice status or type.")
+        invoices.append({
+            "id": str(item.get("id") or uuid.uuid4()),
+            "reference": _text(item.get("reference"), "Invoice reference", 80),
+            "kind": kind,
+            "status": status,
+            "amount": _number(item.get("amount", 0), "Invoice amount", 1_000_000),
+            "issue_date": _optional_text(item.get("issue_date"), 40),
+            "due_date": _optional_text(item.get("due_date"), 40),
+            "paid_date": _optional_text(item.get("paid_date"), 40),
+            "notes": _optional_text(item.get("notes"), 2000),
+        })
+    return invoices
 
 
 def _string_list(value: Any, label: str) -> list[str]:

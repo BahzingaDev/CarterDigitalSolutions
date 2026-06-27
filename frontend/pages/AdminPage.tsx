@@ -184,6 +184,13 @@ export function AdminPage() {
 
   const handleConvertQuote = async (enquiry: AdminEnquiry, quote: AdminQuoteVersion) => {
     if (!session?.csrf_token) throw new Error('Authentication required.');
+    const confirmedServices = quote.items.filter((item) => !item.optional || item.included);
+    const consultationRate = confirmedServices.length
+      ? confirmedServices.reduce((total, item) => total + item.rate, 0) / confirmedServices.length
+      : 16.5;
+    const depositInvoiceStatus = quote.deposit_invoice_status === 'paid'
+      ? 'paid'
+      : quote.deposit_invoice_status === 'sent' ? 'sent' : 'draft';
     await saveAdminProject(session.csrf_token, {
       name: enquiry.project_type || `${enquiry.name} project`,
       client_name: enquiry.name,
@@ -195,6 +202,21 @@ export function AdminPage() {
       tags: ['Quote conversion'],
       linked_enquiry_id: enquiry.id,
       source_quote_id: quote.id,
+      services: quote.items.map((item) => ({ ...item, optional: item.optional ?? false, included: item.included ?? true })),
+      included_consultation_hours: 8,
+      consultation_rate: Number(consultationRate.toFixed(2)),
+      meetings: [],
+      invoices: quote.deposit > 0 ? [{
+        id: crypto.randomUUID(),
+        reference: quote.deposit_invoice_reference || `DEP-${quote.version}-${enquiry.id.slice(0, 6).toUpperCase()}`,
+        kind: 'deposit',
+        status: depositInvoiceStatus,
+        amount: quote.deposit,
+        issue_date: quote.deposit_invoice_sent_at?.slice(0, 10) ?? '',
+        due_date: '',
+        paid_date: quote.deposit_paid_at?.slice(0, 10) ?? '',
+        notes: `Deposit for quote version ${quote.version}`,
+      }] : [],
     });
     setMessage('Quote converted to a project.');
     setView('projects');
