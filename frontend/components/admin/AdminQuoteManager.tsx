@@ -25,6 +25,8 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail
   const [notes, setNotes] = useState(latest?.notes ?? '');
   const [validUntil, setValidUntil] = useState(latest?.valid_until?.slice(0, 10) ?? '');
   const [isSaving, setIsSaving] = useState(false);
+  const [pendingAction, setPendingAction] = useState('');
+  const [error, setError] = useState('');
   const [shareLinks, setShareLinks] = useState<Record<string, string>>({});
   const [catalogueServices, setCatalogueServices] = useState<{ name: string; category: string; hours: number; rate: number; deposit: number }[]>([]);
 
@@ -42,9 +44,9 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail
           })),
         ),
       ));
-    });
+    }).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load the service catalogue'));
   }, []);
-  useEffect(() => { void fetchCommercialSettings().then((settings) => setTaxRate(settings.tax_rate)); }, []);
+  useEffect(() => { void fetchCommercialSettings().then((settings) => setTaxRate(settings.tax_rate)).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load commercial settings')); }, []);
   useEffect(() => {
     if (!catalogueServices.length) return;
     setItems((current) => current.map((item) => {
@@ -71,10 +73,29 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail
       await onCreate({ items, discount: Number(discount), expenses: Number(expenses), tax_rate: Number(taxRate), deposit: Number(deposit), notes, valid_until: validUntil ? new Date(`${validUntil}T23:59:59`).toISOString() : null });
     } finally { setIsSaving(false); }
   };
+  const updateDraft = async () => {
+    if (!latest) return;
+    setIsSaving(true);
+    try { await onUpdate(latest.id, payload()); } finally { setIsSaving(false); }
+  };
+  const shareQuote = async (quote: AdminQuoteVersion, action: 'email' | 'copy') => {
+    setError('');
+    setPendingAction(`${action}-${quote.id}`);
+    try {
+      const url = await onShare(quote.id);
+      if (!url) return;
+      setShareLinks((current) => ({ ...current, [quote.id]: url }));
+      if (action === 'email') onPrepareEmail(quote, url);
+      else await navigator.clipboard.writeText(url);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to prepare the approval link');
+    } finally { setPendingAction(''); }
+  };
   const payload = (): AdminQuotePayload => ({ items, discount: Number(discount), expenses: Number(expenses), tax_rate: Number(taxRate), deposit: Number(deposit), notes, valid_until: validUntil ? new Date(`${validUntil}T23:59:59`).toISOString() : null });
 
   return (
     <div className="admin-workflow-stack">
+      {error ? <div className="alert alert-danger" role="alert">{error}</div> : null}
       <section className="admin-subpanel">
         <div className="admin-subpanel-heading"><div><h3>Create quote version</h3><p>Saving creates a new immutable version.</p></div><span>{formatCurrency(total)}</span></div>
         <div className="admin-quote-editor-items">
@@ -101,7 +122,7 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail
         </div>
         <label className="form-label">Quote notes<textarea className="form-control" maxLength={2000} onChange={(event) => setNotes(event.target.value)} rows={3} value={notes} /></label>
         <div className="admin-quote-summary"><span>Subtotal <strong>{formatCurrency(subtotal)}</strong></span><span>Expenses <strong>{formatCurrency(expenses)}</strong></span><span>Tax <strong>{formatCurrency(taxable * taxRate / 100)}</strong></span><span>Total <strong>{formatCurrency(total)}</strong></span><span>Deposit <strong>{formatCurrency(deposit)}</strong></span></div>
-        <div className="admin-management-actions">{latest?.status === 'draft' ? <button className="btn btn-accent" disabled={isSaving} onClick={() => void onUpdate(latest.id, payload())} type="button">Save draft</button> : <button className="btn btn-accent" disabled={isSaving} onClick={() => void saveVersion()} type="button">{isSaving ? 'Saving...' : latest ? 'Create new version' : 'Create draft quote'}</button>}</div>
+        <div className="admin-management-actions">{latest?.status === 'draft' ? <button className="btn btn-accent" disabled={isSaving} onClick={() => void updateDraft()} type="button">{isSaving ? 'Saving...' : 'Save draft'}</button> : <button className="btn btn-accent" disabled={isSaving} onClick={() => void saveVersion()} type="button">{isSaving ? 'Saving...' : latest ? 'Create new version' : 'Create draft quote'}</button>}</div>
       </section>
 
       <section className="admin-subpanel">
@@ -110,7 +131,7 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail
           <article className="admin-quote-version" key={quote.id}>
             <div><strong>Version {quote.version}</strong><small>{formatDate(quote.created_at)} · {formatCurrency(quote.total)}</small></div>
             <span className={`admin-status admin-quote-${quote.status}`}>{quote.status}</span>
-            <div className="admin-quote-actions"><button className="admin-icon-button" onClick={() => void onShare(quote.id).then((url) => { setShareLinks((current) => ({ ...current, [quote.id]: url })); onPrepareEmail(quote, url); })} title="Email approval link" type="button"><Mail size={16} /></button><button className="admin-icon-button" onClick={() => void onShare(quote.id).then((url) => { setShareLinks((current) => ({ ...current, [quote.id]: url })); void navigator.clipboard.writeText(url); })} title="Create and copy approval link" type="button"><Link2 size={16} /></button>{shareLinks[quote.id] ? <button className="admin-icon-button" onClick={() => window.open(shareLinks[quote.id], '_blank', 'noopener,noreferrer')} title="Open printable quote" type="button"><Printer size={16} /></button> : null}<button className="admin-icon-button" disabled={quote.status !== 'accepted' || Boolean(quote.converted_project_id)} onClick={() => void onConvert(quote)} title={quote.converted_project_id ? 'Project workspace created' : quote.status === 'accepted' ? 'Convert quote to project' : 'Accept the quote before creating its project'} type="button"><BriefcaseBusiness size={16} /></button></div>
+            <div className="admin-quote-actions"><button className="admin-icon-button" disabled={Boolean(pendingAction)} onClick={() => void shareQuote(quote, 'email')} title={pendingAction === `email-${quote.id}` ? 'Preparing approval email' : 'Email approval link'} type="button"><Mail size={16} /></button><button className="admin-icon-button" disabled={Boolean(pendingAction)} onClick={() => void shareQuote(quote, 'copy')} title={pendingAction === `copy-${quote.id}` ? 'Copying approval link' : 'Create and copy approval link'} type="button"><Link2 size={16} /></button>{shareLinks[quote.id] ? <button className="admin-icon-button" onClick={() => window.open(shareLinks[quote.id], '_blank', 'noopener,noreferrer')} title="Open printable quote" type="button"><Printer size={16} /></button> : null}<button className="admin-icon-button" disabled={quote.status !== 'accepted' || Boolean(quote.converted_project_id)} onClick={() => void onConvert(quote)} title={quote.converted_project_id ? 'Project workspace created' : quote.status === 'accepted' ? 'Convert quote to project' : 'Accept the quote before creating its project'} type="button"><BriefcaseBusiness size={16} /></button></div>
             {quote.id === latest?.id ? <QuoteStageActions onConvert={onConvert} onPrepareEmail={onPrepareEmail} onShare={onShare} onStatus={onStatus} quote={quote} /> : <small className="admin-version-locked">Previous version · read only</small>}
             <DepositInvoiceWorkflow onCreateProject={() => onConvert(quote)} quote={quote} />
           </article>
@@ -124,7 +145,7 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail
 function QuoteStageActions({ onConvert, onPrepareEmail, onShare, onStatus, quote }: { quote: AdminQuoteVersion; onConvert: (quote: AdminQuoteVersion) => Promise<void>; onPrepareEmail: (quote: AdminQuoteVersion, url: string) => void; onShare: (quoteId: string) => Promise<string>; onStatus: (quoteId: string, status: AdminQuoteVersion['status']) => Promise<void> }) {
   if (quote.converted_project_id) return <div className="admin-quote-next"><strong>Project created</strong><small>Continue this work from the project workspace.</small></div>;
   if (quote.status === 'accepted') return <button className="btn btn-accent btn-sm" onClick={() => void onConvert(quote)} type="button"><BriefcaseBusiness size={15} /> Create project</button>;
-  if (quote.status === 'draft') return <div className="admin-quote-next"><button className="btn btn-accent btn-sm" onClick={() => void onShare(quote.id).then((url) => onPrepareEmail(quote, url))} type="button"><Mail size={15} /> Prepare approval email</button></div>;
+  if (quote.status === 'draft') return <div className="admin-quote-next"><button className="btn btn-accent btn-sm" onClick={() => void onShare(quote.id).then((url) => { if (url) onPrepareEmail(quote, url); })} type="button"><Mail size={15} /> Prepare approval email</button></div>;
   if (quote.status === 'sent') return <div className="admin-quote-next"><strong>Awaiting customer approval</strong><span><button className="btn btn-link btn-sm" onClick={() => void onStatus(quote.id, 'accepted')} type="button">Record acceptance</button><button className="btn btn-link btn-sm" onClick={() => void onStatus(quote.id, 'declined')} type="button">Record decline</button></span></div>;
   return <button className="btn btn-outline-accent btn-sm" onClick={() => void onStatus(quote.id, 'draft')} type="button">Reopen as draft</button>;
 }

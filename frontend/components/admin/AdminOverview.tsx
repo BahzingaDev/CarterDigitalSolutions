@@ -1,6 +1,7 @@
 import { ArrowRight, CalendarClock, CheckCircle2, Clock3, FileWarning, Inbox, ListTodo, PoundSterling, ReceiptText } from 'lucide-react';
 
 import type { AdminEnquiry, AdminProject, AdminView } from '../../src/api/admin';
+import { hasQuoteActivity } from '../../src/data/adminEnquiries';
 import { formatCurrency } from '../../src/data/pricing';
 
 interface ActionItem {
@@ -61,7 +62,7 @@ export function AdminOverview({ enquiries, projects, onNavigate, onOpenProject, 
     <section className="admin-panel">
       <div className="admin-panel-heading"><div><h2>Recent enquiries</h2><p>The latest contact and quote requests.</p></div><button className="btn btn-outline-accent" onClick={() => onNavigate('enquiries')} type="button">View inbox <ArrowRight size={16} /></button></div>
       <div className="admin-recent-list">
-        {activeEnquiries.slice(0, 5).map((enquiry) => <button className="admin-recent-item" key={enquiry.id} onClick={() => { onSelect(enquiry.id); onNavigate(enquiry.type === 'quote' ? 'quotes' : 'enquiries'); }} type="button"><span className="admin-avatar" aria-hidden="true">{enquiry.name.charAt(0).toUpperCase()}</span><span className="admin-recent-person"><strong>{enquiry.name}</strong><small>{enquiry.project_type || enquiry.type}</small></span><span className={`admin-status admin-status-${enquiry.status}`}>{enquiry.status}</span><time dateTime={enquiry.created_at}>{formatShortDate(enquiry.created_at)}</time><ArrowRight size={17} aria-hidden="true" /></button>)}
+        {activeEnquiries.slice(0, 5).map((enquiry) => <button className="admin-recent-item" key={enquiry.id} onClick={() => { onSelect(enquiry.id); onNavigate(hasQuoteActivity(enquiry) ? 'quotes' : 'enquiries'); }} type="button"><span className="admin-avatar" aria-hidden="true">{enquiry.name.charAt(0).toUpperCase()}</span><span className="admin-recent-person"><strong>{enquiry.name}</strong><small>{enquiry.project_type || enquiry.type}</small></span><span className={`admin-status admin-status-${enquiry.status}`}>{enquiry.status}</span><time dateTime={enquiry.created_at}>{formatShortDate(enquiry.created_at)}</time><ArrowRight size={17} aria-hidden="true" /></button>)}
         {activeEnquiries.length === 0 ? <p className="admin-empty">No active enquiries have been received yet.</p> : null}
       </div>
     </section>
@@ -73,7 +74,7 @@ function buildActionMetadata(enquiries: AdminEnquiry[], projects: AdminProject[]
   const sevenDays = now + 7 * 86400000;
   const actions: Array<Omit<ActionItem, 'open'> & { enquiryId?: string; projectId?: string; projectTab?: 'delivery' | 'meetings' | 'invoices'; view?: AdminView }> = [];
   enquiries.filter((item) => !item.archived).forEach((enquiry) => {
-    if (enquiry.status === 'new') actions.push({ id: `new-${enquiry.id}`, title: `Reply to ${enquiry.name}`, detail: enquiry.project_type || 'New enquiry', label: 'New enquiry', urgency: 1, icon: Inbox, enquiryId: enquiry.id, view: enquiry.type === 'quote' ? 'quotes' : 'enquiries' });
+    if (enquiry.status === 'new') actions.push({ id: `new-${enquiry.id}`, title: `Reply to ${enquiry.name}`, detail: enquiry.project_type || 'New enquiry', label: 'New enquiry', urgency: 1, icon: Inbox, enquiryId: enquiry.id, view: hasQuoteActivity(enquiry) ? 'quotes' : 'enquiries' });
     if (enquiry.follow_up_at && new Date(enquiry.follow_up_at).getTime() <= now && enquiry.status !== 'closed') actions.push({ id: `follow-${enquiry.id}`, title: `Follow up with ${enquiry.name}`, detail: `Due ${formatShortDate(enquiry.follow_up_at)}`, label: 'Follow-up', urgency: 1, icon: Clock3, enquiryId: enquiry.id, view: 'enquiries' });
     const quote = enquiry.quote_versions[enquiry.quote_versions.length - 1];
     if (quote?.status === 'accepted' && !quote.converted_project_id) actions.push({ id: `convert-${quote.id}`, title: `Create ${enquiry.name}'s project`, detail: 'Quote accepted and ready for delivery setup', label: 'Accepted quote', urgency: 1, icon: ReceiptText, enquiryId: enquiry.id, view: 'quotes' });

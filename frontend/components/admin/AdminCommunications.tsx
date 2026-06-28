@@ -13,18 +13,22 @@ export function AdminCommunications({ enquiry, draft, onSend }: { enquiry: Admin
   const [templates, setTemplates] = useState<AdminTemplate[]>([]);
   const [signature, setSignature] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => { if (draft) { setSubject(draft.subject); setMessage(draft.message); setQuoteId(draft.quoteId); } }, [draft]);
-  useEffect(() => { void fetchAdminTemplates().then(setTemplates); }, []);
-  useEffect(() => { void fetchCommunicationSettings().then((settings) => setSignature(settings.signature)); }, []);
+  useEffect(() => { void fetchAdminTemplates().then(setTemplates).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load email templates')); }, []);
+  useEffect(() => { void fetchCommunicationSettings().then((settings) => setSignature(settings.signature)).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load the email signature')); }, []);
 
   const send = async () => {
-    setIsSending(true);
-    try { const cleanMessage = message.trim(); const cleanSignature = signature.trim(); const finalMessage = cleanSignature && !cleanMessage.endsWith(cleanSignature) ? `${cleanMessage}\n\n${cleanSignature}` : cleanMessage; await onSend(subject, finalMessage, quoteId, scheduledAt ? new Date(scheduledAt).toISOString() : undefined); setSubject(''); setMessage(''); setQuoteId(undefined); setScheduledAt(''); } finally { setIsSending(false); }
+    setIsSending(true); setError('');
+    try { const cleanMessage = message.trim(); const cleanSignature = signature.trim(); const finalMessage = cleanSignature && !cleanMessage.endsWith(cleanSignature) ? `${cleanMessage}\n\n${cleanSignature}` : cleanMessage; await onSend(subject, finalMessage, quoteId, scheduledAt ? new Date(scheduledAt).toISOString() : undefined); setSubject(''); setMessage(''); setQuoteId(undefined); setScheduledAt(''); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to process the email'); }
+    finally { setIsSending(false); }
   };
 
   return (
     <div className="admin-workflow-stack">
+      {error ? <div className="alert alert-danger" role="alert">{error}</div> : null}
       <section className="admin-subpanel admin-compose-panel">
         <div className="admin-subpanel-heading"><div><h3>Send email</h3><p>To {enquiry.name} at {enquiry.email}</p></div></div>
         <label>Template<select className="form-select" onChange={(event) => { const template = templates.find((item) => item.id === event.target.value); setSubject(applyTemplate(template?.subject ?? '', enquiry)); setMessage(applyTemplate(template?.body ?? '', enquiry)); setQuoteId(undefined); }}><option value="">Blank message</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></label>

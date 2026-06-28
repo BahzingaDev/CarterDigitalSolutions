@@ -2,7 +2,9 @@ import { Archive, CalendarClock, FileText, History, MessageSquare, Search, UserR
 import { useEffect, useMemo, useState } from 'react';
 
 import type { AdminEnquiry, AdminEnquiryUpdate, AdminQuoteItem, AdminQuotePayload, AdminQuoteVersion, EnquiryStatus } from '../../src/api/admin';
+import { hasQuoteActivity } from '../../src/data/adminEnquiries';
 import { formatCurrency } from '../../src/data/pricing';
+import { fingerprint, useUnsavedChanges } from '../../src/hooks/useUnsavedChanges';
 import { AdminActivity } from './AdminActivity';
 import { AdminCommunications, type CommunicationDraft } from './AdminCommunications';
 import { AdminQuoteManager } from './AdminQuoteManager';
@@ -10,12 +12,13 @@ import { AdminQuoteManager } from './AdminQuoteManager';
 const statuses: EnquiryStatus[] = ['new', 'reviewed', 'replied', 'closed'];
 const pageSize = 10;
 
-export function AdminInbox({ enquiries, mode, selectedId, onConvertQuote, onCreateQuote, onQuoteStatus, onSelect, onSend, onShareQuote, onUpdate, onUpdateQuote }: {
+export function AdminInbox({ enquiries, mode, selectedId, onConvertQuote, onCreateQuote, onDirtyChange, onQuoteStatus, onSelect, onSend, onShareQuote, onUpdate, onUpdateQuote }: {
   enquiries: AdminEnquiry[];
   mode: 'all' | 'quotes';
   selectedId: string | null;
   onCreateQuote: (id: string, payload: { items: AdminQuoteItem[]; discount: number; expenses: number; tax_rate: number; deposit: number; notes: string; valid_until: string | null }) => Promise<void>;
   onConvertQuote: (enquiry: AdminEnquiry, quote: AdminQuoteVersion) => Promise<void>;
+  onDirtyChange?: (isDirty: boolean) => void;
   onQuoteStatus: (enquiryId: string, quoteId: string, status: AdminQuoteVersion['status']) => Promise<void>;
   onSelect: (id: string) => void;
   onSend: (id: string, subject: string, message: string, quoteId?: string, scheduledAt?: string) => Promise<void>;
@@ -38,7 +41,7 @@ export function AdminInbox({ enquiries, mode, selectedId, onConvertQuote, onCrea
 
   const filtered = useMemo(() => enquiries.filter((enquiry) => {
     const haystack = `${enquiry.name} ${enquiry.email} ${enquiry.project_type} ${(enquiry.labels ?? []).join(' ')}`.toLowerCase();
-    return (mode === 'all' || enquiry.type === 'quote')
+    return (mode === 'all' || hasQuoteActivity(enquiry))
       && (showArchived ? enquiry.archived : !enquiry.archived)
       && (statusFilter === 'all' || enquiry.status === statusFilter)
       && (priorityFilter === 'all' || enquiry.priority === priorityFilter)
@@ -57,7 +60,7 @@ export function AdminInbox({ enquiries, mode, selectedId, onConvertQuote, onCrea
   const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
   const selected = filtered.find((item) => item.id === selectedId) ?? pageItems[0];
   const noun = mode === 'quotes' ? 'quote requests' : 'enquiries';
-  const modeItems = enquiries.filter((item) => mode === 'all' || item.type === 'quote');
+  const modeItems = enquiries.filter((item) => mode === 'all' || hasQuoteActivity(item));
   const visibleItems = modeItems.filter((item) => showArchived ? item.archived : !item.archived);
   const emptyMessage = visibleItems.length === 0
     ? `No ${showArchived ? 'archived ' : ''}${noun} yet.`
@@ -84,7 +87,7 @@ export function AdminInbox({ enquiries, mode, selectedId, onConvertQuote, onCrea
       </section>
 
       <section className="admin-detail">
-        {selected ? <AdminEnquiryDetail key={`${selected.id}-${mode}`} defaultTab={mode === 'quotes' ? 'quote' : 'details'} enquiry={selected} onConvertQuote={onConvertQuote} onCreateQuote={onCreateQuote} onQuoteStatus={onQuoteStatus} onSend={onSend} onShareQuote={onShareQuote} onUpdate={onUpdate} onUpdateQuote={onUpdateQuote} /> : <div className="admin-panel admin-zero-state">{mode === 'quotes' ? <FileText size={28} /> : <UserRound size={28} />}<h2>No {noun} to display</h2><p>{emptyMessage}</p></div>}
+        {selected ? <AdminEnquiryDetail key={`${selected.id}-${mode}`} defaultTab={mode === 'quotes' ? 'quote' : 'details'} enquiry={selected} onConvertQuote={onConvertQuote} onCreateQuote={onCreateQuote} onDirtyChange={onDirtyChange} onQuoteStatus={onQuoteStatus} onSend={onSend} onShareQuote={onShareQuote} onUpdate={onUpdate} onUpdateQuote={onUpdateQuote} /> : <div className="admin-panel admin-zero-state">{mode === 'quotes' ? <FileText size={28} /> : <UserRound size={28} />}<h2>No {noun} to display</h2><p>{emptyMessage}</p></div>}
       </section>
     </div>
   );
@@ -92,11 +95,12 @@ export function AdminInbox({ enquiries, mode, selectedId, onConvertQuote, onCrea
 
 type DetailTab = 'details' | 'quote' | 'communications' | 'activity';
 
-function AdminEnquiryDetail({ defaultTab, enquiry, onConvertQuote, onCreateQuote, onQuoteStatus, onSend, onShareQuote, onUpdate, onUpdateQuote }: {
+function AdminEnquiryDetail({ defaultTab, enquiry, onConvertQuote, onCreateQuote, onDirtyChange, onQuoteStatus, onSend, onShareQuote, onUpdate, onUpdateQuote }: {
   defaultTab: DetailTab;
   enquiry: AdminEnquiry;
   onCreateQuote: AdminInboxProps['onCreateQuote'];
   onConvertQuote: AdminInboxProps['onConvertQuote'];
+  onDirtyChange?: (isDirty: boolean) => void;
   onQuoteStatus: AdminInboxProps['onQuoteStatus'];
   onSend: AdminInboxProps['onSend'];
   onShareQuote: AdminInboxProps['onShareQuote'];
@@ -109,6 +113,10 @@ function AdminEnquiryDetail({ defaultTab, enquiry, onConvertQuote, onCreateQuote
   const [followUp, setFollowUp] = useState(toDateTimeInput(enquiry.follow_up_at));
   const [isSaving, setIsSaving] = useState(false);
   const [communicationDraft, setCommunicationDraft] = useState<CommunicationDraft>();
+  const managementFingerprint = fingerprint({ notes, labels, followUp });
+  const savedManagementFingerprint = fingerprint({ notes: enquiry.admin_notes ?? '', labels: (enquiry.labels ?? []).join(', '), followUp: toDateTimeInput(enquiry.follow_up_at) });
+  const isDirty = managementFingerprint !== savedManagementFingerprint;
+  useUnsavedChanges(isDirty, onDirtyChange);
 
   const saveManagement = async () => {
     setIsSaving(true);
@@ -129,7 +137,7 @@ function AdminEnquiryDetail({ defaultTab, enquiry, onConvertQuote, onCreateQuote
       <dl className="admin-meta-grid"><div><dt>Received</dt><dd>{formatDate(enquiry.created_at)}</dd></div><div><dt>Project type</dt><dd>{enquiry.project_type || 'Not specified'}</dd></div><div><dt>Estimated hours</dt><dd>{enquiry.estimated_hours || 'Not provided'}</dd></div><div><dt>Estimated cost</dt><dd>{enquiry.estimated_cost ? formatCurrency(enquiry.estimated_cost) : 'Not provided'}</dd></div></dl>
       <section className="admin-management-grid"><label>Status<select className="form-select" onChange={(event) => void onUpdate(enquiry.id, { status: event.target.value as EnquiryStatus })} value={enquiry.status}>{statuses.map((status) => <option key={status} value={status}>{status}</option>)}</select></label><label>Priority<select className="form-select" onChange={(event) => void onUpdate(enquiry.id, { priority: event.target.value as AdminEnquiry['priority'] })} value={enquiry.priority}><option value="standard">Standard</option><option value="medium">Medium</option><option value="high">High</option></select></label><label>Follow-up<input className="form-control" onChange={(event) => setFollowUp(event.target.value)} type="datetime-local" value={followUp} /></label><label>Labels<input className="form-control" onChange={(event) => setLabels(event.target.value)} placeholder="website, priority" value={labels} /></label></section>
       <section className="admin-message"><h3>Customer message</h3><p>{enquiry.message}</p></section>
-      <section className="admin-notes"><label className="form-label" htmlFor={`notes-${enquiry.id}`}>Private notes</label><textarea className="form-control" id={`notes-${enquiry.id}`} maxLength={4000} onChange={(event) => setNotes(event.target.value)} rows={5} value={notes} /><div className="admin-management-actions"><button className="btn btn-accent" disabled={isSaving} onClick={() => void saveManagement()} type="button">{isSaving ? 'Saving...' : 'Save details'}</button><button className="btn btn-outline-danger" onClick={() => void onUpdate(enquiry.id, { archived: !enquiry.archived })} type="button"><Archive size={16} /> {enquiry.archived ? 'Restore' : 'Archive'}</button></div></section>
+      <section className="admin-notes"><label className="form-label" htmlFor={`notes-${enquiry.id}`}>Private notes</label><textarea className="form-control" id={`notes-${enquiry.id}`} maxLength={4000} onChange={(event) => setNotes(event.target.value)} rows={5} value={notes} /><div className="admin-management-actions"><button className="btn btn-accent" disabled={isSaving || !isDirty} onClick={() => void saveManagement()} type="button">{isSaving ? 'Saving...' : isDirty ? 'Save details' : 'Saved'}</button><button className="btn btn-outline-danger" onClick={() => void onUpdate(enquiry.id, { archived: !enquiry.archived })} type="button"><Archive size={16} /> {enquiry.archived ? 'Restore' : 'Archive'}</button></div></section>
     </div> : null}
     {tab === 'quote' ? <AdminQuoteManager enquiry={enquiry} onConvert={(quote) => onConvertQuote(enquiry, quote)} onCreate={(payload) => onCreateQuote(enquiry.id, payload)} onPrepareEmail={prepareQuoteEmail} onShare={(quoteId) => onShareQuote(enquiry.id, quoteId)} onStatus={(quoteId, status) => onQuoteStatus(enquiry.id, quoteId, status)} onUpdate={(quoteId, payload) => onUpdateQuote(enquiry.id, quoteId, payload)} /> : null}
     {tab === 'communications' ? <AdminCommunications draft={communicationDraft} enquiry={enquiry} onSend={(subject, message, quoteId, scheduledAt) => onSend(enquiry.id, subject, message, quoteId, scheduledAt)} /> : null}

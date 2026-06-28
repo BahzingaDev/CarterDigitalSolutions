@@ -31,7 +31,7 @@ const empty: Partial<AdminProject> = {
 };
 type WorkspaceTab = 'overview' | 'delivery' | 'meetings' | 'invoices';
 
-export function AdminProjects({ csrfToken, enquiries, initialProjectId, initialTab, onInvoiceSent, onTabChange, refreshKey = 0 }: { csrfToken: string; enquiries: AdminEnquiry[]; initialProjectId?: string | null; initialTab?: WorkspaceTab; onInvoiceSent?: () => Promise<void>; onTabChange?: (tab: WorkspaceTab) => void; refreshKey?: number }) {
+export function AdminProjects({ csrfToken, enquiries, initialProjectId, initialTab, onDirtyChange, onInvoiceSent, onTabChange, refreshKey = 0 }: { csrfToken: string; enquiries: AdminEnquiry[]; initialProjectId?: string | null; initialTab?: WorkspaceTab; onDirtyChange?: (isDirty: boolean) => void; onInvoiceSent?: () => Promise<void>; onTabChange?: (tab: WorkspaceTab) => void; refreshKey?: number }) {
   const [items, setItems] = useState<AdminProject[]>([]);
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [draft, setDraft] = useState<Partial<AdminProject>>(empty);
@@ -58,6 +58,7 @@ export function AdminProjects({ csrfToken, enquiries, initialProjectId, initialT
   useEffect(() => { onTabChange?.(tab); }, [onTabChange, tab]);
 
   const isDirty = editing && projectFingerprint(draft, tags) !== savedFingerprint;
+  useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => { if (isDirty) event.preventDefault(); };
     window.addEventListener('beforeunload', warn);
@@ -82,13 +83,20 @@ export function AdminProjects({ csrfToken, enquiries, initialProjectId, initialT
     return undefined;
   };
   const move = async (project: AdminProject, stage: ProjectStage) => {
-    const saved = normaliseProject(await saveAdminProject(csrfToken, { ...project, stage }));
-    setItems((current) => current.map((item) => item.id === saved.id ? saved : item));
+    setError('');
+    try {
+      const saved = normaliseProject(await saveAdminProject(csrfToken, { ...project, stage }));
+      setItems((current) => current.map((item) => item.id === saved.id ? saved : item));
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to move project'); }
   };
   const remove = async () => {
     if (!draft.id || !window.confirm('Delete this project?')) return;
-    await deleteAdminProject(csrfToken, draft.id);
-    setItems((current) => current.filter((item) => item.id !== draft.id)); setDraft(empty); setSavedFingerprint(projectFingerprint(empty, '')); setEditing(false);
+    setIsSaving(true); setError('');
+    try {
+      await deleteAdminProject(csrfToken, draft.id);
+      setItems((current) => current.filter((item) => item.id !== draft.id)); setDraft(empty); setSavedFingerprint(projectFingerprint(empty, '')); setEditing(false);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to delete project'); }
+    finally { setIsSaving(false); }
   };
   const linkedEnquiry = enquiries.find((item) => item.id === draft.linked_enquiry_id);
   const customer = customers.find((item) => item.email.toLowerCase() === String(draft.client_email ?? '').toLowerCase());

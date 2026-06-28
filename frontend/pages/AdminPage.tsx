@@ -37,6 +37,7 @@ import {
   updateAdminQuote,
 } from '../src/api/admin';
 import { useTheme } from '../src/hooks/useTheme';
+import { hasQuoteActivity } from '../src/data/adminEnquiries';
 
 const viewTitles: Record<AdminView, { title: string; description: string }> = {
   overview: { title: 'Overview', description: 'A clear view of current enquiries and potential work.' },
@@ -69,12 +70,19 @@ export function AdminPage() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const newCount = useMemo(
     () => enquiries.filter((item) => item.status === 'new' && !item.archived).length,
     [enquiries],
   );
   const actionCount = useMemo(() => getAdminActionCount(enquiries, projects), [enquiries, projects]);
+
+  useEffect(() => {
+    if (!message) return;
+    const timeout = window.setTimeout(() => setMessage(''), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [message]);
 
   const loadWorkspace = async () => {
     setIsLoading(true);
@@ -99,15 +107,41 @@ export function AdminPage() {
     }
   };
 
-  const navigate = (nextView: AdminView) => { setView(nextView); setSearchQuery(''); };
+  const confirmDiscard = () => !hasUnsavedChanges || window.confirm('Discard unsaved changes?');
+  const navigate = (nextView: AdminView) => {
+    if (nextView === view) return true;
+    if (!confirmDiscard()) return false;
+    setHasUnsavedChanges(false);
+    setView(nextView);
+    setSearchQuery('');
+    setError('');
+    setMessage('');
+    return true;
+  };
+  const selectEnquiry = (id: string) => {
+    if (id === selectedId || !confirmDiscard()) return;
+    setHasUnsavedChanges(false);
+    setSelectedId(id);
+  };
   const openProject = (projectId: string, tab?: 'overview' | 'delivery' | 'meetings' | 'invoices') => {
+    if ((view !== 'projects' || projectId !== selectedProjectId) && !confirmDiscard()) return;
+    setHasUnsavedChanges(false);
     setSelectedProjectId(projectId);
     setSelectedProjectTab(tab);
-    navigate('projects');
+    setView('projects');
+    setSearchQuery('');
+    setError('');
+    setMessage('');
   };
   const openEnquiry = (id: string, isQuote = false) => {
+    const nextView = isQuote ? 'quotes' : 'enquiries';
+    if ((view !== nextView || id !== selectedId) && !confirmDiscard()) return;
+    setHasUnsavedChanges(false);
     setSelectedId(id);
-    navigate(isQuote ? 'quotes' : 'enquiries');
+    setView(nextView);
+    setSearchQuery('');
+    setError('');
+    setMessage('');
   };
 
   useEffect(() => {
@@ -151,7 +185,9 @@ export function AdminPage() {
   };
 
   const handleLogout = async () => {
+    if (!confirmDiscard()) return;
     if (session?.csrf_token) await logoutAdmin(session.csrf_token);
+    setHasUnsavedChanges(false);
     setSession({ authenticated: false, configured: true });
     setEnquiries([]);
     setSelectedId(null);
@@ -189,9 +225,14 @@ export function AdminPage() {
   };
   const handleUpdateQuote = async (enquiryId: string, quoteId: string, payload: AdminQuotePayload) => {
     if (!session?.csrf_token) return;
-    const data = await updateAdminQuote(session.csrf_token, enquiryId, quoteId, payload);
-    replaceEnquiry(data.enquiry);
-    setMessage('Draft quote updated.');
+    setError(''); setMessage('');
+    try {
+      const data = await updateAdminQuote(session.csrf_token, enquiryId, quoteId, payload);
+      replaceEnquiry(data.enquiry);
+      setMessage('Draft quote updated.');
+    } catch (quoteError) {
+      setError(quoteError instanceof Error ? quoteError.message : 'Unable to update the draft quote');
+    }
   };
 
   const handleSend = async (id: string, subject: string, body: string, quoteId?: string, scheduledAt?: string) => {
@@ -202,15 +243,23 @@ export function AdminPage() {
   };
 
   const handleShareQuote = async (enquiryId: string, quoteId: string) => {
-    if (!session?.csrf_token) throw new Error('Authentication required.');
-    const data = await createQuoteShareLink(session.csrf_token, enquiryId, quoteId);
-    setMessage('Secure approval link copied to the clipboard.');
-    return data.url;
+    if (!session?.csrf_token) return '';
+    setError(''); setMessage('');
+    try {
+      const data = await createQuoteShareLink(session.csrf_token, enquiryId, quoteId);
+      setMessage('Secure approval link created.');
+      return data.url;
+    } catch (shareError) {
+      setError(shareError instanceof Error ? shareError.message : 'Unable to create an approval link');
+      return '';
+    }
   };
 
   const handleConvertQuote = async (enquiry: AdminEnquiry, quote: AdminQuoteVersion) => {
-    if (!session?.csrf_token) throw new Error('Authentication required.');
-    if (quote.status !== 'accepted') throw new Error('Accept the quote before creating its project workspace.');
+    if (!session?.csrf_token) { setError('Authentication required.'); return; }
+    if (quote.status !== 'accepted') { setError('Accept the quote before creating its project workspace.'); return; }
+    setError(''); setMessage('');
+    try {
     const confirmedServices = quote.items.filter((item) => !item.optional || item.included);
     const consultationRate = confirmedServices.length
       ? confirmedServices.reduce((total, item) => total + item.rate, 0) / confirmedServices.length
@@ -250,9 +299,12 @@ export function AdminPage() {
     });
     await loadWorkspace();
     setSelectedProjectId(project.id);
-    setMessage(`Project workspace created for ${project.client_name || enquiry.name}. The deposit invoice is ready in its invoice register.`);
     setSelectedProjectTab('invoices');
     navigate('projects');
+    setMessage(`Project workspace created for ${project.client_name || enquiry.name}. The deposit invoice is ready in its invoice register.`);
+    } catch (conversionError) {
+      setError(conversionError instanceof Error ? conversionError.message : 'Unable to create the project workspace');
+    }
   };
 
   if (!session || (isLoading && !session.authenticated)) {
@@ -289,20 +341,20 @@ export function AdminPage() {
           <div><h1>{heading.title}</h1><p>{heading.description}</p></div>
           <AdminGlobalSearch enquiries={enquiries} onOpenEnquiry={openEnquiry} onOpenProject={openProject} projects={projects} query={searchQuery} setQuery={setSearchQuery} />
           <AdminThemeToggle theme={theme} toggle={toggleTheme} />
-          {view !== 'account' ? <button className="btn btn-outline-accent admin-refresh" disabled={isLoading} onClick={() => { setRefreshKey((current) => current + 1); void loadWorkspace(); }} type="button"><RefreshCw className={isLoading ? 'is-spinning' : ''} size={16} /> {isLoading ? 'Refreshing' : 'Refresh'}</button> : null}
+          {view !== 'account' ? <button className="btn btn-outline-accent admin-refresh" disabled={isLoading} onClick={() => { if (!confirmDiscard()) return; setHasUnsavedChanges(false); setRefreshKey((current) => current + 1); void loadWorkspace(); }} type="button"><RefreshCw className={isLoading ? 'is-spinning' : ''} size={16} /> {isLoading ? 'Refreshing' : 'Refresh'}</button> : null}
         </header>
 
         <div className={`admin-content ${view === 'projects' ? 'admin-content-wide' : ''}`}>
           {message ? <div className="alert alert-success" role="status">{message}</div> : null}
           {error ? <div className="alert alert-danger" role="alert">{error}</div> : null}
-          {view === 'overview' ? <AdminOverview enquiries={enquiries} projects={projects} onNavigate={navigate} onOpenProject={openProject} onSelect={setSelectedId} /> : null}
-          {view === 'enquiries' ? <AdminInbox enquiries={enquiries} mode="all" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
-          {view === 'quotes' ? <AdminInbox enquiries={enquiries} mode="quotes" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
-          {view === 'projects' ? <AdminProjects csrfToken={session.csrf_token ?? ''} enquiries={enquiries} initialProjectId={selectedProjectId} initialTab={selectedProjectTab} onInvoiceSent={loadWorkspace} onTabChange={setSelectedProjectTab} refreshKey={refreshKey} /> : null}
-          {view === 'customers' ? <AdminCustomers csrfToken={session.csrf_token ?? ''} onOpenEnquiry={openEnquiry} onOpenProject={openProject} refreshKey={refreshKey} /> : null}
-          {view === 'records' ? <AdminRecords csrfToken={session.csrf_token ?? ''} key={`records-${refreshKey}`} /> : null}
-          {view === 'services' ? <AdminServices csrfToken={session.csrf_token ?? ''} key={`services-${refreshKey}`} /> : null}
-          {view === 'templates' ? <AdminTemplates csrfToken={session.csrf_token ?? ''} key={`templates-${refreshKey}`} /> : null}
+          {view === 'overview' ? <AdminOverview enquiries={enquiries} projects={projects} onNavigate={navigate} onOpenProject={openProject} onSelect={selectEnquiry} /> : null}
+          {view === 'enquiries' ? <AdminInbox enquiries={enquiries} mode="all" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onDirtyChange={setHasUnsavedChanges} onQuoteStatus={handleQuoteStatus} onSelect={selectEnquiry} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
+          {view === 'quotes' ? <AdminInbox enquiries={enquiries} mode="quotes" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onDirtyChange={setHasUnsavedChanges} onQuoteStatus={handleQuoteStatus} onSelect={selectEnquiry} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
+          {view === 'projects' ? <AdminProjects csrfToken={session.csrf_token ?? ''} enquiries={enquiries} initialProjectId={selectedProjectId} initialTab={selectedProjectTab} onDirtyChange={setHasUnsavedChanges} onInvoiceSent={loadWorkspace} onTabChange={setSelectedProjectTab} refreshKey={refreshKey} /> : null}
+          {view === 'customers' ? <AdminCustomers csrfToken={session.csrf_token ?? ''} onDirtyChange={setHasUnsavedChanges} onOpenEnquiry={openEnquiry} onOpenProject={openProject} refreshKey={refreshKey} /> : null}
+          {view === 'records' ? <AdminRecords csrfToken={session.csrf_token ?? ''} key={`records-${refreshKey}`} onDirtyChange={setHasUnsavedChanges} /> : null}
+          {view === 'services' ? <AdminServices csrfToken={session.csrf_token ?? ''} key={`services-${refreshKey}`} onDirtyChange={setHasUnsavedChanges} /> : null}
+          {view === 'templates' ? <AdminTemplates csrfToken={session.csrf_token ?? ''} key={`templates-${refreshKey}`} onDirtyChange={setHasUnsavedChanges} /> : null}
           {view === 'settings' ? <AdminSettings csrfToken={session.csrf_token ?? ''} key={`settings-${refreshKey}`} /> : null}
           {view === 'account' ? <AdminAccount email={session.email ?? ''} name={session.name ?? 'Administrator'} /> : null}
         </div>
@@ -326,7 +378,7 @@ function AdminGlobalSearch({ enquiries, onOpenEnquiry, onOpenProject, projects, 
 }) {
   const term = query.trim().toLowerCase();
   const matches = term ? [
-    ...enquiries.filter((item) => `${item.name} ${item.email} ${item.project_type}`.toLowerCase().includes(term)).slice(0, 4).map((item) => ({ id: item.id, label: item.name, detail: item.project_type || item.email, type: 'enquiry' as const, isQuote: item.type === 'quote' })),
+    ...enquiries.filter((item) => `${item.name} ${item.email} ${item.project_type}`.toLowerCase().includes(term)).slice(0, 4).map((item) => ({ id: item.id, label: item.name, detail: item.project_type || item.email, type: 'enquiry' as const, isQuote: hasQuoteActivity(item) })),
     ...projects.filter((item) => `${item.name} ${item.client_name} ${item.client_email}`.toLowerCase().includes(term)).slice(0, 4).map((item) => ({ id: item.id, label: item.name, detail: item.client_name || 'Project', type: 'project' as const, isQuote: false })),
   ].slice(0, 6) : [];
   return <div className="admin-global-search"><label><Search size={16} /><span className="visually-hidden">Search dashboard</span><input onChange={(event) => setQuery(event.target.value)} placeholder="Search customers and work" type="search" value={query} /></label>{term ? <div className="admin-global-results">{matches.map((item) => <button key={`${item.type}-${item.id}`} onClick={() => item.type === 'project' ? onOpenProject(item.id) : onOpenEnquiry(item.id, item.isQuote)} type="button">{item.type === 'project' ? <FolderKanban size={16} /> : <Inbox size={16} />}<span><strong>{item.label}</strong><small>{item.detail}</small></span><ArrowRight size={14} /></button>)}{matches.length === 0 ? <p>No matching records</p> : null}</div> : null}</div>;

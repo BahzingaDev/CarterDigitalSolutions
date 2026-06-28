@@ -13,6 +13,7 @@ import {
 } from '../../src/api/admin';
 import { getBaselineCategories } from '../../src/api/services';
 import { pricingCategories } from '../../src/data/pricing';
+import { fingerprint, useUnsavedChanges } from '../../src/hooks/useUnsavedChanges';
 
 const baseline = pricingCategories.flatMap((audience) => audience.groups.flatMap((group, groupIndex) =>
   group.services.map((service, index) => ({
@@ -44,7 +45,7 @@ const blankCategory: Partial<AdminServiceCategory> = {
   audience: 'For Industry', active: true, status: 'draft', sort_order: 0,
 };
 
-export function AdminServices({ csrfToken }: { csrfToken: string }) {
+export function AdminServices({ csrfToken, onDirtyChange }: { csrfToken: string; onDirtyChange?: (isDirty: boolean) => void }) {
   const [mode, setMode] = useState<'services' | 'categories'>('services');
   const [overrides, setOverrides] = useState<AdminServiceOverride[]>([]);
   const [managedCategories, setManagedCategories] = useState<AdminServiceCategory[]>([]);
@@ -54,7 +55,15 @@ export function AdminServices({ csrfToken }: { csrfToken: string }) {
   const [processNotes, setProcessNotes] = useState('');
   const [preview, setPreview] = useState(false);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [savedServiceFingerprint, setSavedServiceFingerprint] = useState(() => fingerprint({ draft: baseline[0], outcomes: '', processNotes: '' }));
+  const [savedCategoryFingerprint, setSavedCategoryFingerprint] = useState(() => fingerprint(blankCategory));
+
+  const serviceFingerprint = fingerprint({ draft: serviceDraft, outcomes, processNotes });
+  const categoryFingerprint = fingerprint(categoryDraft);
+  const isDirty = mode === 'services' ? serviceFingerprint !== savedServiceFingerprint : categoryFingerprint !== savedCategoryFingerprint;
+  const confirmDiscard = useUnsavedChanges(isDirty, onDirtyChange);
 
   useEffect(() => {
     void Promise.all([fetchAdminServices(), fetchAdminServiceCategories()])
@@ -77,22 +86,47 @@ export function AdminServices({ csrfToken }: { csrfToken: string }) {
   }, [managedCategories]);
 
   const selectService = (service: Partial<AdminServiceOverride>) => {
+    if (!confirmDiscard()) return;
+    const nextOutcomes = (service.outcomes ?? []).join('\n');
+    const nextProcessNotes = (service.process_notes ?? []).join('\n');
     setServiceDraft(service);
-    setOutcomes((service.outcomes ?? []).join('\n'));
-    setProcessNotes((service.process_notes ?? []).join('\n'));
+    setOutcomes(nextOutcomes);
+    setProcessNotes(nextProcessNotes);
+    setSavedServiceFingerprint(fingerprint({ draft: service, outcomes: nextOutcomes, processNotes: nextProcessNotes }));
     setPreview(false);
     setError('');
+    setMessage('');
+  };
+
+  const selectCategory = (category: Partial<AdminServiceCategory>) => {
+    if (!confirmDiscard()) return;
+    setCategoryDraft(category);
+    setSavedCategoryFingerprint(fingerprint(category));
+    setError('');
+    setMessage('');
+  };
+
+  const changeMode = (nextMode: 'services' | 'categories') => {
+    if (nextMode === mode || !confirmDiscard()) return;
+    setMode(nextMode);
   };
 
   const saveService = async () => {
     setIsSaving(true);
     setError('');
+    setMessage('');
     try {
       const saved = await saveAdminService(csrfToken, { ...serviceDraft, outcomes: lines(outcomes), process_notes: lines(processNotes) });
       setOverrides((current) => current.some((item) => item.id === saved.id)
         ? current.map((item) => item.id === saved.id ? saved : item)
         : [...current.filter((item) => item.slug !== saved.slug), saved]);
-      selectService(saved);
+      const nextOutcomes = (saved.outcomes ?? []).join('\n');
+      const nextProcessNotes = (saved.process_notes ?? []).join('\n');
+      setServiceDraft(saved);
+      setOutcomes(nextOutcomes);
+      setProcessNotes(nextProcessNotes);
+      setSavedServiceFingerprint(fingerprint({ draft: saved, outcomes: nextOutcomes, processNotes: nextProcessNotes }));
+      setMessage('Service saved.');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to save service');
     } finally { setIsSaving(false); }
@@ -101,12 +135,15 @@ export function AdminServices({ csrfToken }: { csrfToken: string }) {
   const saveCategory = async () => {
     setIsSaving(true);
     setError('');
+    setMessage('');
     try {
       const saved = await saveAdminServiceCategory(csrfToken, categoryDraft);
       setManagedCategories((current) => current.some((item) => item.id === saved.id)
         ? current.map((item) => item.id === saved.id ? saved : item)
         : [...current, saved]);
       setCategoryDraft(saved);
+      setSavedCategoryFingerprint(fingerprint(saved));
+      setMessage('Category saved.');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to save category');
     } finally { setIsSaving(false); }
@@ -115,6 +152,7 @@ export function AdminServices({ csrfToken }: { csrfToken: string }) {
   const importBuiltIns = async () => {
     setIsSaving(true);
     setError('');
+    setMessage('');
     try {
       const importedCategories = [...managedCategories];
       for (const category of getBaselineCategories()) {
@@ -136,6 +174,7 @@ export function AdminServices({ csrfToken }: { csrfToken: string }) {
       }
       setManagedCategories(importedCategories);
       setOverrides(importedServices);
+      setMessage('Built-in catalogue imported.');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to import the built-in catalogue');
     } finally { setIsSaving(false); }
@@ -143,42 +182,55 @@ export function AdminServices({ csrfToken }: { csrfToken: string }) {
 
   const importRequired = getBaselineCategories().some((category) => !managedCategories.some((item) => item.audience === category.audience && item.name === category.name))
     || baseline.some((service) => !overrides.some((item) => item.slug === service.slug));
+  const removeService = async () => {
+    if (!serviceDraft.id || !window.confirm('Permanently delete this service?')) return;
+    setIsSaving(true); setError(''); setMessage('');
+    try {
+      await deleteAdminService(csrfToken, serviceDraft.id);
+      setOverrides((current) => current.filter((item) => item.id !== serviceDraft.id));
+      setServiceDraft(blankService); setOutcomes(''); setProcessNotes(''); setSavedServiceFingerprint(fingerprint({ draft: blankService, outcomes: '', processNotes: '' }));
+      setMessage('Service deleted.');
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to delete service'); }
+    finally { setIsSaving(false); }
+  };
+  const removeCategory = async () => {
+    if (!categoryDraft.id || !window.confirm('Permanently delete this category?')) return;
+    setIsSaving(true); setError(''); setMessage('');
+    try {
+      await deleteAdminServiceCategory(csrfToken, categoryDraft.id);
+      setManagedCategories((current) => current.filter((item) => item.id !== categoryDraft.id));
+      setCategoryDraft(blankCategory); setSavedCategoryFingerprint(fingerprint(blankCategory));
+      setMessage('Category deleted.');
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to delete category'); }
+    finally { setIsSaving(false); }
+  };
 
   return (
     <div className="admin-view-stack">
       <div className="admin-catalogue-toolbar">
         <div className="admin-segmented" role="tablist" aria-label="Catalogue area">
-          <button className={mode === 'services' ? 'is-active' : ''} onClick={() => setMode('services')} role="tab" type="button">Services</button>
-          <button className={mode === 'categories' ? 'is-active' : ''} onClick={() => setMode('categories')} role="tab" type="button">Categories</button>
+          <button className={mode === 'services' ? 'is-active' : ''} onClick={() => changeMode('services')} role="tab" type="button">Services</button>
+          <button className={mode === 'categories' ? 'is-active' : ''} onClick={() => changeMode('categories')} role="tab" type="button">Categories</button>
         </div>
         {importRequired ? <button className="btn btn-outline-accent" disabled={isSaving} onClick={() => void importBuiltIns()} type="button">Import built-in catalogue</button> : <span className="admin-catalogue-synced">Catalogue stored in MongoDB</span>}
       </div>
-      {error ? <div className="alert alert-danger">{error}</div> : null}
+      {error ? <div className="alert alert-danger" role="alert">{error}</div> : null}
+      {message ? <div className="alert alert-success" role="status">{message}</div> : null}
       {mode === 'services' ? (
         <div className="admin-workspace-split">
           <section className="admin-panel admin-workspace-list">
             <button className="btn btn-accent" onClick={() => selectService(blankService)} type="button"><Plus size={16} /> New service</button>
             {services.map((service) => <button className={serviceDraft.slug === service.slug ? 'is-active' : ''} key={service.slug} onClick={() => selectService(service)} type="button"><strong>{service.name}</strong><small>{service.status} · {service.category}</small></button>)}
           </section>
-          <ServiceEditor categories={categories} draft={serviceDraft} isSaving={isSaving} outcomes={outcomes} preview={preview} processNotes={processNotes} onDraft={setServiceDraft} onOutcomes={setOutcomes} onPreview={() => setPreview((current) => !current)} onProcessNotes={setProcessNotes} onSave={saveService} onDelete={async () => {
-            if (!serviceDraft.id || !window.confirm('Permanently delete this service?')) return;
-            await deleteAdminService(csrfToken, serviceDraft.id);
-            setOverrides((current) => current.filter((item) => item.id !== serviceDraft.id));
-            selectService(blankService);
-          }} />
+          <ServiceEditor categories={categories} draft={serviceDraft} isSaving={isSaving} outcomes={outcomes} preview={preview} processNotes={processNotes} onDraft={setServiceDraft} onOutcomes={setOutcomes} onPreview={() => setPreview((current) => !current)} onProcessNotes={setProcessNotes} onSave={saveService} onDelete={removeService} />
         </div>
       ) : (
         <div className="admin-workspace-split">
           <section className="admin-panel admin-workspace-list">
-            <button className="btn btn-accent" onClick={() => setCategoryDraft(blankCategory)} type="button"><Plus size={16} /> New category</button>
-            {categories.map((category) => <button className={categoryDraft.slug === category.slug ? 'is-active' : ''} key={`${category.audience}-${category.slug}`} onClick={() => setCategoryDraft(category)} type="button"><strong>{category.name}</strong><small>{category.status} · {category.audience}</small></button>)}
+            <button className="btn btn-accent" onClick={() => selectCategory(blankCategory)} type="button"><Plus size={16} /> New category</button>
+            {categories.map((category) => <button className={categoryDraft.slug === category.slug ? 'is-active' : ''} key={`${category.audience}-${category.slug}`} onClick={() => selectCategory(category)} type="button"><strong>{category.name}</strong><small>{category.status} · {category.audience}</small></button>)}
           </section>
-          <CategoryEditor draft={categoryDraft} isSaving={isSaving} onDraft={setCategoryDraft} onSave={saveCategory} onDelete={async () => {
-            if (!categoryDraft.id || !window.confirm('Permanently delete this category?')) return;
-            await deleteAdminServiceCategory(csrfToken, categoryDraft.id);
-            setManagedCategories((current) => current.filter((item) => item.id !== categoryDraft.id));
-            setCategoryDraft(blankCategory);
-          }} />
+          <CategoryEditor draft={categoryDraft} isSaving={isSaving} onDraft={setCategoryDraft} onSave={saveCategory} onDelete={removeCategory} />
         </div>
       )}
     </div>
