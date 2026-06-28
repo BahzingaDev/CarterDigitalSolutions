@@ -1,5 +1,5 @@
-import { Building2, CalendarPlus, CheckCircle2, Clock3, Download, FilePlus2, Mail, MessageSquareText, Phone, Plus, ReceiptText, Save, Send, Trash2, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { BriefcaseBusiness, Building2, CalendarPlus, CheckCircle2, ChevronDown, Clock3, Download, FilePlus2, FileText, Mail, MessageSquareText, NotebookPen, Phone, Plus, ReceiptText, Save, Send, Trash2, UserRound, X, type LucideIcon } from 'lucide-react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 
 import {
   deleteAdminProject,
@@ -110,24 +110,24 @@ export function AdminProjects({ csrfToken, enquiries, initialProjectId, initialT
 }
 
 function ProjectOverview({ customer, draft, enquiry, onChange, onTags, tags }: { customer?: AdminCustomer; draft: Partial<AdminProject>; enquiry?: AdminEnquiry; onChange: (value: Partial<AdminProject>) => void; onTags: (value: string) => void; tags: string }) {
+  const [openSection, setOpenSection] = useState<OverviewSection>('project');
   const quote = enquiry?.quote_versions.find((item) => item.id === draft.source_quote_id);
   const services = (draft.services ?? []).filter((item) => !item.optional || item.included);
   const labourHours = estimatedLabourHours(services);
   const deposit = (draft.invoices ?? []).find((item) => item.kind === 'deposit' && item.status !== 'void');
-  const recentCommunications = [...(enquiry?.communications ?? [])].reverse().slice(0, 3);
+  const communications = [...(enquiry?.communications ?? [])].reverse();
+  const activity = [...(enquiry?.activity ?? [])].reverse();
+  const toggleSection = (section: Exclude<OverviewSection, null>) => setOpenSection((current) => current === section ? null : section);
   return <div className="admin-project-workspace admin-project-overview">
     <div className="admin-project-facts">
       <Summary label="Project value" value={formatCurrency(draft.value ?? 0)} />
-      <Summary label="Labour" value={`${labourHours}h`} />
-      <Summary label="Consultation included" value={`${draft.included_consultation_hours ?? 0}h`} />
       <Summary label="Deposit" value={deposit ? `${formatCurrency(deposit.amount)} · ${deposit.status}` : 'Not recorded'} />
       <Summary label="Completion" value={`${draft.completion ?? 0}%`} />
       <Summary label="Due" value={draft.due_date ? formatDisplayDate(draft.due_date) : 'Not set'} />
     </div>
 
-    <div className="admin-project-overview-columns">
-      <section className="admin-project-section">
-        <div className="admin-project-section-heading"><div><h3>Project and client</h3><p>The working record and primary contact details.</p></div></div>
+    <div className="admin-project-disclosures">
+      <ProjectDisclosure icon={BriefcaseBusiness} id="project" isOpen={openSection === 'project'} onToggle={toggleSection} summary={`${stageLabel(draft.stage)} · ${draft.client_name || 'No client assigned'}`} title="Project details">
         <div className="admin-management-grid">
           <label>Project name<input className="form-control" onChange={(event) => onChange({ ...draft, name: event.target.value })} value={draft.name ?? ''} /></label>
           <label>Stage<select className="form-select" onChange={(event) => onChange({ ...draft, stage: event.target.value as ProjectStage })} value={draft.stage}>{stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.label}</option>)}</select></label>
@@ -141,29 +141,51 @@ function ProjectOverview({ customer, draft, enquiry, onChange, onTags, tags }: {
           <span><Phone size={15} /> {customer?.phone || 'No phone recorded'}</span>
           <span><Building2 size={15} /> {customer?.organisation || 'No organisation recorded'}</span>
         </div>
-        {customer?.notes ? <div className="admin-project-note"><strong>Customer notes</strong><p>{customer.notes}</p></div> : null}
-      </section>
+      </ProjectDisclosure>
 
-      <section className="admin-project-section">
-        <div className="admin-project-section-heading"><div><h3>Source and commercial context</h3><p>The enquiry and accepted quote behind this project.</p></div></div>
+      <ProjectDisclosure icon={FileText} id="scope" isOpen={openSection === 'scope'} onToggle={toggleSection} summary={`${services.length} service${services.length === 1 ? '' : 's'} · ${labourHours}h labour · ${formatCurrency(draft.value ?? 0)}`} title="Scope and quote">
+        {quote ? <div className="admin-quote-snapshot"><strong>Quote version {quote.version} · {quote.status}</strong><dl><div><dt>Subtotal</dt><dd>{formatCurrency(quote.subtotal)}</dd></div><div><dt>Discount</dt><dd>{formatCurrency(quote.discount)}</dd></div><div><dt>Expenses</dt><dd>{formatCurrency(quote.expenses)}</dd></div><div><dt>Tax</dt><dd>{formatCurrency(quote.tax_amount)}</dd></div><div><dt>Total</dt><dd>{formatCurrency(quote.total)}</dd></div><div><dt>Deposit</dt><dd>{formatCurrency(quote.deposit)}</dd></div></dl>{quote.notes ? <div className="admin-project-note"><strong>Quote notes</strong><p>{quote.notes}</p></div> : null}</div> : <p className="admin-empty">No accepted quote is linked to this project.</p>}
+        <div className="admin-project-section-heading"><div><h3>Confirmed services</h3><p>Labour, rates, value, and configured deposits.</p></div><strong>{formatCurrency(services.reduce((total, item) => total + item.hours * item.rate, 0))}</strong></div>
+        <div className="admin-project-service-table"><div className="is-header"><span>Service</span><span>Hours</span><span>Rate</span><span>Labour value</span><span>Deposit</span></div>{services.map((item, index) => <div key={`${item.service}-${index}`}><span><strong>{item.service}</strong><small>{item.category}</small></span><span>{item.hours}h</span><span>{formatCurrency(item.rate)}</span><span>{formatCurrency(item.hours * item.rate)}</span><span>{item.deposit_amount ? formatCurrency(item.deposit_amount) : '—'}</span></div>)}{services.length === 0 ? <p className="admin-empty">No services have been attached to this project.</p> : null}</div>
+        <dl className="admin-project-context-list"><div><dt>Estimated labour</dt><dd>{labourHours}h</dd></div><div><dt>Consultation included</dt><dd>{draft.included_consultation_hours ?? 0}h</dd></div></dl>
+      </ProjectDisclosure>
+
+      <ProjectDisclosure icon={UserRound} id="customer" isOpen={openSection === 'customer'} onToggle={toggleSection} summary={enquiry ? `${enquiry.project_type || 'General project'} · received ${formatDisplayDate(enquiry.created_at)}` : 'No linked enquiry'} title="Customer context">
         {enquiry ? <>
           <dl className="admin-project-context-list"><div><dt>Project type</dt><dd>{enquiry.project_type || 'Not specified'}</dd></div><div><dt>Enquiry received</dt><dd>{formatDisplayDate(enquiry.created_at)}</dd></div><div><dt>Original estimate</dt><dd>{enquiry.estimated_hours || 0}h · {formatCurrency(enquiry.estimated_cost || 0)}</dd></div><div><dt>Enquiry status</dt><dd>{enquiry.status}</dd></div></dl>
           {enquiry.message ? <div className="admin-project-note"><strong>Customer request</strong><p>{enquiry.message}</p></div> : null}
         </> : <p className="admin-empty">This project is not linked to an enquiry.</p>}
-        {quote ? <div className="admin-quote-snapshot"><strong>Quote version {quote.version} · {quote.status}</strong><dl><div><dt>Subtotal</dt><dd>{formatCurrency(quote.subtotal)}</dd></div><div><dt>Discount</dt><dd>{formatCurrency(quote.discount)}</dd></div><div><dt>Expenses</dt><dd>{formatCurrency(quote.expenses)}</dd></div><div><dt>Tax</dt><dd>{formatCurrency(quote.tax_amount)}</dd></div><div><dt>Total</dt><dd>{formatCurrency(quote.total)}</dd></div><div><dt>Deposit</dt><dd>{formatCurrency(quote.deposit)}</dd></div></dl>{quote.notes ? <div className="admin-project-note"><strong>Quote notes</strong><p>{quote.notes}</p></div> : null}</div> : null}
-      </section>
+        {customer?.notes ? <div className="admin-project-note"><strong>Customer notes</strong><p>{customer.notes}</p></div> : null}
+      </ProjectDisclosure>
+
+      <ProjectDisclosure icon={MessageSquareText} id="communications" isOpen={openSection === 'communications'} onToggle={toggleSection} summary={`${communications.length} message${communications.length === 1 ? '' : 's'} · ${activity.length} activit${activity.length === 1 ? 'y' : 'ies'}`} title="Communication and activity">
+        {communications.length > 0 ? <><div className="admin-project-subheading"><h3>Messages</h3><span>{communications.length}</span></div><div className="admin-project-communications">{communications.map((item) => <CommunicationRow item={item} key={item.id} />)}</div></> : <p className="admin-empty">No communication has been recorded.</p>}
+        {activity.length > 0 ? <><div className="admin-project-subheading"><h3>Record activity</h3><span>{activity.length}</span></div><ol className="admin-project-activity-list">{activity.map((item) => <li key={item.id}><span>{item.description}</span><time>{formatDisplayDate(item.created_at)}</time></li>)}</ol></> : null}
+      </ProjectDisclosure>
+
+      <ProjectDisclosure icon={NotebookPen} id="notes" isOpen={openSection === 'notes'} onToggle={toggleSection} summary={tags || (draft.notes ? 'Project notes recorded' : 'No notes or labels')} title="Notes and labels">
+        <div className="admin-management-grid"><label>Tags<input className="form-control" onChange={(event) => onTags(event.target.value)} value={tags} /></label><span /></div>
+        <label>Project notes<textarea className="form-control" onChange={(event) => onChange({ ...draft, notes: event.target.value })} rows={5} value={draft.notes ?? ''} /></label>
+      </ProjectDisclosure>
     </div>
-
-    <section className="admin-project-section admin-project-scope">
-      <div className="admin-project-section-heading"><div><h3>Confirmed scope</h3><p>Every service, labour allowance, rate, line value, and configured deposit.</p></div><strong>{formatCurrency(services.reduce((total, item) => total + item.hours * item.rate, 0))}</strong></div>
-      <div className="admin-project-service-table"><div className="is-header"><span>Service</span><span>Hours</span><span>Rate</span><span>Labour value</span><span>Deposit</span></div>{services.map((item, index) => <div key={`${item.service}-${index}`}><span><strong>{item.service}</strong><small>{item.category}</small></span><span>{item.hours}h</span><span>{formatCurrency(item.rate)}</span><span>{formatCurrency(item.hours * item.rate)}</span><span>{item.deposit_amount ? formatCurrency(item.deposit_amount) : '—'}</span></div>)}{services.length === 0 ? <p className="admin-empty">No services have been attached to this project.</p> : null}</div>
-    </section>
-
-    {recentCommunications.length > 0 || (enquiry?.activity.length ?? 0) > 0 ? <section className="admin-project-section"><div className="admin-project-section-heading"><div><h3>Communication and activity</h3><p>Customer messages and the complete source-record history.</p></div><MessageSquareText size={20} /></div>{recentCommunications.length > 0 ? <div className="admin-project-communications">{recentCommunications.map((item) => <CommunicationRow item={item} key={item.id} />)}</div> : null}{(enquiry?.communications.length ?? 0) > 3 ? <details className="admin-project-history"><summary>Full communication history ({enquiry?.communications.length})</summary><div className="admin-project-communications">{[...(enquiry?.communications ?? [])].reverse().map((item) => <CommunicationRow item={item} key={item.id} />)}</div></details> : null}{(enquiry?.activity.length ?? 0) > 0 ? <details className="admin-project-history"><summary>Enquiry and quote activity ({enquiry?.activity.length})</summary><ol>{[...(enquiry?.activity ?? [])].reverse().map((item) => <li key={item.id}><span>{item.description}</span><time>{formatDisplayDate(item.created_at)}</time></li>)}</ol></details> : null}</section> : null}
-
-    <div className="admin-management-grid"><label>Tags<input className="form-control" onChange={(event) => onTags(event.target.value)} value={tags} /></label><span /></div>
-    <label>Project notes<textarea className="form-control" onChange={(event) => onChange({ ...draft, notes: event.target.value })} rows={5} value={draft.notes ?? ''} /></label>
   </div>;
+}
+
+type OverviewSection = 'project' | 'scope' | 'customer' | 'communications' | 'notes' | null;
+
+function ProjectDisclosure({ children, icon: Icon, id, isOpen, onToggle, summary, title }: { children: ReactNode; icon: LucideIcon; id: Exclude<OverviewSection, null>; isOpen: boolean; onToggle: (id: Exclude<OverviewSection, null>) => void; summary: string; title: string }) {
+  return <section className={`admin-project-disclosure${isOpen ? ' is-open' : ''}`}>
+    <button aria-expanded={isOpen} className="admin-project-disclosure-toggle" onClick={() => onToggle(id)} type="button">
+      <Icon aria-hidden="true" size={19} />
+      <span><strong>{title}</strong><small>{summary}</small></span>
+      <ChevronDown aria-hidden="true" className="admin-project-disclosure-chevron" size={18} />
+    </button>
+    {isOpen ? <div className="admin-project-disclosure-body">{children}</div> : null}
+  </section>;
+}
+
+function stageLabel(stage?: ProjectStage) {
+  return stages.find((item) => item.id === stage)?.label ?? 'No stage';
 }
 
 function DeliveryWorkspace({ draft, onChange }: { draft: Partial<AdminProject>; onChange: (value: Partial<AdminProject>) => void }) {

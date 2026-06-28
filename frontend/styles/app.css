@@ -2170,10 +2170,30 @@ body {
 .admin-project-tabs button.is-active { border-bottom-color: var(--color-accent); color: var(--color-text); }
 .admin-project-workspace { display: grid; gap: 1.25rem; }
 .admin-project-workspace > label, .admin-meeting-list label, .admin-invoice-register label { display: grid; gap: 0.35rem; color: var(--color-muted); font-size: 0.78rem; font-weight: 800; }
-.admin-project-facts { display: grid; gap: 0.6rem; grid-template-columns: repeat(6, minmax(120px, 1fr)); }
+.admin-project-facts { display: grid; gap: 0.6rem; grid-template-columns: repeat(4, minmax(120px, 1fr)); }
 .admin-project-facts > div { display: grid; gap: 0.15rem; min-width: 0; padding: 0.7rem 0.8rem; border-left: 3px solid var(--color-accent); background: var(--color-page); }
 .admin-project-facts span { color: var(--color-muted); font-size: 0.7rem; font-weight: 800; }
 .admin-project-facts strong { overflow: hidden; font-size: 0.95rem; text-overflow: ellipsis; white-space: nowrap; }
+.admin-project-disclosures { overflow: hidden; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-page); }
+.admin-project-disclosure + .admin-project-disclosure { border-top: 1px solid var(--color-border); }
+.admin-project-disclosure-toggle { display: grid; align-items: center; gap: 0.8rem; grid-template-columns: auto minmax(0, 1fr) auto; width: 100%; padding: 0.95rem 1rem; border: 0; background: transparent; color: var(--color-text); text-align: left; }
+.admin-project-disclosure-toggle:hover { background: var(--color-surface); }
+.admin-project-disclosure-toggle:focus-visible { outline: 3px solid color-mix(in srgb, var(--color-accent) 45%, transparent); outline-offset: -3px; }
+.admin-project-disclosure-toggle > svg:first-child { color: var(--color-accent-strong); }
+.admin-project-disclosure-toggle > span { display: grid; gap: 0.12rem; min-width: 0; }
+.admin-project-disclosure-toggle strong { font-size: 0.9rem; font-weight: 850; }
+.admin-project-disclosure-toggle small { overflow: hidden; color: var(--color-muted); font-size: 0.75rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.admin-project-disclosure-chevron { color: var(--color-muted); transition: transform 160ms ease; }
+.admin-project-disclosure.is-open .admin-project-disclosure-toggle { background: var(--color-surface); }
+.admin-project-disclosure.is-open .admin-project-disclosure-chevron { transform: rotate(180deg); }
+.admin-project-disclosure-body { display: grid; gap: 1.15rem; padding: 1.1rem 1rem 1.25rem; border-top: 1px solid var(--color-border); }
+.admin-project-subheading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-top: 0.15rem; }
+.admin-project-subheading:not(:first-child) { margin-top: 0.35rem; padding-top: 1rem; border-top: 1px solid var(--color-border); }
+.admin-project-subheading h3 { margin: 0; font-size: 0.85rem; font-weight: 850; }
+.admin-project-subheading span { color: var(--color-muted); font-size: 0.75rem; font-weight: 800; }
+.admin-project-activity-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.admin-project-activity-list li { display: flex; justify-content: space-between; gap: 1rem; padding: 0.65rem 0; border-top: 1px solid var(--color-border); }
+.admin-project-activity-list time { flex: 0 0 auto; color: var(--color-muted); font-size: 0.75rem; }
 .admin-project-overview-columns { display: grid; gap: 1.5rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .admin-project-section { display: grid; align-content: start; gap: 1rem; padding: 0.25rem 0 1.25rem; border-bottom: 1px solid var(--color-border); }
 .admin-project-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
@@ -3169,6 +3189,10 @@ body {
   }
 
   .admin-project-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-project-disclosure-toggle { padding: 0.85rem; }
+  .admin-project-disclosure-toggle small { white-space: normal; }
+  .admin-project-disclosure-body { padding: 1rem 0.85rem; }
+  .admin-project-activity-list li { align-items: flex-start; flex-direction: column; gap: 0.2rem; }
   .admin-project-tabs { gap: 0; justify-content: space-between; }
   .admin-project-tabs button { flex: 1; font-size: 0.74rem; }
   .admin-project-service-table > div.is-header { display: none; }
