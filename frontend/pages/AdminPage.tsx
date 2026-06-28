@@ -63,7 +63,7 @@ export function AdminPage() {
   const [projects, setProjects] = useState<AdminProject[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(() => readAdminLocation().enquiryId);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => readAdminLocation().projectId);
-  const [selectedProjectTab, setSelectedProjectTab] = useState<'delivery' | 'meetings' | 'invoices' | undefined>(() => readAdminLocation().projectTab);
+  const [selectedProjectTab, setSelectedProjectTab] = useState<'overview' | 'delivery' | 'meetings' | 'invoices' | undefined>(() => readAdminLocation().projectTab);
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState('');
@@ -100,7 +100,7 @@ export function AdminPage() {
   };
 
   const navigate = (nextView: AdminView) => { setView(nextView); setSearchQuery(''); };
-  const openProject = (projectId: string, tab?: 'delivery' | 'meetings' | 'invoices') => {
+  const openProject = (projectId: string, tab?: 'overview' | 'delivery' | 'meetings' | 'invoices') => {
     setSelectedProjectId(projectId);
     setSelectedProjectTab(tab);
     navigate('projects');
@@ -230,7 +230,7 @@ export function AdminPage() {
       linked_enquiry_id: enquiry.id,
       source_quote_id: quote.id,
       services: confirmedServices.map((item) => ({ ...item, optional: item.optional ?? false, included: item.included ?? true })),
-      included_consultation_hours: 8,
+      included_consultation_hours: consultationHourCap(confirmedServices),
       consultation_rate: Number(consultationRate.toFixed(2)),
       meetings: [],
       invoices: quote.status === 'accepted' && quote.deposit > 0 ? [{
@@ -298,7 +298,7 @@ export function AdminPage() {
           {view === 'overview' ? <AdminOverview enquiries={enquiries} projects={projects} onNavigate={navigate} onOpenProject={openProject} onSelect={setSelectedId} /> : null}
           {view === 'enquiries' ? <AdminInbox enquiries={enquiries} mode="all" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
           {view === 'quotes' ? <AdminInbox enquiries={enquiries} mode="quotes" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onQuoteStatus={handleQuoteStatus} onSelect={setSelectedId} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
-          {view === 'projects' ? <AdminProjects csrfToken={session.csrf_token ?? ''} initialProjectId={selectedProjectId} initialTab={selectedProjectTab} onInvoiceSent={loadWorkspace} onTabChange={setSelectedProjectTab} refreshKey={refreshKey} /> : null}
+          {view === 'projects' ? <AdminProjects csrfToken={session.csrf_token ?? ''} enquiries={enquiries} initialProjectId={selectedProjectId} initialTab={selectedProjectTab} onInvoiceSent={loadWorkspace} onTabChange={setSelectedProjectTab} refreshKey={refreshKey} /> : null}
           {view === 'customers' ? <AdminCustomers csrfToken={session.csrf_token ?? ''} onOpenEnquiry={openEnquiry} onOpenProject={openProject} refreshKey={refreshKey} /> : null}
           {view === 'records' ? <AdminRecords csrfToken={session.csrf_token ?? ''} key={`records-${refreshKey}`} /> : null}
           {view === 'services' ? <AdminServices csrfToken={session.csrf_token ?? ''} key={`services-${refreshKey}`} /> : null}
@@ -332,10 +332,15 @@ function AdminGlobalSearch({ enquiries, onOpenEnquiry, onOpenProject, projects, 
   return <div className="admin-global-search"><label><Search size={16} /><span className="visually-hidden">Search dashboard</span><input onChange={(event) => setQuery(event.target.value)} placeholder="Search customers and work" type="search" value={query} /></label>{term ? <div className="admin-global-results">{matches.map((item) => <button key={`${item.type}-${item.id}`} onClick={() => item.type === 'project' ? onOpenProject(item.id) : onOpenEnquiry(item.id, item.isQuote)} type="button">{item.type === 'project' ? <FolderKanban size={16} /> : <Inbox size={16} />}<span><strong>{item.label}</strong><small>{item.detail}</small></span><ArrowRight size={14} /></button>)}{matches.length === 0 ? <p>No matching records</p> : null}</div> : null}</div>;
 }
 
-function readAdminLocation(): { view: AdminView; enquiryId: string | null; projectId: string | null; projectTab?: 'delivery' | 'meetings' | 'invoices' } {
+function readAdminLocation(): { view: AdminView; enquiryId: string | null; projectId: string | null; projectTab?: 'overview' | 'delivery' | 'meetings' | 'invoices' } {
   const params = new URLSearchParams(window.location.search);
   const requested = params.get('view');
   const views: AdminView[] = ['overview', 'enquiries', 'quotes', 'customers', 'projects', 'records', 'services', 'templates', 'settings', 'account'];
   const tab = params.get('tab');
-  return { view: views.includes(requested as AdminView) ? requested as AdminView : 'overview', enquiryId: params.get('enquiry'), projectId: params.get('project'), projectTab: ['delivery', 'meetings', 'invoices'].includes(tab ?? '') ? tab as 'delivery' | 'meetings' | 'invoices' : undefined };
+  return { view: views.includes(requested as AdminView) ? requested as AdminView : 'overview', enquiryId: params.get('enquiry'), projectId: params.get('project'), projectTab: ['overview', 'delivery', 'meetings', 'invoices'].includes(tab ?? '') ? tab as 'overview' | 'delivery' | 'meetings' | 'invoices' : undefined };
+}
+
+function consultationHourCap(services: AdminQuoteItem[]) {
+  const labourHours = services.reduce((total, service) => total + Number(service.hours || 0), 0);
+  return Math.min(8, Math.floor(labourHours / 4));
 }

@@ -1,5 +1,6 @@
 import uuid
 import re
+import math
 from datetime import datetime, timezone
 from typing import Any
 
@@ -17,6 +18,7 @@ PROJECT_STAGES = {"lead", "discovery", "quoted", "accepted", "active", "on_hold"
 MEETING_STATUSES = {"scheduled", "completed", "cancelled"}
 INVOICE_STATUSES = {"draft", "sent", "paid", "overdue", "void"}
 INVOICE_KINDS = {"deposit", "interim", "final", "consultation", "other"}
+MAX_INCLUDED_CONSULTATION_HOURS = 8
 _client = None
 
 WORKSPACE_COLLECTIONS = {
@@ -179,7 +181,7 @@ def ensure_accepted_quote_project(enquiry_id: str, quote_id: str) -> dict[str, A
         "linked_enquiry_id": enquiry_id,
         "source_quote_id": quote_id,
         "services": confirmed_services,
-        "included_consultation_hours": 8,
+        "included_consultation_hours": _consultation_hour_cap(confirmed_services),
         "consultation_rate": consultation_rate,
         "meetings": [],
         "invoices": invoices,
@@ -214,6 +216,12 @@ def save_project(payload: dict[str, Any], project_id: str | None = None) -> dict
             raise
         except Exception as error:
             raise WorkspaceStorageError("Unable to check quote conversion.") from error
+    consultation_cap = _consultation_hour_cap(services)
+    requested_consultation_hours = _number(
+        payload.get("included_consultation_hours", consultation_cap),
+        "Included consultation hours",
+        1000,
+    )
     document = {
         "name": _text(payload.get("name"), "Project name", 140),
         "client_name": _optional_text(payload.get("client_name"), 120),
@@ -226,11 +234,7 @@ def save_project(payload: dict[str, Any], project_id: str | None = None) -> dict
         "linked_enquiry_id": _optional_text(payload.get("linked_enquiry_id"), 80),
         "source_quote_id": source_quote_id,
         "services": services,
-        "included_consultation_hours": _number(
-            payload.get("included_consultation_hours", 8),
-            "Included consultation hours",
-            1000,
-        ),
+        "included_consultation_hours": min(requested_consultation_hours, consultation_cap),
         "consultation_rate": _number(
             payload.get("consultation_rate", 16.5),
             "Consultation rate",
@@ -274,6 +278,11 @@ def save_project(payload: dict[str, Any], project_id: str | None = None) -> dict
             except Exception:
                 pass
             raise WorkspaceStorageError("Unable to link the converted project to its quote.") from error
+    if project_id:
+        try:
+            _sync_project_deposit_status(saved)
+        except WorkspaceStorageError:
+            current_app.logger.exception("Saved project deposit status could not be synchronized")
     return saved
 
 
@@ -298,6 +307,42 @@ def mark_project_invoice_sent(project_id: str, invoice_id: str, provider_message
     except Exception as error:
         raise WorkspaceStorageError("Unable to update invoice delivery status.") from error
     return get_project(project_id) if result.matched_count else None
+
+
+def _consultation_hour_cap(services: list[dict[str, Any]]) -> int:
+    labour_hours = sum(
+        float(item.get("hours") or 0)
+        for item in services
+        if not item.get("optional") or item.get("included")
+    )
+    return min(MAX_INCLUDED_CONSULTATION_HOURS, math.floor(labour_hours / 4))
+
+
+def _sync_project_deposit_status(project: dict[str, Any]) -> None:
+    enquiry_id = str(project.get("linked_enquiry_id") or "")
+    quote_id = str(project.get("source_quote_id") or "")
+    if not enquiry_id or not quote_id:
+        return
+    deposit_invoice = next((item for item in project.get("invoices", []) if item.get("kind") == "deposit"), None)
+    if not deposit_invoice:
+        return
+    invoice_status = str(deposit_invoice.get("status") or "draft")
+    quote_status = "paid" if invoice_status == "paid" else "sent" if invoice_status in {"sent", "overdue"} else "pending"
+    now = datetime.now(timezone.utc)
+    fields: dict[str, Any] = {
+        "quote_versions.$.deposit_invoice_status": quote_status,
+        "quote_versions.$.deposit_invoice_reference": str(deposit_invoice.get("reference") or ""),
+        "quote_versions.$.deposit_invoice_updated_at": now,
+    }
+    if quote_status == "paid":
+        fields["quote_versions.$.deposit_paid_at"] = deposit_invoice.get("paid_date") or now
+    try:
+        _collection("MONGODB_ENQUIRY_COLLECTION").update_one(
+            {"id": enquiry_id, "quote_versions.id": quote_id},
+            {"$set": fields},
+        )
+    except Exception as error:
+        raise _workspace_error(error, "Unable to synchronize the deposit invoice.", "enquiries") from error
 
 
 def list_service_overrides(published_only: bool = False) -> list[dict[str, Any]]:
@@ -619,6 +664,7 @@ def _project_services(value: Any) -> list[dict[str, Any]]:
             "category": _optional_text(item.get("category"), 120),
             "hours": _number(item.get("hours", 0), "Service hours", 1000),
             "rate": _number(item.get("rate", 0), "Service rate", 1000),
+            "deposit_amount": _number(item.get("deposit_amount", 0), "Service deposit amount", 1_000_000),
             "optional": bool(item.get("optional", False)),
             "included": bool(item.get("included", True)),
         })

@@ -1857,6 +1857,7 @@ body {
   font-size: 0.78rem;
   font-weight: 800;
 }
+.admin-management-grid label > small { color: var(--color-muted); font-weight: 500; }
 
 .admin-management-actions {
   display: flex;
@@ -2129,6 +2130,15 @@ body {
 .admin-project-card small, .admin-project-card time { color: var(--color-muted); font-size: 0.75rem; }
 .admin-project-card > span { margin-top: 0.3rem; font-weight: 800; }
 .admin-project-card .form-select { margin-top: 0.45rem; font-size: 0.75rem; }
+.admin-card-deposit { justify-self: start; padding: 0.2rem 0.4rem; border-radius: 4px; background: var(--color-page); font-weight: 800; }
+.admin-card-deposit.is-paid { color: #166534; background: #dcfce7; }
+.admin-card-deposit.is-overdue { color: #991b1b; background: #fee2e2; }
+.admin-card-deposit.is-sent { color: #1e40af; background: #dbeafe; }
+.admin-card-deposit.is-draft { color: #92400e; background: #fef3c7; }
+:root[data-theme='dark'] .admin-card-deposit.is-paid { color: #bbf7d0; background: #173e2a; }
+:root[data-theme='dark'] .admin-card-deposit.is-overdue { color: #fecaca; background: #4a2025; }
+:root[data-theme='dark'] .admin-card-deposit.is-sent { color: #bfdbfe; background: #1e3a5f; }
+:root[data-theme='dark'] .admin-card-deposit.is-draft { color: #fde68a; background: #49391e; }
 .admin-customer-heading { display: flex; align-items: center; gap: 0.85rem; }
 .admin-customer-heading h2 { margin: 0; font-size: 1.25rem; }
 .admin-customer-heading a { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--color-accent-strong); font-size: 0.82rem; }
@@ -2160,6 +2170,40 @@ body {
 .admin-project-tabs button.is-active { border-bottom-color: var(--color-accent); color: var(--color-text); }
 .admin-project-workspace { display: grid; gap: 1.25rem; }
 .admin-project-workspace > label, .admin-meeting-list label, .admin-invoice-register label { display: grid; gap: 0.35rem; color: var(--color-muted); font-size: 0.78rem; font-weight: 800; }
+.admin-project-facts { display: grid; gap: 0.6rem; grid-template-columns: repeat(6, minmax(120px, 1fr)); }
+.admin-project-facts > div { display: grid; gap: 0.15rem; min-width: 0; padding: 0.7rem 0.8rem; border-left: 3px solid var(--color-accent); background: var(--color-page); }
+.admin-project-facts span { color: var(--color-muted); font-size: 0.7rem; font-weight: 800; }
+.admin-project-facts strong { overflow: hidden; font-size: 0.95rem; text-overflow: ellipsis; white-space: nowrap; }
+.admin-project-overview-columns { display: grid; gap: 1.5rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.admin-project-section { display: grid; align-content: start; gap: 1rem; padding: 0.25rem 0 1.25rem; border-bottom: 1px solid var(--color-border); }
+.admin-project-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.admin-project-section-heading h3 { margin: 0 0 0.15rem; font-size: 1rem; font-weight: 850; }
+.admin-project-section-heading p { margin: 0; color: var(--color-muted); font-size: 0.78rem; }
+.admin-project-section-heading > strong { color: var(--color-accent-strong); }
+.admin-contact-strip { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; padding: 0.7rem 0; border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
+.admin-contact-strip span { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--color-muted); font-size: 0.78rem; }
+.admin-project-note { padding: 0.75rem; border-left: 3px solid var(--color-accent); background: var(--color-page); }
+.admin-project-note p { margin: 0.25rem 0 0; color: var(--color-muted); white-space: pre-wrap; }
+.admin-project-context-list, .admin-quote-snapshot dl { display: grid; gap: 0.6rem; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
+.admin-project-context-list > div, .admin-quote-snapshot dl > div { display: grid; gap: 0.1rem; }
+.admin-project-context-list dt, .admin-quote-snapshot dt { color: var(--color-muted); font-size: 0.7rem; font-weight: 800; text-transform: uppercase; }
+.admin-project-context-list dd, .admin-quote-snapshot dd { margin: 0; font-weight: 750; }
+.admin-quote-snapshot { display: grid; gap: 0.75rem; padding-top: 0.9rem; border-top: 1px solid var(--color-border); }
+.admin-project-service-table { display: grid; }
+.admin-project-service-table > div { display: grid; align-items: center; gap: 0.75rem; grid-template-columns: minmax(180px, 1.6fr) repeat(4, minmax(85px, 0.6fr)); padding: 0.7rem 0.5rem; border-top: 1px solid var(--color-border); }
+.admin-project-service-table > div.is-header { border-top: 0; color: var(--color-muted); font-size: 0.68rem; font-weight: 850; text-transform: uppercase; }
+.admin-project-service-table > div > span:first-child { display: grid; }
+.admin-project-service-table small { color: var(--color-muted); }
+.admin-project-communications { display: grid; }
+.admin-project-communications > div { display: grid; gap: 0.35rem; padding: 0.75rem 0; border-top: 1px solid var(--color-border); }
+.admin-project-communications > div > span { display: grid; }
+.admin-project-communications small { color: var(--color-muted); }
+.admin-project-communications p { margin: 0; color: var(--color-muted); white-space: pre-wrap; }
+.admin-project-history { border-top: 1px solid var(--color-border); }
+.admin-project-history summary { padding: 0.75rem 0; color: var(--color-accent-strong); font-size: 0.78rem; font-weight: 850; cursor: pointer; }
+.admin-project-history ol { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.admin-project-history li { display: flex; justify-content: space-between; gap: 1rem; padding: 0.6rem 0; border-top: 1px solid var(--color-border); }
+.admin-project-history time { flex: 0 0 auto; color: var(--color-muted); font-size: 0.75rem; }
 .admin-project-services { display: grid; gap: 0; padding: 0.9rem; border: 1px solid var(--color-border); border-radius: 6px; }
 .admin-project-services h3 { margin: 0 0 0.5rem; font-size: 0.95rem; font-weight: 850; }
 .admin-project-services > div { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.55rem 0; border-top: 1px solid var(--color-border); }
@@ -2177,6 +2221,18 @@ body {
 .admin-consultation-billing { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem; border-left: 4px solid #d97706; background: color-mix(in srgb, #f59e0b 10%, var(--color-page)); }
 .admin-consultation-billing p { margin: 0; color: var(--color-muted); }
 .admin-consultation-billing .btn, .admin-project-workspace .admin-subpanel-heading .btn { display: inline-flex; align-items: center; gap: 0.4rem; }
+.admin-deposit-payment { display: grid; align-items: center; gap: 0.75rem; grid-template-columns: auto minmax(0, 1fr) auto; padding: 0.9rem 1rem; border: 1px solid var(--color-border); border-left: 4px solid var(--color-muted); border-radius: 6px; background: var(--color-page); }
+.admin-deposit-payment > div { display: grid; gap: 0.1rem; }
+.admin-deposit-payment small { color: var(--color-muted); }
+.admin-deposit-payment > span { padding: 0.25rem 0.5rem; border-radius: 4px; background: var(--color-surface); color: var(--color-muted); font-size: 0.72rem; font-weight: 850; text-transform: uppercase; }
+.admin-deposit-payment.is-paid { border-left-color: #15803d; color: #166534; background: color-mix(in srgb, #22c55e 9%, var(--color-page)); }
+.admin-deposit-payment.is-sent { border-left-color: #2563eb; color: #1e40af; background: color-mix(in srgb, #3b82f6 9%, var(--color-page)); }
+.admin-deposit-payment.is-overdue { border-left-color: #dc2626; color: #991b1b; background: color-mix(in srgb, #ef4444 9%, var(--color-page)); }
+.admin-deposit-payment.is-draft { border-left-color: #d97706; color: #92400e; background: color-mix(in srgb, #f59e0b 9%, var(--color-page)); }
+:root[data-theme='dark'] .admin-deposit-payment.is-paid { color: #bbf7d0; }
+:root[data-theme='dark'] .admin-deposit-payment.is-sent { color: #bfdbfe; }
+:root[data-theme='dark'] .admin-deposit-payment.is-overdue { color: #fecaca; }
+:root[data-theme='dark'] .admin-deposit-payment.is-draft { color: #fde68a; }
 
 .admin-global-search { position: relative; flex: 0 1 340px; width: min(340px, 28vw); margin-right: 0 !important; }
 .admin-global-search > label { display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.7rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-page); color: var(--color-muted); }
@@ -3031,6 +3087,8 @@ body {
   }
 
   .admin-workspace-split { grid-template-columns: 1fr; }
+  .admin-project-overview-columns { grid-template-columns: 1fr; }
+  .admin-project-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .admin-checklist-grid { grid-template-columns: 1fr; }
   .admin-consultation-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-meeting-grid, .admin-invoice-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -3110,6 +3168,17 @@ body {
     display: none;
   }
 
+  .admin-project-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-project-tabs { gap: 0; justify-content: space-between; }
+  .admin-project-tabs button { flex: 1; font-size: 0.74rem; }
+  .admin-project-service-table > div.is-header { display: none; }
+  .admin-project-service-table > div:not(.is-header) { grid-template-columns: minmax(0, 1fr) auto; }
+  .admin-project-service-table > div:not(.is-header) > span:first-child { grid-column: 1 / -1; }
+  .admin-project-service-table > div:not(.is-header) > span:nth-child(2)::before { content: 'Hours: '; color: var(--color-muted); }
+  .admin-project-service-table > div:not(.is-header) > span:nth-child(3)::before { content: 'Rate: '; color: var(--color-muted); }
+  .admin-project-service-table > div:not(.is-header) > span:nth-child(4)::before { content: 'Value: '; color: var(--color-muted); }
+  .admin-project-service-table > div:not(.is-header) > span:nth-child(5)::before { content: 'Deposit: '; color: var(--color-muted); }
+
   .admin-quote-editor-row {
     align-items: stretch;
     grid-template-columns: 1fr 1fr 38px;
@@ -3135,6 +3204,7 @@ body {
 
   .admin-deposit-workflow,
   .admin-invoice-prompt-list article,
+  .admin-deposit-payment,
   .admin-action-list > button {
     align-items: stretch;
     grid-template-columns: 1fr;
