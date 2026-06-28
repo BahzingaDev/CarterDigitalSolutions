@@ -134,6 +134,16 @@ def get_enquiry(enquiry_id: str) -> dict[str, Any] | None:
     return _serialise_record(record) if record else None
 
 
+def get_enquiry_by_quote_id(quote_id: str) -> dict[str, Any] | None:
+    try:
+        record = _get_collection().find_one({"quote_versions.id": quote_id}, {"_id": 0})
+    except EnquiryStorageError:
+        raise
+    except Exception as error:
+        raise EnquiryStorageError("Unable to load quote enquiry.", reason="read_failed") from error
+    return _serialise_record(record) if record else None
+
+
 def update_enquiry(enquiry_id: str, updates: dict[str, Any]) -> dict[str, Any] | None:
     allowed_statuses = {"new", "reviewed", "replied", "closed"}
     allowed_priorities = {"standard", "medium", "high"}
@@ -216,14 +226,7 @@ def create_quote_version(
         return None
 
     items = _validate_quote_items(payload.get("items"))
-    subtotal = round(sum(item["hours"] * item["rate"] for item in items if not item["optional"] or item["included"]), 2)
-    discount = _bounded_number(payload.get("discount", 0), "discount", subtotal)
-    expenses = _bounded_number(payload.get("expenses", 0), "expenses", 1_000_000)
-    tax_rate = _bounded_number(payload.get("tax_rate", 0), "tax rate", 100)
-    taxable = round(subtotal - discount + expenses, 2)
-    tax_amount = round(taxable * tax_rate / 100, 2)
-    total = round(taxable + tax_amount, 2)
-    deposit = _bounded_number(payload.get("deposit", 0), "deposit", total)
+    financials = _quote_financials(items, payload)
     notes = str(payload.get("notes", "")).strip()
     if len(notes) > 2000:
         raise ValueError("Quote notes are too long.")
@@ -236,13 +239,7 @@ def create_quote_version(
         "version": version,
         "status": "draft",
         "items": items,
-        "subtotal": subtotal,
-        "discount": discount,
-        "expenses": expenses,
-        "tax_rate": tax_rate,
-        "tax_amount": tax_amount,
-        "total": total,
-        "deposit": deposit,
+        **financials,
         "deposit_invoice_status": "not_required",
         "notes": notes,
         "valid_until": valid_until,
@@ -320,20 +317,13 @@ def update_draft_quote(enquiry_id: str, quote_id: str, payload: dict[str, Any]) 
     if quote.get("status") != "draft":
         raise ValueError("Only draft quotes can be edited in place.")
     items = _validate_quote_items(payload.get("items"))
-    subtotal = round(sum(item["hours"] * item["rate"] for item in items if not item["optional"] or item["included"]), 2)
-    discount = _bounded_number(payload.get("discount", 0), "discount", subtotal)
-    expenses = _bounded_number(payload.get("expenses", 0), "expenses", 1_000_000)
-    tax_rate = _bounded_number(payload.get("tax_rate", 0), "tax rate", 100)
-    taxable = round(subtotal - discount + expenses, 2)
-    tax_amount = round(taxable * tax_rate / 100, 2)
-    total = round(taxable + tax_amount, 2)
-    deposit = _bounded_number(payload.get("deposit", 0), "deposit", total)
+    financials = _quote_financials(items, payload)
     notes = str(payload.get("notes", "")).strip()
     if len(notes) > 2000:
         raise ValueError("Quote notes cannot exceed 2000 characters.")
     valid_until = _optional_datetime(payload.get("valid_until"), "valid-until date")
     now = datetime.now(timezone.utc)
-    fields = {"items": items, "subtotal": subtotal, "discount": discount, "expenses": expenses, "tax_rate": tax_rate, "tax_amount": tax_amount, "total": total, "deposit": deposit, "notes": notes, "valid_until": valid_until, "updated_at": now}
+    fields = {"items": items, **financials, "notes": notes, "valid_until": valid_until, "updated_at": now}
     update = {f"quote_versions.$.{key}": value for key, value in fields.items()}
     try:
         _get_collection().update_one({"id": enquiry_id, "quote_versions.id": quote_id}, {"$set": update, "$push": {"activity": _activity("quote", f"Draft quote version {quote.get('version')} updated", now)}})
@@ -618,6 +608,46 @@ def _optional_datetime(value: Any, field: str) -> datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
+
+
+def _quote_financials(items: list[dict[str, Any]], payload: dict[str, Any]) -> dict[str, Any]:
+    included_items = [item for item in items if not item["optional"] or item["included"]]
+    subtotal = round(sum(item["hours"] * item["rate"] for item in included_items), 2)
+    discount = _bounded_number(payload.get("discount", 0), "discount", subtotal)
+    expenses = _bounded_number(payload.get("expenses", 0), "expenses", 1_000_000)
+    tax_rate = _bounded_number(payload.get("tax_rate", 0), "tax rate", 100)
+    taxable = round(subtotal - discount + expenses, 2)
+    tax_amount = round(taxable * tax_rate / 100, 2)
+    total = round(taxable + tax_amount, 2)
+
+    configured_deposit = round(sum(item.get("deposit_amount", 0) for item in included_items), 2)
+    if configured_deposit > 0:
+        deposit_subtotal = configured_deposit
+        deposit_source = "services"
+    else:
+        requested_deposit = _bounded_number(payload.get("deposit", 0), "deposit", total)
+        deposit_subtotal = round(requested_deposit / (1 + tax_rate / 100), 2) if tax_rate else requested_deposit
+        deposit_source = "manual" if requested_deposit > 0 else "none"
+
+    deposit_tax_amount = round(deposit_subtotal * tax_rate / 100, 2)
+    deposit = round(deposit_subtotal + deposit_tax_amount, 2)
+    if deposit > total:
+        deposit = total
+        deposit_subtotal = round(deposit / (1 + tax_rate / 100), 2) if tax_rate else deposit
+        deposit_tax_amount = round(deposit - deposit_subtotal, 2)
+
+    return {
+        "subtotal": subtotal,
+        "discount": discount,
+        "expenses": expenses,
+        "tax_rate": tax_rate,
+        "tax_amount": tax_amount,
+        "total": total,
+        "deposit_subtotal": deposit_subtotal,
+        "deposit_tax_amount": deposit_tax_amount,
+        "deposit": deposit,
+        "deposit_source": deposit_source,
+    }
 
 
 def _bounded_number(value: Any, field: str, maximum: float) -> float:

@@ -1943,6 +1943,7 @@ body {
 
 .admin-quote-summary span { display: grid; gap: 0.1rem; }
 .admin-quote-summary strong { color: var(--color-text); font-size: 1.05rem; }
+.admin-quote-terms-grid small { color: var(--color-muted); font-weight: 500; }
 
 .admin-quote-version {
   display: grid;

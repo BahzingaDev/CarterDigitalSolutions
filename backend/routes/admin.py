@@ -19,6 +19,7 @@ from ..services.workspace_service import (
     delete_template,
     delete_service_override,
     delete_service_category,
+    ensure_accepted_quote_project,
     list_projects,
     mark_project_invoice_sent,
     list_records,
@@ -524,8 +525,10 @@ def update_admin_quote(enquiry_id: str, quote_id: str):
         return jsonify({"error": "Content-Type must be application/json."}), 415
 
     payload = request.get_json(silent=True) or {}
+    status = str(payload.get("status", "")).strip().lower()
+    automation_warning = ""
     try:
-        updated = update_quote_status(enquiry_id, quote_id, str(payload.get("status", "")))
+        updated = update_quote_status(enquiry_id, quote_id, status)
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
     except EnquiryStorageError:
@@ -534,7 +537,17 @@ def update_admin_quote(enquiry_id: str, quote_id: str):
 
     if not updated:
         return jsonify({"error": "Enquiry not found."}), 404
-    return jsonify({"enquiry": updated})
+    if status == "accepted":
+        try:
+            ensure_accepted_quote_project(enquiry_id, quote_id)
+            updated = get_enquiry(enquiry_id) or updated
+        except (ValueError, WorkspaceStorageError):
+            current_app.logger.exception("Accepted quote project automation failed")
+            automation_warning = "The quote was accepted, but its project and deposit invoice need to be created manually."
+    response = {"enquiry": updated}
+    if automation_warning:
+        response["automation_warning"] = automation_warning
+    return jsonify(response)
 
 
 @admin_bp.put("/admin/enquiries/<enquiry_id>/quotes/<quote_id>")

@@ -77,6 +77,89 @@ def get_project(project_id: str) -> dict[str, Any] | None:
         raise WorkspaceStorageError("Unable to load project.") from error
 
 
+def ensure_accepted_quote_project(enquiry_id: str, quote_id: str) -> dict[str, Any]:
+    from .enquiry_service import get_enquiry
+
+    enquiry = get_enquiry(enquiry_id)
+    if not enquiry:
+        raise ValueError("Enquiry not found.")
+    quote = next((item for item in enquiry.get("quote_versions", []) if item.get("id") == quote_id), None)
+    if not quote:
+        raise ValueError("Quote not found.")
+    if quote.get("status") != "accepted":
+        raise ValueError("Only an accepted quote can create a project.")
+
+    converted_project_id = str(quote.get("converted_project_id") or "")
+    if converted_project_id:
+        existing = get_project(converted_project_id)
+        if existing:
+            return existing
+
+    try:
+        existing_record = _collection("MONGODB_PROJECT_COLLECTION").find_one({"source_quote_id": quote_id}, {"_id": 0})
+    except Exception as error:
+        raise WorkspaceStorageError("Unable to check quote automation.") from error
+    if existing_record:
+        now = datetime.now(timezone.utc)
+        _collection("MONGODB_ENQUIRY_COLLECTION").update_one(
+            {"id": enquiry_id, "quote_versions.id": quote_id},
+            {"$set": {"quote_versions.$.converted_project_id": existing_record["id"], "quote_versions.$.converted_at": now}},
+        )
+        return _serialise(existing_record)
+
+    confirmed_services = [item for item in quote.get("items", []) if not item.get("optional") or item.get("included")]
+    consultation_rate = round(
+        sum(float(item.get("rate") or 0) for item in confirmed_services) / len(confirmed_services),
+        2,
+    ) if confirmed_services else 16.5
+    deposit = round(float(quote.get("deposit") or 0), 2)
+    tax_rate = round(float(quote.get("tax_rate") or 0), 2)
+    deposit_subtotal = quote.get("deposit_subtotal")
+    if deposit_subtotal is None:
+        deposit_subtotal = round(deposit / (1 + tax_rate / 100), 2) if tax_rate else deposit
+    deposit_subtotal = round(float(deposit_subtotal), 2)
+    deposit_tax = round(float(quote.get("deposit_tax_amount", deposit - deposit_subtotal)), 2)
+    reference = str(quote.get("deposit_invoice_reference") or f"DEP-{quote.get('version', 1)}-{enquiry_id[:6].upper()}")
+    invoice_status = "paid" if quote.get("deposit_invoice_status") == "paid" else "sent" if quote.get("deposit_invoice_status") == "sent" else "draft"
+    invoices = []
+    if deposit > 0:
+        invoices.append({
+            "id": str(uuid.uuid4()),
+            "reference": reference,
+            "kind": "deposit",
+            "status": invoice_status,
+            "subtotal": deposit_subtotal,
+            "tax_rate": tax_rate,
+            "tax_amount": deposit_tax,
+            "amount": deposit,
+            "issue_date": str(quote.get("deposit_invoice_sent_at") or "")[:10],
+            "due_date": "",
+            "paid_date": str(quote.get("deposit_paid_at") or "")[:10],
+            "notes": f"Deposit for quote version {quote.get('version', 1)}",
+        })
+
+    return save_project({
+        "name": enquiry.get("project_type") or f"{enquiry.get('name', 'Client')} project",
+        "client_name": enquiry.get("name", ""),
+        "client_email": enquiry.get("email", ""),
+        "stage": "accepted",
+        "value": quote.get("total", 0),
+        "due_date": "",
+        "notes": quote.get("notes", ""),
+        "tags": ["Quote conversion"],
+        "linked_enquiry_id": enquiry_id,
+        "source_quote_id": quote_id,
+        "services": confirmed_services,
+        "included_consultation_hours": 8,
+        "consultation_rate": consultation_rate,
+        "meetings": [],
+        "invoices": invoices,
+        "tasks": [],
+        "milestones": [],
+        "completion": 0,
+    })
+
+
 def save_project(payload: dict[str, Any], project_id: str | None = None) -> dict[str, Any]:
     stage = str(payload.get("stage", "lead")).strip().lower()
     if stage not in PROJECT_STAGES:
@@ -134,15 +217,23 @@ def save_project(payload: dict[str, Any], project_id: str | None = None) -> dict
     if not project_id and source_quote_id and document["linked_enquiry_id"]:
         try:
             now = datetime.now(timezone.utc)
+            link_fields = {
+                "quote_versions.$.converted_project_id": saved["id"],
+                "quote_versions.$.converted_at": now,
+                "status": "closed",
+                "status_updated_at": now,
+            }
+            deposit_invoice = next((invoice for invoice in invoices if invoice["kind"] == "deposit"), None)
+            if deposit_invoice:
+                link_fields.update({
+                    "quote_versions.$.deposit_invoice_status": "paid" if deposit_invoice["status"] == "paid" else "sent" if deposit_invoice["status"] == "sent" else "pending",
+                    "quote_versions.$.deposit_invoice_reference": deposit_invoice["reference"],
+                    "quote_versions.$.deposit_invoice_updated_at": now,
+                })
             link_result = _collection("MONGODB_ENQUIRY_COLLECTION").update_one(
                 {"id": document["linked_enquiry_id"], "quote_versions.id": source_quote_id},
                 {
-                    "$set": {
-                        "quote_versions.$.converted_project_id": saved["id"],
-                        "quote_versions.$.converted_at": now,
-                        "status": "closed",
-                        "status_updated_at": now,
-                    },
+                    "$set": link_fields,
                     "$push": {"activity": {"id": str(uuid.uuid4()), "type": "project", "description": f"Quote converted to project {saved['name']}", "created_at": now}},
                 },
             )

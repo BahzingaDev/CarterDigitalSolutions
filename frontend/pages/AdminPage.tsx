@@ -178,7 +178,7 @@ export function AdminPage() {
   const handleQuoteStatus = async (enquiryId: string, quoteId: string, status: AdminQuoteVersion['status']) => {
     if (!session?.csrf_token) return;
     setError(''); setMessage('');
-    try { const data = await updateAdminQuoteStatus(session.csrf_token, enquiryId, quoteId, status); replaceEnquiry(data.enquiry); setMessage('Quote status updated.'); }
+    try { const data = await updateAdminQuoteStatus(session.csrf_token, enquiryId, quoteId, status); replaceEnquiry(data.enquiry); if (status === 'accepted') await loadWorkspace(); setMessage(data.automation_warning ?? (status === 'accepted' ? 'Quote accepted. Its project and draft deposit invoice are ready.' : 'Quote status updated.')); }
     catch (quoteError) { setError(quoteError instanceof Error ? quoteError.message : 'Unable to update quote'); }
   };
   const handleUpdateQuote = async (enquiryId: string, quoteId: string, payload: AdminQuotePayload) => {
@@ -223,7 +223,7 @@ export function AdminPage() {
       tags: ['Quote conversion'],
       linked_enquiry_id: enquiry.id,
       source_quote_id: quote.id,
-      services: quote.items.map((item) => ({ ...item, optional: item.optional ?? false, included: item.included ?? true })),
+      services: confirmedServices.map((item) => ({ ...item, optional: item.optional ?? false, included: item.included ?? true })),
       included_consultation_hours: 8,
       consultation_rate: Number(consultationRate.toFixed(2)),
       meetings: [],
@@ -232,9 +232,9 @@ export function AdminPage() {
         reference: quote.deposit_invoice_reference || `DEP-${quote.version}-${enquiry.id.slice(0, 6).toUpperCase()}`,
         kind: 'deposit',
         status: depositInvoiceStatus,
-        subtotal: Number((quote.deposit / (1 + (quote.tax_rate || 0) / 100)).toFixed(2)),
+        subtotal: quote.deposit_subtotal ?? Number((quote.deposit / (1 + (quote.tax_rate || 0) / 100)).toFixed(2)),
         tax_rate: quote.tax_rate || 0,
-        tax_amount: Number((quote.deposit - quote.deposit / (1 + (quote.tax_rate || 0) / 100)).toFixed(2)),
+        tax_amount: quote.deposit_tax_amount ?? Number((quote.deposit - quote.deposit / (1 + (quote.tax_rate || 0) / 100)).toFixed(2)),
         amount: quote.deposit,
         issue_date: quote.deposit_invoice_sent_at?.slice(0, 10) ?? '',
         due_date: '',

@@ -49,6 +49,9 @@ export interface AdminQuoteVersion {
   tax_amount: number;
   total: number;
   deposit: number;
+  deposit_subtotal?: number;
+  deposit_tax_amount?: number;
+  deposit_source?: 'services' | 'manual' | 'none';
   deposit_invoice_status?: 'not_required' | 'pending' | 'sent' | 'paid';
   deposit_invoice_reference?: string;
   deposit_invoice_updated_at?: string;
@@ -198,7 +201,7 @@ export async function updateAdminQuoteStatus(csrfToken: string, enquiryId: strin
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
     body: JSON.stringify({ status }),
   });
-  return parseAdminResponse<{ enquiry: AdminEnquiry }>(response);
+  return parseAdminResponse<{ enquiry: AdminEnquiry; automation_warning?: string }>(response);
 }
 
 export async function createQuoteShareLink(csrfToken: string, enquiryId: string, quoteId: string) {

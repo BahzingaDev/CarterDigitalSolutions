@@ -1,7 +1,8 @@
 from flask import Blueprint, current_app, jsonify, request
 
-from ..services.enquiry_service import EnquiryStorageError, approve_public_quote, get_public_quote
+from ..services.enquiry_service import EnquiryStorageError, approve_public_quote, get_enquiry_by_quote_id, get_public_quote
 from ..services.email_service import send_quote_approval_notification
+from ..services.workspace_service import WorkspaceStorageError, ensure_accepted_quote_project
 from ..utils.security import origin_is_allowed
 
 quotes_bp = Blueprint("quotes", __name__)
@@ -40,6 +41,12 @@ def approve_quote(quote_id: str):
         return jsonify({"error": "Quote storage is unavailable."}), 503
     if not quote:
         return jsonify({"error": "Quote not found."}), 404
+    try:
+        enquiry = get_enquiry_by_quote_id(quote_id)
+        if enquiry:
+            ensure_accepted_quote_project(enquiry["id"], quote_id)
+    except (EnquiryStorageError, WorkspaceStorageError, ValueError):
+        current_app.logger.exception("Approved quote project automation failed")
     try:
         send_quote_approval_notification(quote)
     except Exception:

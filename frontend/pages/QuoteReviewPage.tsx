@@ -90,7 +90,7 @@ export function QuoteReviewPage() {
         {quote.expenses > 0 ? <span>Expenses <strong>{formatCurrency(quote.expenses)}</strong></span> : null}
         {quote.tax_amount > 0 ? <span>Tax ({quote.tax_rate}%) <strong>{formatCurrency(quote.tax_amount)}</strong></span> : null}
         <span className="is-total">Total <strong>{formatCurrency(quote.total)}</strong></span>
-        <span>Deposit <strong>{formatCurrency(quote.deposit)}</strong></span>
+        <span>Deposit including tax <strong>{formatCurrency(quote.deposit)}</strong></span>
       </section>
 
       {quote.notes ? <section className="quote-review-notes"><h2>Notes</h2><p>{quote.notes}</p></section> : null}
@@ -99,7 +99,7 @@ export function QuoteReviewPage() {
       ) : canApprove ? (
         <form className="quote-approval no-print" onSubmit={approve}>
           <h2>Approve this quote</h2>
-          <p>Approval confirms that the outlined scope and estimate can proceed to final project agreement.</p>
+          <p>Approval confirms that the outlined scope and estimate can proceed to project setup.{quote.deposit > 0 ? ` A deposit invoice for ${formatCurrency(quote.deposit)} will then be prepared.` : ''}</p>
           {error ? <div className="alert alert-danger">{error}</div> : null}
           <label>Your name<input className="form-control" maxLength={120} minLength={2} onChange={(event) => setName(event.target.value)} required value={name} /></label>
           <label className="quote-confirm"><input checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} required type="checkbox" /> I have reviewed and approve this quote.</label>
