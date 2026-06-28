@@ -1916,13 +1916,21 @@ body {
   gap: 0.5rem;
 }
 
+.admin-quote-editor-header,
 .admin-quote-editor-row {
   display: grid;
   align-items: center;
   gap: 0.5rem;
-  grid-template-columns: minmax(130px, 1.5fr) minmax(100px, 1fr) 76px 92px auto auto 38px;
+  grid-template-columns: minmax(160px, 1.5fr) minmax(110px, 0.9fr) 76px 92px minmax(125px, 0.7fr) 100px 84px;
 }
 
+.admin-quote-editor-header { padding: 0 0.35rem; color: var(--color-muted); font-size: 0.68rem; font-weight: 850; text-transform: uppercase; }
+.admin-quote-editor-row { padding: 0.45rem 0; border-top: 1px solid var(--color-border); }
+.admin-quote-row-options, .admin-quote-row-actions { display: flex; align-items: center; gap: 0.45rem; }
+.admin-quote-row-actions { justify-content: flex-end; }
+.admin-quote-row-actions .admin-icon-button { width: 36px; height: 36px; flex-basis: 36px; }
+.admin-quote-editor-row output { font-weight: 800; text-align: right; }
+.admin-quote-editor-row output.is-excluded { color: var(--color-muted); text-decoration: line-through; }
 .admin-quote-option { display: inline-flex; align-items: center; gap: 0.35rem; margin: 0; font-size: 0.75rem; font-weight: 750; white-space: nowrap; }
 
 .admin-inline-action {
@@ -1933,18 +1941,21 @@ body {
 }
 
 .admin-quote-summary {
-  display: flex;
-  justify-content: flex-end;
-  gap: 1.5rem;
-  padding: 0.85rem 0;
-  border-top: 1px solid var(--color-border);
-  border-bottom: 1px solid var(--color-border);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(5, minmax(90px, 1fr));
+  width: min(680px, 100%);
+  margin-left: auto;
   color: var(--color-muted);
 }
 
 .admin-quote-summary span { display: grid; gap: 0.1rem; }
 .admin-quote-summary strong { color: var(--color-text); font-size: 1.05rem; }
 .admin-quote-terms-grid small { color: var(--color-muted); font-weight: 500; }
+.admin-quote-footer { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: flex-end; justify-content: space-between; gap: 1.25rem; margin: 0 -1rem -1rem; padding: 0.9rem 1rem; border-top: 1px solid var(--color-border); background: color-mix(in srgb, var(--color-surface) 96%, transparent); box-shadow: 0 -8px 20px color-mix(in srgb, var(--color-shadow) 65%, transparent); backdrop-filter: blur(10px); }
+.admin-quote-footer .admin-management-actions { flex: 0 0 auto; }
+.admin-quote-validation { margin: 0; }
+.admin-quote-validation ul { margin: 0.35rem 0 0; padding-left: 1.1rem; }
 
 .admin-quote-version {
   display: grid;
@@ -2101,6 +2112,18 @@ body {
 .admin-template-field { display: grid; gap: 0.5rem; }
 .admin-template-field > label { display: grid; gap: 0.35rem; color: var(--color-muted); font-size: 0.78rem; font-weight: 800; }
 .admin-placeholder-select { width: min(320px, 100%); }
+.admin-placeholder-reference { border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
+.admin-placeholder-reference > summary { padding: 0.75rem 0; color: var(--color-accent-strong); font-size: 0.8rem; font-weight: 850; cursor: pointer; }
+.admin-placeholder-reference > div { display: grid; gap: 1.25rem 2rem; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0.25rem 0 1rem; }
+.admin-placeholder-reference section { min-width: 0; }
+.admin-placeholder-reference h3 { margin: 0 0 0.45rem; font-size: 0.78rem; font-weight: 850; text-transform: uppercase; }
+.admin-placeholder-reference dl { display: grid; margin: 0; }
+.admin-placeholder-reference dl > div { display: grid; gap: 0.75rem; grid-template-columns: minmax(125px, 0.55fr) minmax(0, 1.45fr); padding: 0.55rem 0; border-top: 1px solid var(--color-border); }
+.admin-placeholder-reference dt, .admin-placeholder-reference dd { margin: 0; min-width: 0; }
+.admin-placeholder-reference code { color: var(--color-accent-strong); font-size: 0.72rem; overflow-wrap: anywhere; }
+.admin-placeholder-reference dd { display: grid; gap: 0.08rem; }
+.admin-placeholder-reference dd strong { font-size: 0.78rem; }
+.admin-placeholder-reference dd span, .admin-placeholder-reference dd small { color: var(--color-muted); font-size: 0.72rem; }
 .admin-signature-panel { max-width: 56rem; }
 .admin-signature-panel .btn { display: inline-flex; align-items: center; justify-self: start; gap: 0.4rem; }
 .admin-signature-preview { margin: 0; padding: 0.75rem; border-left: 3px solid var(--color-accent); background: var(--color-page); color: var(--color-muted); font: inherit; white-space: pre-wrap; }
@@ -3118,9 +3141,12 @@ body {
   }
 
   .admin-quote-editor-row {
-    grid-template-columns: minmax(130px, 1.5fr) minmax(100px, 1fr) 76px 92px auto auto 38px;
-    overflow-x: auto;
+    grid-template-columns: minmax(160px, 1.4fr) minmax(120px, 1fr) 76px 92px;
   }
+  .admin-quote-editor-header { display: none; }
+  .admin-quote-row-options { grid-column: 1 / 3; }
+  .admin-quote-editor-row output { align-self: center; grid-column: 3; }
+  .admin-quote-row-actions { grid-column: 4; }
 }
 
 @media (max-width: 575.98px) {
@@ -3189,6 +3215,8 @@ body {
   }
 
   .admin-project-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-placeholder-reference > div { grid-template-columns: 1fr; }
+  .admin-placeholder-reference dl > div { grid-template-columns: 1fr; gap: 0.2rem; }
   .admin-project-disclosure-toggle { padding: 0.85rem; }
   .admin-project-disclosure-toggle small { white-space: normal; }
   .admin-project-disclosure-body { padding: 1rem 0.85rem; }
@@ -3214,6 +3242,15 @@ body {
   .admin-quote-editor-row input:nth-child(2) {
     grid-column: span 3;
   }
+
+  .admin-quote-editor-header { display: none; }
+  .admin-quote-editor-row > input:nth-child(3) { grid-column: 1; grid-row: 3; }
+  .admin-quote-editor-row > input:nth-child(4) { grid-column: 2; grid-row: 3; }
+  .admin-quote-row-actions { grid-column: 3; grid-row: 3; }
+  .admin-quote-row-options { grid-column: 1 / 3; grid-row: 4; }
+  .admin-quote-editor-row output { align-self: center; grid-column: 3; grid-row: 4; }
+  .admin-quote-footer { align-items: stretch; flex-direction: column; }
+  .admin-quote-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
 
   .admin-quote-version {
     align-items: stretch;

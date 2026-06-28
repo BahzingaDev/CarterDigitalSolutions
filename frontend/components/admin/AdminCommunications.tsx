@@ -2,6 +2,8 @@ import { RotateCcw, Send } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { fetchAdminTemplates, fetchCommunicationSettings, type AdminEnquiry, type AdminTemplate } from '../../src/api/admin';
+import { enquiryPlaceholderValues, enquiryPlaceholders, resolveCorrespondence } from '../../src/data/correspondencePlaceholders';
+import { PlaceholderReference, PlaceholderSelect } from './AdminPlaceholderReference';
 
 export interface CommunicationDraft { subject: string; message: string; quoteId?: string; }
 
@@ -21,7 +23,7 @@ export function AdminCommunications({ enquiry, draft, onSend }: { enquiry: Admin
 
   const send = async () => {
     setIsSending(true); setError('');
-    try { const cleanMessage = message.trim(); const cleanSignature = signature.trim(); const finalMessage = cleanSignature && !cleanMessage.endsWith(cleanSignature) ? `${cleanMessage}\n\n${cleanSignature}` : cleanMessage; await onSend(subject, finalMessage, quoteId, scheduledAt ? new Date(scheduledAt).toISOString() : undefined); setSubject(''); setMessage(''); setQuoteId(undefined); setScheduledAt(''); }
+    try { const replacements = enquiryPlaceholderValues(enquiry); const cleanSubject = resolveCorrespondence(subject, replacements).trim(); const cleanMessage = resolveCorrespondence(message, replacements).trim(); const cleanSignature = resolveCorrespondence(signature, replacements).trim(); const finalMessage = cleanSignature && !cleanMessage.endsWith(cleanSignature) ? `${cleanMessage}\n\n${cleanSignature}` : cleanMessage; await onSend(cleanSubject, finalMessage, quoteId, scheduledAt ? new Date(scheduledAt).toISOString() : undefined); setSubject(''); setMessage(''); setQuoteId(undefined); setScheduledAt(''); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to process the email'); }
     finally { setIsSending(false); }
   };
@@ -31,9 +33,10 @@ export function AdminCommunications({ enquiry, draft, onSend }: { enquiry: Admin
       {error ? <div className="alert alert-danger" role="alert">{error}</div> : null}
       <section className="admin-subpanel admin-compose-panel">
         <div className="admin-subpanel-heading"><div><h3>Send email</h3><p>To {enquiry.name} at {enquiry.email}</p></div></div>
-        <label>Template<select className="form-select" onChange={(event) => { const template = templates.find((item) => item.id === event.target.value); setSubject(applyTemplate(template?.subject ?? '', enquiry)); setMessage(applyTemplate(template?.body ?? '', enquiry)); setQuoteId(undefined); }}><option value="">Blank message</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></label>
-        <label>Subject<input className="form-control" maxLength={180} onChange={(event) => setSubject(event.target.value)} value={subject} /></label>
-        <label>Message<textarea className="form-control" maxLength={5000} onChange={(event) => setMessage(event.target.value)} rows={8} value={message} /></label>
+        <label>Template<select className="form-select" onChange={(event) => { const template = templates.find((item) => item.id === event.target.value); const replacements = enquiryPlaceholderValues(enquiry); setSubject(resolveCorrespondence(template?.subject ?? '', replacements)); setMessage(resolveCorrespondence(template?.body ?? '', replacements)); setQuoteId(undefined); }}><option value="">Blank message</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></label>
+        <div className="admin-template-field"><label>Subject<input className="form-control" maxLength={180} onChange={(event) => setSubject(event.target.value)} value={subject} /></label><PlaceholderSelect definitions={enquiryPlaceholders} label="Insert subject placeholder" onInsert={(key) => setSubject((current) => `${current}{{${key}}}`)} /></div>
+        <div className="admin-template-field"><label>Message<textarea className="form-control" maxLength={5000} onChange={(event) => setMessage(event.target.value)} rows={8} value={message} /></label><PlaceholderSelect definitions={enquiryPlaceholders} label="Insert message placeholder" onInsert={(key) => setMessage((current) => `${current}{{${key}}}`)} /></div>
+        <PlaceholderReference definitions={enquiryPlaceholders} title="Correspondence placeholder reference" />
         {signature ? <pre className="admin-signature-preview">{signature}</pre> : null}
         <label>Schedule for later<input className="form-control" onChange={(event) => setScheduledAt(event.target.value)} type="datetime-local" value={scheduledAt} /></label>
         <button className="btn btn-accent" disabled={isSending || !subject.trim() || !message.trim()} onClick={() => void send()} type="button"><Send size={16} /> {isSending ? 'Processing...' : scheduledAt ? 'Schedule email' : 'Send email'}</button>
@@ -51,15 +54,3 @@ export function AdminCommunications({ enquiry, draft, onSend }: { enquiry: Admin
 }
 
 function formatDate(value: string) { return new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)); }
-function applyTemplate(value: string, enquiry: AdminEnquiry) {
-  const latestQuote = enquiry.quote_versions?.[enquiry.quote_versions.length - 1];
-  const replacements: Record<string, string> = {
-    name: enquiry.name, email: enquiry.email, project_type: enquiry.project_type || 'your project',
-    enquiry_type: enquiry.type, reference: enquiry.id,
-    received_date: new Intl.DateTimeFormat('en-GB', { dateStyle: 'long' }).format(new Date(enquiry.created_at)),
-    estimated_hours: String(enquiry.estimated_hours || 0), estimated_cost: formatMoney(enquiry.estimated_cost),
-    quote_total: formatMoney(latestQuote?.total ?? 0), quote_deposit: formatMoney(latestQuote?.deposit ?? 0),
-  };
-  return Object.entries(replacements).reduce((result, [key, replacement]) => result.split(`{{${key}}}`).join(replacement), value);
-}
-function formatMoney(value: number) { return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(value); }

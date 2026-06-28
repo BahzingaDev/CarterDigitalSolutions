@@ -1,16 +1,12 @@
 import { Eye, Plus, Save, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { deleteAdminTemplate, fetchAdminTemplates, saveAdminTemplate, type AdminTemplate } from '../../src/api/admin';
+import { enquiryPlaceholders, resolveCorrespondence } from '../../src/data/correspondencePlaceholders';
 import { fingerprint, useUnsavedChanges } from '../../src/hooks/useUnsavedChanges';
+import { PlaceholderReference, PlaceholderSelect } from './AdminPlaceholderReference';
 
 const empty = { name: '', subject: '', body: '' };
-const placeholders = [
-  ['name', 'Customer name'], ['email', 'Customer email'], ['project_type', 'Project type'],
-  ['enquiry_type', 'Enquiry type'], ['reference', 'Enquiry reference'], ['received_date', 'Received date'],
-  ['estimated_hours', 'Estimated hours'], ['estimated_cost', 'Estimated cost'],
-  ['quote_total', 'Latest quote total'], ['quote_deposit', 'Latest quote deposit'],
-] as const;
-const samples: Record<string, string> = { name: 'Alex Morgan', email: 'alex@example.com', project_type: 'Professional website', enquiry_type: 'quote', reference: 'ENQ-EXAMPLE', received_date: '27 June 2026', estimated_hours: '24', estimated_cost: '£540.00', quote_total: '£540.00', quote_deposit: '£162.00' };
+const samples = Object.fromEntries(enquiryPlaceholders.map((item) => [item.key, item.sample]));
 
 export function AdminTemplates({ csrfToken, onDirtyChange }: { csrfToken: string; onDirtyChange?: (isDirty: boolean) => void }) {
   const [items, setItems] = useState<AdminTemplate[]>([]);
@@ -34,11 +30,12 @@ export function AdminTemplates({ csrfToken, onDirtyChange }: { csrfToken: string
       <div className="admin-panel-heading"><div><h2>{draft.id ? 'Edit template' : 'New template'}</h2><p>Preview merge fields before using the template.</p></div><button className="btn btn-outline-accent" onClick={() => setPreview((current) => !current)} type="button"><Eye size={16} /> Preview</button></div>
       {error ? <div className="alert alert-danger" role="alert">{error}</div> : null}
       {message ? <div className="alert alert-success" role="status">{message}</div> : null}
+      <PlaceholderReference definitions={enquiryPlaceholders} title="Available correspondence placeholders" />
       {preview ? <article className="admin-template-preview"><small>Subject</small><h3>{resolve(draft.subject ?? '') || 'No subject'}</h3><div>{resolve(draft.body ?? '').split('\n').map((line, index) => <p key={index}>{line || <br />}</p>)}</div></article> : <><label>Name<input className="form-control" maxLength={80} onChange={(event) => setDraft({ ...draft, name: event.target.value })} value={draft.name ?? ''} /></label><TemplateField label="Subject" multiline={false} onChange={(value) => setDraft({ ...draft, subject: value })} onInsert={(key) => insert('subject', key)} value={draft.subject ?? ''} /><TemplateField label="Message" multiline onChange={(value) => setDraft({ ...draft, body: value })} onInsert={(key) => insert('body', key)} value={draft.body ?? ''} /></>}
       <div className="admin-management-actions"><button className="btn btn-accent" disabled={!isDirty || isSaving} onClick={() => void save()} type="button"><Save size={16} /> {isSaving ? 'Saving...' : isDirty ? 'Save template' : 'Saved'}</button>{draft.id ? <button className="btn btn-outline-danger" disabled={isSaving} onClick={() => void remove()} type="button"><Trash2 size={16} /> Delete</button> : null}</div>
     </section>
   </div>;
 }
 
-function TemplateField({ label, multiline, onChange, onInsert, value }: { label: string; multiline: boolean; onChange: (value: string) => void; onInsert: (key: string) => void; value: string }) { return <div className="admin-template-field"><label>{label}{multiline ? <textarea className="form-control" maxLength={5000} onChange={(event) => onChange(event.target.value)} rows={12} value={value} /> : <input className="form-control" maxLength={180} onChange={(event) => onChange(event.target.value)} value={value} />}</label><select aria-label={`Insert ${label} placeholder`} className="form-select admin-placeholder-select" onChange={(event) => { if (event.target.value) onInsert(event.target.value); event.target.value = ''; }} value=""><option value="">Insert placeholder</option>{placeholders.map(([key, text]) => <option key={key} value={key}>{text} — {'{{'}{key}{'}}'}</option>)}</select></div>; }
-function resolve(value: string) { return Object.entries(samples).reduce((result, [key, replacement]) => result.split(`{{${key}}}`).join(replacement), value); }
+function TemplateField({ label, multiline, onChange, onInsert, value }: { label: string; multiline: boolean; onChange: (value: string) => void; onInsert: (key: string) => void; value: string }) { return <div className="admin-template-field"><label>{label}{multiline ? <textarea className="form-control" maxLength={5000} onChange={(event) => onChange(event.target.value)} rows={12} value={value} /> : <input className="form-control" maxLength={180} onChange={(event) => onChange(event.target.value)} value={value} />}</label><PlaceholderSelect definitions={enquiryPlaceholders} label={`Insert ${label} placeholder`} onInsert={onInsert} /></div>; }
+function resolve(value: string) { return resolveCorrespondence(value, samples); }

@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, CirclePlus, Link2, Mail, Printer, ReceiptText, Trash2 } from 'lucide-react';
+import { BriefcaseBusiness, CirclePlus, CopyPlus, Link2, Mail, Printer, ReceiptText, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import type { AdminEnquiry, AdminQuoteItem, AdminQuotePayload, AdminQuoteVersion } from '../../src/api/admin';
@@ -66,6 +66,23 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail
 
   const updateItem = (index: number, patch: Partial<AdminQuoteItem>) => setItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
   const removeItem = (index: number) => setItems((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  const duplicateItem = (index: number) => setItems((current) => {
+    const duplicate = { ...current[index] };
+    return [...current.slice(0, index + 1), duplicate, ...current.slice(index + 1)];
+  });
+  const validationErrors = useMemo(() => {
+    const errors: string[] = [];
+    items.forEach((item, index) => {
+      if (!item.service.trim()) errors.push(`Item ${index + 1} needs a service name.`);
+      if (Number(item.hours) <= 0) errors.push(`Item ${index + 1} needs a positive hour estimate.`);
+      if (Number(item.rate) <= 0) errors.push(`Item ${index + 1} needs a positive hourly rate.`);
+    });
+    if (Number(discount) > subtotal) errors.push('Discount cannot exceed the included labour subtotal.');
+    if (!hasAutomaticDeposit && Number(manualDeposit) > total) errors.push('Deposit cannot exceed the quote total.');
+    if (validUntil && new Date(`${validUntil}T23:59:59`).getTime() < Date.now()) errors.push('Valid until must be today or a future date.');
+    return errors;
+  }, [discount, hasAutomaticDeposit, items, manualDeposit, subtotal, total, validUntil]);
+  const canSave = validationErrors.length === 0 && !isSaving;
 
   const saveVersion = async () => {
     setIsSaving(true);
@@ -99,6 +116,7 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail
       <section className="admin-subpanel">
         <div className="admin-subpanel-heading"><div><h3>Create quote version</h3><p>Saving creates a new immutable version.</p></div><span>{formatCurrency(total)}</span></div>
         <div className="admin-quote-editor-items">
+          <div className="admin-quote-editor-header" aria-hidden="true"><span>Service</span><span>Category</span><span>Hours</span><span>Rate</span><span>Options</span><span>Line total</span><span>Actions</span></div>
           {items.map((item, index) => (
             <div className="admin-quote-editor-row" key={index}>
               <input aria-label="Service" className="form-control" list={`quote-service-options-${index}`} onChange={(event) => { const selected = catalogueServices.find((service) => service.name === event.target.value); updateItem(index, selected ? { service: selected.name, category: selected.category, hours: selected.hours, rate: selected.rate, deposit_amount: selected.deposit } : { service: event.target.value, deposit_amount: 0 }); }} placeholder="Search or enter service" value={item.service} />
@@ -106,9 +124,9 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail
               <input aria-label="Category" className="form-control" onChange={(event) => updateItem(index, { category: event.target.value })} placeholder="Category" value={item.category} />
               <input aria-label="Hours" className="form-control" min="0.25" onChange={(event) => updateItem(index, { hours: Number(event.target.value) })} step="0.25" type="number" value={item.hours} />
               <input aria-label="Hourly rate" className="form-control" min="0.01" onChange={(event) => updateItem(index, { rate: Number(event.target.value) })} step="0.01" type="number" value={item.rate} />
-              <label className="admin-quote-option"><input checked={item.optional ?? false} onChange={(event) => updateItem(index, { optional: event.target.checked, included: event.target.checked ? false : true })} type="checkbox" /> Optional</label>
-              {item.optional ? <label className="admin-quote-option"><input checked={item.included ?? false} onChange={(event) => updateItem(index, { included: event.target.checked })} type="checkbox" /> Include</label> : <span />}
-              <button className="admin-icon-button" disabled={items.length === 1} onClick={() => removeItem(index)} title="Remove item" type="button"><Trash2 size={16} /></button>
+              <div className="admin-quote-row-options"><label className="admin-quote-option"><input checked={item.optional ?? false} onChange={(event) => updateItem(index, { optional: event.target.checked, included: event.target.checked ? false : true })} type="checkbox" /> Optional</label>{item.optional ? <label className="admin-quote-option"><input checked={item.included ?? false} onChange={(event) => updateItem(index, { included: event.target.checked })} type="checkbox" /> Include</label> : null}</div>
+              <output className={!item.optional || item.included ? undefined : 'is-excluded'}>{formatCurrency(Number(item.hours || 0) * Number(item.rate || 0))}</output>
+              <div className="admin-quote-row-actions"><button className="admin-icon-button" onClick={() => duplicateItem(index)} title="Duplicate item" type="button"><CopyPlus size={16} /></button><button className="admin-icon-button is-danger" disabled={items.length === 1} onClick={() => removeItem(index)} title="Remove item" type="button"><Trash2 size={16} /></button></div>
             </div>
           ))}
         </div>
@@ -121,8 +139,8 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail
           <label>Valid until<input className="form-control" onChange={(event) => setValidUntil(event.target.value)} type="date" value={validUntil} /></label>
         </div>
         <label className="form-label">Quote notes<textarea className="form-control" maxLength={2000} onChange={(event) => setNotes(event.target.value)} rows={3} value={notes} /></label>
-        <div className="admin-quote-summary"><span>Subtotal <strong>{formatCurrency(subtotal)}</strong></span><span>Expenses <strong>{formatCurrency(expenses)}</strong></span><span>Tax <strong>{formatCurrency(taxable * taxRate / 100)}</strong></span><span>Total <strong>{formatCurrency(total)}</strong></span><span>Deposit <strong>{formatCurrency(deposit)}</strong></span></div>
-        <div className="admin-management-actions">{latest?.status === 'draft' ? <button className="btn btn-accent" disabled={isSaving} onClick={() => void updateDraft()} type="button">{isSaving ? 'Saving...' : 'Save draft'}</button> : <button className="btn btn-accent" disabled={isSaving} onClick={() => void saveVersion()} type="button">{isSaving ? 'Saving...' : latest ? 'Create new version' : 'Create draft quote'}</button>}</div>
+        {validationErrors.length > 0 ? <div className="alert alert-warning admin-quote-validation" role="alert"><strong>Review the quote before saving</strong><ul>{validationErrors.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
+        <div className="admin-quote-footer"><div className="admin-quote-summary"><span>Subtotal <strong>{formatCurrency(subtotal)}</strong></span><span>Expenses <strong>{formatCurrency(expenses)}</strong></span><span>Tax <strong>{formatCurrency(taxable * taxRate / 100)}</strong></span><span>Total <strong>{formatCurrency(total)}</strong></span><span>Deposit <strong>{formatCurrency(deposit)}</strong></span></div><div className="admin-management-actions">{latest?.status === 'draft' ? <button className="btn btn-accent" disabled={!canSave} onClick={() => void updateDraft()} type="button">{isSaving ? 'Saving...' : 'Save draft'}</button> : <button className="btn btn-accent" disabled={!canSave} onClick={() => void saveVersion()} type="button">{isSaving ? 'Saving...' : latest ? 'Create new version' : 'Create draft quote'}</button>}</div></div>
       </section>
 
       <section className="admin-subpanel">

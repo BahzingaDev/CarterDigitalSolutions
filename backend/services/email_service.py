@@ -66,8 +66,9 @@ def send_customer_message(enquiry: dict[str, Any], subject: str, message: str, s
     if not email_notifications_configured():
         raise RuntimeError("Email delivery is not configured.")
 
-    clean_subject = subject.strip()
-    clean_message = message.strip()
+    replacements = _enquiry_correspondence_replacements(enquiry)
+    clean_subject = _replace_placeholders(subject.strip(), replacements)
+    clean_message = _replace_placeholders(message.strip(), replacements)
     if not clean_subject or len(clean_subject) > 180:
         raise ValueError("Subject must contain between 1 and 180 characters.")
     if not clean_message or len(clean_message) > 5000:
@@ -250,13 +251,7 @@ def send_project_invoice(
     recipient = str(project.get("client_email", "")).strip()
     if not recipient:
         raise ValueError("The project must have a client email before sending an invoice.")
-    replacements = {
-        "invoice_reference": str(invoice.get("reference", "")),
-        "client_name": str(project.get("client_name", "Client")),
-        "project_name": str(project.get("name", "project")),
-        "invoice_total": _money(invoice.get("amount", 0)),
-        "invoice_due_date": str(invoice.get("due_date") or "as agreed"),
-    }
+    replacements = _invoice_correspondence_replacements(project, invoice, settings, recipient)
     subject = _replace_placeholders(settings["invoice_email_subject"], replacements).strip()
     message = _replace_placeholders(settings["invoice_email_message"], replacements).strip()
     filename = f"invoice-{_filename_part(invoice.get('reference', 'invoice'))}.pdf"
@@ -291,11 +286,99 @@ def send_project_invoice(
     return None
 
 
+def _invoice_correspondence_replacements(
+    project: dict[str, Any],
+    invoice: dict[str, Any],
+    settings: dict[str, Any],
+    recipient: str,
+) -> dict[str, str]:
+    return {
+        "invoice_reference": str(invoice.get("reference", "")),
+        "invoice_type": str(invoice.get("kind", "invoice")),
+        "invoice_status": str(invoice.get("status", "draft")),
+        "invoice_subtotal": _money(invoice.get("subtotal", 0)),
+        "invoice_tax_rate": _percentage(invoice.get("tax_rate", 0)),
+        "invoice_tax_amount": _money(invoice.get("tax_amount", 0)),
+        "client_name": str(project.get("client_name", "Client")),
+        "client_email": recipient,
+        "project_name": str(project.get("name", "project")),
+        "project_stage": str(project.get("stage", "")),
+        "project_value": _money(project.get("value", 0)),
+        "project_due_date": _format_correspondence_date(project.get("due_date"), "Not specified"),
+        "invoice_total": _money(invoice.get("amount", 0)),
+        "invoice_issue_date": _format_correspondence_date(invoice.get("issue_date"), "Not issued"),
+        "invoice_due_date": _format_correspondence_date(invoice.get("due_date"), "As agreed"),
+        "invoice_notes": str(invoice.get("notes") or "None"),
+        "business_name": str(settings.get("invoice_business_name") or "Carter Digital Solutions"),
+        "invoice_address": str(settings.get("invoice_address") or ""),
+        "payment_details": str(settings.get("payment_details") or ""),
+    }
+
+
 def _replace_placeholders(value: str, replacements: dict[str, str]) -> str:
     result = value
     for key, replacement in replacements.items():
         result = result.replace(f"{{{{{key}}}}}", replacement)
     return result
+
+
+def _enquiry_correspondence_replacements(enquiry: dict[str, Any]) -> dict[str, str]:
+    quotes = enquiry.get("quote_versions") or []
+    latest_quote = quotes[-1] if quotes else {}
+    quote_items = latest_quote.get("items") or enquiry.get("quote_items") or []
+    name = str(enquiry.get("name") or "Customer")
+    return {
+        "name": name,
+        "first_name": name.split()[0] if name.split() else name,
+        "email": str(enquiry.get("email") or ""),
+        "business_name": "Carter Digital Solutions",
+        "today": _format_correspondence_date(datetime.now(timezone.utc).isoformat(), ""),
+        "project_type": str(enquiry.get("project_type") or "your project"),
+        "enquiry_type": str(enquiry.get("type") or "contact"),
+        "reference": str(enquiry.get("id") or ""),
+        "enquiry_message": str(enquiry.get("message") or "Not provided"),
+        "received_date": _format_received_at(str(enquiry.get("created_at") or "")),
+        "status": str(enquiry.get("status") or "new"),
+        "priority": str(enquiry.get("priority") or "standard"),
+        "follow_up_date": _format_correspondence_date(enquiry.get("follow_up_at"), "Not scheduled", include_time=True),
+        "labels": ", ".join(str(item) for item in enquiry.get("labels") or []) or "None",
+        "estimated_hours": str(enquiry.get("estimated_hours") or 0),
+        "estimated_cost": _money(enquiry.get("estimated_cost", 0)),
+        "quote_version": str(latest_quote.get("version") or "Not available"),
+        "quote_status": str(latest_quote.get("status") or "Not available"),
+        "quote_items": ", ".join(str(item.get("service") or "") for item in quote_items if item.get("service")) or "Not available",
+        "quote_subtotal": _money(latest_quote.get("subtotal", 0)),
+        "quote_discount": _money(latest_quote.get("discount", 0)),
+        "quote_expenses": _money(latest_quote.get("expenses", 0)),
+        "quote_tax": _money(latest_quote.get("tax_amount", 0)),
+        "quote_total": _money(latest_quote.get("total", 0)),
+        "quote_deposit": _money(latest_quote.get("deposit", 0)),
+        "quote_valid_until": _format_correspondence_date(latest_quote.get("valid_until"), "Not specified"),
+    }
+
+
+def _format_correspondence_date(value: Any, fallback: str, include_time: bool = False) -> str:
+    if not value:
+        return fallback
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return str(value)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    try:
+        parsed = parsed.astimezone(ZoneInfo(current_app.config.get("ENQUIRY_TIMEZONE") or "Europe/London"))
+    except ZoneInfoNotFoundError:
+        parsed = parsed.astimezone(ZoneInfo("Europe/London"))
+    return parsed.strftime("%d %B %Y, %H:%M %Z" if include_time else "%d %B %Y")
+
+
+def _percentage(value: Any) -> str:
+    try:
+        number = float(value)
+        return f"{number:g}%"
+    except (TypeError, ValueError):
+        return str(value)
 
 
 def _filename_part(value: Any) -> str:
