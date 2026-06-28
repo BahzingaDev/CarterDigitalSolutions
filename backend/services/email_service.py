@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from flask import current_app
 
 from .enquiry_service import classify_enquiry_priority
+from ..utils.rich_text import rich_text_to_plain, sanitize_rich_text
 
 
 class IPv4SMTP(smtplib.SMTP):
@@ -68,11 +69,12 @@ def send_customer_message(enquiry: dict[str, Any], subject: str, message: str, s
 
     replacements = _enquiry_correspondence_replacements(enquiry)
     clean_subject = _replace_placeholders(subject.strip(), replacements)
-    clean_message = _replace_placeholders(message.strip(), replacements)
+    clean_message_html = sanitize_rich_text(_replace_placeholders(message.strip(), replacements))
+    clean_message = rich_text_to_plain(clean_message_html)
     if not clean_subject or len(clean_subject) > 180:
         raise ValueError("Subject must contain between 1 and 180 characters.")
-    if not clean_message or len(clean_message) > 5000:
-        raise ValueError("Message must contain between 1 and 5000 characters.")
+    if not clean_message or len(clean_message_html) > 10000:
+        raise ValueError("Message must contain between 1 and 10000 characters.")
 
     if scheduled_at:
         try:
@@ -95,7 +97,7 @@ def send_customer_message(enquiry: dict[str, Any], subject: str, message: str, s
                 "to": [enquiry["email"]],
                 "subject": clean_subject,
                 "text": clean_message,
-                "html": _customer_message_html(enquiry["name"], clean_message),
+                "html": _customer_message_html(enquiry["name"], clean_message_html),
                 "reply_to": current_app.config["ENQUIRY_EMAIL_TO"],
                 "tags": [
                     {"name": "email_type", "value": "admin_reply"},
@@ -116,7 +118,7 @@ def send_customer_message(enquiry: dict[str, Any], subject: str, message: str, s
     customer_message["Reply-To"] = current_app.config["ENQUIRY_EMAIL_TO"]
     customer_message.set_content(clean_message)
     customer_message.add_alternative(
-        _customer_message_html(enquiry["name"], clean_message),
+        _customer_message_html(enquiry["name"], clean_message_html),
         subtype="html",
     )
 
@@ -137,6 +139,7 @@ def send_customer_message(enquiry: dict[str, Any], subject: str, message: str, s
 
 
 def _customer_message_html(name: str, message: str) -> str:
+    message_html = sanitize_rich_text(message)
     return f"""<!doctype html>
 <html>
   <body style="margin: 0; padding: 24px; background: #f7f4fa; color: #2d173d; font-family: Arial, sans-serif;">
@@ -145,7 +148,7 @@ def _customer_message_html(name: str, message: str) -> str:
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 640px; background: #ffffff; border: 1px solid #eadff3; border-radius: 8px;">
           <tr><td style="padding: 28px;">
             <p style="margin: 0 0 18px; color: #6f2da8; font-weight: bold;">CARTER DIGITAL SOLUTIONS</p>
-            <div style="color: #34263d; line-height: 1.6;">{_paragraphs(message)}</div>
+            <div style="color: #34263d; line-height: 1.6;">{message_html}</div>
           </td></tr>
         </table>
       </td></tr>
@@ -253,7 +256,8 @@ def send_project_invoice(
         raise ValueError("The project must have a client email before sending an invoice.")
     replacements = _invoice_correspondence_replacements(project, invoice, settings, recipient)
     subject = _replace_placeholders(settings["invoice_email_subject"], replacements).strip()
-    message = _replace_placeholders(settings["invoice_email_message"], replacements).strip()
+    message_html = sanitize_rich_text(_replace_placeholders(settings["invoice_email_message"], replacements).strip())
+    message = rich_text_to_plain(message_html)
     filename = f"invoice-{_filename_part(invoice.get('reference', 'invoice'))}.pdf"
     if current_app.config.get("EMAIL_PROVIDER") == "resend":
         response = _send_resend_payload({
@@ -261,7 +265,7 @@ def send_project_invoice(
             "to": [recipient],
             "subject": subject,
             "text": message,
-            "html": _customer_message_html(project.get("client_name", "Client"), message),
+            "html": _customer_message_html(project.get("client_name", "Client"), message_html),
             "reply_to": current_app.config["ENQUIRY_EMAIL_TO"],
             "attachments": [{"filename": filename, "content": base64.b64encode(pdf).decode("ascii")}],
             "tags": [{"name": "email_type", "value": "project_invoice"}],
@@ -274,7 +278,7 @@ def send_project_invoice(
     email["To"] = recipient
     email["Reply-To"] = current_app.config["ENQUIRY_EMAIL_TO"]
     email.set_content(message)
-    email.add_alternative(_customer_message_html(project.get("client_name", "Client"), message), subtype="html")
+    email.add_alternative(_customer_message_html(project.get("client_name", "Client"), message_html), subtype="html")
     email.add_attachment(pdf, maintype="application", subtype="pdf", filename=filename)
     smtp_class = _smtp_class()
     with smtp_class(current_app.config["SMTP_HOST"], current_app.config["SMTP_PORT"], timeout=current_app.config["SMTP_TIMEOUT"]) as smtp:

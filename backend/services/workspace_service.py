@@ -6,6 +6,8 @@ from typing import Any
 
 from flask import current_app
 
+from ..utils.rich_text import rich_text_to_plain, sanitize_rich_text
+
 
 class WorkspaceStorageError(RuntimeError):
     def __init__(self, message: str, reason: str = "unavailable", resource: str = "workspace") -> None:
@@ -53,10 +55,15 @@ def list_templates() -> list[dict[str, Any]]:
 
 
 def save_template(payload: dict[str, Any], template_id: str | None = None) -> dict[str, Any]:
+    body = sanitize_rich_text(payload.get("body"))
+    if not rich_text_to_plain(body):
+        raise ValueError("Message is required.")
+    if len(body) > 10000:
+        raise ValueError("Message must contain no more than 10000 characters.")
     document = {
         "name": _text(payload.get("name"), "Template name", 80),
         "subject": _text(payload.get("subject"), "Subject", 180),
-        "body": _text(payload.get("body"), "Message", 5000),
+        "body": body,
     }
     return _save("MONGODB_TEMPLATE_COLLECTION", document, template_id)
 
@@ -448,7 +455,9 @@ def get_communication_settings() -> dict[str, Any]:
 
 
 def save_communication_settings(payload: dict[str, Any]) -> dict[str, Any]:
-    signature = _optional_text(payload.get("signature"), 2000)
+    signature = sanitize_rich_text(payload.get("signature"))
+    if len(signature) > 4000:
+        raise ValueError("Signature must contain no more than 4000 characters.")
     now = datetime.now(timezone.utc)
     try:
         collection = _collection("MONGODB_SETTINGS_COLLECTION")
@@ -477,6 +486,11 @@ def get_commercial_settings() -> dict[str, Any]:
 
 
 def save_commercial_settings(payload: dict[str, Any]) -> dict[str, Any]:
+    invoice_message = sanitize_rich_text(payload.get("invoice_email_message"))
+    if not rich_text_to_plain(invoice_message):
+        raise ValueError("Invoice email message is required.")
+    if len(invoice_message) > 10000:
+        raise ValueError("Invoice email message must contain no more than 10000 characters.")
     document = {
         "id": "commercial",
         "tax_rate": _number(payload.get("tax_rate", 0), "Tax rate", 100),
@@ -485,7 +499,7 @@ def save_commercial_settings(payload: dict[str, Any]) -> dict[str, Any]:
         "payment_details": _optional_text(payload.get("payment_details"), 2000),
         "invoice_due_days": int(_number(payload.get("invoice_due_days", 14), "Invoice due days", 365)),
         "invoice_email_subject": _text(payload.get("invoice_email_subject"), "Invoice email subject", 180),
-        "invoice_email_message": _text(payload.get("invoice_email_message"), "Invoice email message", 5000),
+        "invoice_email_message": invoice_message,
         "updated_at": datetime.now(timezone.utc),
     }
     try:

@@ -7,6 +7,7 @@ from backend.services.email_service import (
     _invoice_correspondence_replacements,
     _replace_placeholders,
 )
+from backend.utils.rich_text import rich_text_to_plain, sanitize_rich_text
 
 
 class CorrespondencePlaceholderTests(unittest.TestCase):
@@ -65,6 +66,17 @@ class CorrespondencePlaceholderTests(unittest.TestCase):
         self.assertEqual(values["invoice_tax_rate"], "20%")
         self.assertEqual(values["project_due_date"], "31 July 2026")
         self.assertEqual(values["payment_details"], "Account ending 1234")
+
+    def test_rich_text_preserves_formatting_and_blank_lines_safely(self):
+        rich_text = '<p>Hello <strong>Alex</strong></p><div><br></div><p><a href="https://example.com" onclick="alert(1)">Review</a></p><script>alert(1)</script>'
+        clean = sanitize_rich_text(rich_text)
+        plain = rich_text_to_plain(clean)
+
+        self.assertIn("<strong>Alex</strong>", clean)
+        self.assertIn('href="https://example.com"', clean)
+        self.assertNotIn("onclick", clean)
+        self.assertNotIn("<script", clean)
+        self.assertIn("\n\n", plain)
 
 
 if __name__ == "__main__":

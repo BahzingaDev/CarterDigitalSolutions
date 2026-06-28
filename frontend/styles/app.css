@@ -2112,6 +2112,17 @@ body {
 .admin-template-field { display: grid; gap: 0.5rem; }
 .admin-template-field > label { display: grid; gap: 0.35rem; color: var(--color-muted); font-size: 0.78rem; font-weight: 800; }
 .admin-placeholder-select { width: min(320px, 100%); }
+.admin-rich-text-field { display: grid; gap: 0; }
+.admin-rich-text-field > span { margin-bottom: 0.35rem; color: var(--color-muted); font-size: 0.78rem; font-weight: 800; }
+.admin-rich-text-toolbar { display: flex; flex-wrap: wrap; gap: 0.2rem; padding: 0.35rem; border: 1px solid var(--color-border); border-bottom: 0; border-radius: 6px 6px 0 0; background: var(--color-page); }
+.admin-rich-text-toolbar button { display: inline-grid; place-items: center; width: 34px; height: 32px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--color-muted); }
+.admin-rich-text-toolbar button:hover, .admin-rich-text-toolbar button:focus-visible { background: var(--color-accent-soft); color: var(--color-accent-strong); }
+.admin-rich-text-editor { min-height: 11rem; padding: 0.75rem; overflow-wrap: anywhere; border: 1px solid var(--color-border); border-radius: 0 0 6px 6px; outline: 0; background: var(--color-page); color: var(--color-text); line-height: 1.55; }
+.admin-rich-text-editor:focus { border-color: var(--color-accent); box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--color-accent) 18%, transparent); }
+.admin-rich-text-editor p, .admin-rich-message p, .admin-signature-preview p, .admin-template-preview p { margin: 0 0 0.75rem; }
+.admin-rich-text-editor ul, .admin-rich-text-editor ol, .admin-rich-message ul, .admin-rich-message ol { margin: 0 0 0.75rem; padding-left: 1.4rem; }
+.admin-rich-text-editor a, .admin-rich-message a, .admin-signature-preview a, .admin-template-preview a { color: var(--color-accent-strong); }
+.admin-rich-message { color: var(--color-muted); white-space: normal; }
 .admin-placeholder-reference { border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
 .admin-placeholder-reference > summary { padding: 0.75rem 0; color: var(--color-accent-strong); font-size: 0.8rem; font-weight: 850; cursor: pointer; }
 .admin-placeholder-reference > div { display: grid; gap: 1.25rem 2rem; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0.25rem 0 1rem; }
@@ -2126,7 +2137,7 @@ body {
 .admin-placeholder-reference dd span, .admin-placeholder-reference dd small { color: var(--color-muted); font-size: 0.72rem; }
 .admin-signature-panel { max-width: 56rem; }
 .admin-signature-panel .btn { display: inline-flex; align-items: center; justify-self: start; gap: 0.4rem; }
-.admin-signature-preview { margin: 0; padding: 0.75rem; border-left: 3px solid var(--color-accent); background: var(--color-page); color: var(--color-muted); font: inherit; white-space: pre-wrap; }
+.admin-signature-preview { margin: 0; padding: 0.75rem; border-left: 3px solid var(--color-accent); background: var(--color-page); color: var(--color-muted); }
 .admin-service-preview { padding: 1.25rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-page); }
 .admin-service-preview h2 { font-size: 1.5rem; font-weight: 850; }
 .admin-service-preview h3 { margin-top: 1rem; font-size: 0.95rem; font-weight: 800; }

@@ -18,6 +18,7 @@ import {
   type ProjectStage,
 } from '../../src/api/admin';
 import { formatCurrency } from '../../src/data/pricing';
+import { normaliseRichText } from './AdminRichTextEditor';
 
 const stages: { id: ProjectStage; label: string }[] = [
   { id: 'lead', label: 'Lead' }, { id: 'discovery', label: 'Discovery' },
@@ -204,7 +205,7 @@ function DeliveryWorkspace({ draft, onChange }: { draft: Partial<AdminProject>; 
 }
 
 function CommunicationRow({ item }: { item: AdminEnquiry['communications'][number] }) {
-  return <div><span><strong>{item.subject}</strong><small>{item.direction} · {item.status} · {formatDisplayDate(item.sent_at)}</small></span><p>{item.message}</p></div>;
+  return <div><span><strong>{item.subject}</strong><small>{item.direction} · {item.status} · {formatDisplayDate(item.sent_at)}</small></span><div className="admin-rich-message" dangerouslySetInnerHTML={{ __html: normaliseRichText(item.message) }} /></div>;
 }
 
 function MeetingWorkspace({ draft, onChange, onInvoiceCreated, taxRate }: { draft: Partial<AdminProject>; onChange: (value: Partial<AdminProject>) => void; onInvoiceCreated: () => void; taxRate: number }) {

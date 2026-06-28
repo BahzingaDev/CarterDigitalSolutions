@@ -6,6 +6,8 @@ from typing import Any
 
 from flask import current_app
 
+from ..utils.rich_text import rich_text_to_plain, sanitize_rich_text
+
 
 class EnquiryStorageError(RuntimeError):
     def __init__(self, message: str, reason: str = "unavailable") -> None:
@@ -486,11 +488,11 @@ def record_communication(
     scheduled_at: str = "",
 ) -> dict[str, Any] | None:
     clean_subject = subject.strip()
-    clean_message = message.strip()
+    clean_message = sanitize_rich_text(message)
     if not clean_subject or len(clean_subject) > 180:
         raise ValueError("Subject must contain between 1 and 180 characters.")
-    if not clean_message or len(clean_message) > 5000:
-        raise ValueError("Message must contain between 1 and 5000 characters.")
+    if not rich_text_to_plain(clean_message) or len(clean_message) > 10000:
+        raise ValueError("Message must contain between 1 and 10000 characters.")
     if status not in {"sent", "scheduled", "failed"}:
         raise ValueError("Invalid delivery status.")
 
