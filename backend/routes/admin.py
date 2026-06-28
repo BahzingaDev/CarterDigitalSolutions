@@ -664,9 +664,9 @@ def send_admin_communication(enquiry_id: str):
 def _workspace_list(key: str, loader):
     try:
         return jsonify({key: loader()})
-    except WorkspaceStorageError:
-        current_app.logger.exception("Admin workspace list failed")
-        return jsonify({"error": "Workspace storage is unavailable."}), 503
+    except WorkspaceStorageError as error:
+        current_app.logger.exception("Admin workspace list failed: resource=%s reason=%s", error.resource, error.reason)
+        return jsonify({"error": f"{key.replace('-', ' ').title()} storage is unavailable ({error.reason}).", "reason": error.reason, "resource": error.resource}), 503
 
 
 def _workspace_save(key: str, saver, item_id: str | None = None):
@@ -676,9 +676,9 @@ def _workspace_save(key: str, saver, item_id: str | None = None):
         item = saver(request.get_json(silent=True) or {}, item_id)
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
-    except WorkspaceStorageError:
-        current_app.logger.exception("Admin workspace save failed")
-        return jsonify({"error": "Workspace storage is unavailable."}), 503
+    except WorkspaceStorageError as error:
+        current_app.logger.exception("Admin workspace save failed: resource=%s reason=%s", error.resource, error.reason)
+        return jsonify({"error": f"{key.replace('-', ' ').title()} storage is unavailable ({error.reason}).", "reason": error.reason, "resource": error.resource}), 503
     return jsonify({key: item}), 201 if item_id is None else 200
 
 
@@ -687,9 +687,9 @@ def _workspace_delete(deleter, item_id: str):
         deleted = deleter(item_id)
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
-    except WorkspaceStorageError:
-        current_app.logger.exception("Admin workspace delete failed")
-        return jsonify({"error": "Workspace storage is unavailable."}), 503
+    except WorkspaceStorageError as error:
+        current_app.logger.exception("Admin workspace delete failed: resource=%s reason=%s", error.resource, error.reason)
+        return jsonify({"error": f"Workspace storage is unavailable ({error.reason}).", "reason": error.reason, "resource": error.resource}), 503
     if not deleted:
         return jsonify({"error": "Record not found."}), 404
     return "", 204

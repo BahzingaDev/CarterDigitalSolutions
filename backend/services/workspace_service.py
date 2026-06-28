@@ -7,7 +7,10 @@ from flask import current_app
 
 
 class WorkspaceStorageError(RuntimeError):
-    pass
+    def __init__(self, message: str, reason: str = "unavailable", resource: str = "workspace") -> None:
+        super().__init__(message)
+        self.reason = reason
+        self.resource = resource
 
 
 PROJECT_STAGES = {"lead", "discovery", "quoted", "accepted", "active", "on_hold", "completed"}
@@ -15,6 +18,32 @@ MEETING_STATUSES = {"scheduled", "completed", "cancelled"}
 INVOICE_STATUSES = {"draft", "sent", "paid", "overdue", "void"}
 INVOICE_KINDS = {"deposit", "interim", "final", "consultation", "other"}
 _client = None
+
+WORKSPACE_COLLECTIONS = {
+    "projects": "MONGODB_PROJECT_COLLECTION",
+    "settings": "MONGODB_SETTINGS_COLLECTION",
+    "services": "MONGODB_SERVICE_COLLECTION",
+    "service_categories": "MONGODB_SERVICE_CATEGORY_COLLECTION",
+    "templates": "MONGODB_TEMPLATE_COLLECTION",
+    "records": "MONGODB_RECORD_COLLECTION",
+}
+
+
+def check_workspace_storage() -> dict[str, str]:
+    client = _mongo_client()
+    resource = "connection"
+    try:
+        client.admin.command("ping")
+        database = client[current_app.config["MONGODB_DATABASE"]]
+        for resource, config_key in WORKSPACE_COLLECTIONS.items():
+            database[current_app.config[config_key]].find_one({}, {"_id": 1})
+    except Exception as error:
+        raise WorkspaceStorageError(
+            "MongoDB workspace access failed.",
+            reason=_mongo_error_reason(error),
+            resource=resource,
+        ) from error
+    return {resource: "reachable" for resource in WORKSPACE_COLLECTIONS}
 
 
 def list_templates() -> list[dict[str, Any]]:
@@ -74,7 +103,7 @@ def get_project(project_id: str) -> dict[str, Any] | None:
         project = _collection("MONGODB_PROJECT_COLLECTION").find_one({"id": project_id}, {"_id": 0})
         return _serialise(project) if project else None
     except Exception as error:
-        raise WorkspaceStorageError("Unable to load project.") from error
+        raise _workspace_error(error, "Unable to load project.", "projects") from error
 
 
 def ensure_accepted_quote_project(enquiry_id: str, quote_id: str) -> dict[str, Any]:
@@ -98,7 +127,7 @@ def ensure_accepted_quote_project(enquiry_id: str, quote_id: str) -> dict[str, A
     try:
         existing_record = _collection("MONGODB_PROJECT_COLLECTION").find_one({"source_quote_id": quote_id}, {"_id": 0})
     except Exception as error:
-        raise WorkspaceStorageError("Unable to check quote automation.") from error
+        raise _workspace_error(error, "Unable to check quote automation.", "projects") from error
     if existing_record:
         now = datetime.now(timezone.utc)
         _collection("MONGODB_ENQUIRY_COLLECTION").update_one(
@@ -439,9 +468,9 @@ def _save(config_key: str, document: dict[str, Any], item_id: str | None) -> dic
     except ValueError:
         raise
     except Exception as error:
-        raise WorkspaceStorageError("Unable to save workspace record.") from error
+        raise _workspace_error(error, "Unable to save workspace record.", config_key) from error
     if not saved:
-        raise WorkspaceStorageError("Saved workspace record could not be loaded.")
+        raise WorkspaceStorageError("Saved workspace record could not be loaded.", resource=config_key)
     return _serialise(saved)
 
 
@@ -452,23 +481,55 @@ def _list(config_key: str, sort: dict[str, int]) -> list[dict[str, Any]]:
             cursor = cursor.sort(field, direction)
         return [_serialise(item) for item in cursor.limit(500)]
     except Exception as error:
-        raise WorkspaceStorageError("Unable to load workspace records.") from error
+        raise _workspace_error(error, "Unable to load workspace records.", config_key) from error
 
 
 def _delete(config_key: str, item_id: str) -> bool:
     try:
         return bool(_collection(config_key).delete_one({"id": item_id}).deleted_count)
     except Exception as error:
-        raise WorkspaceStorageError("Unable to delete workspace record.") from error
+        raise _workspace_error(error, "Unable to delete workspace record.", config_key) from error
 
 
 def _collection(config_key: str):
-    global _client
-    if _client is None:
-        from pymongo import MongoClient
-        _client = MongoClient(current_app.config["MONGODB_URI"], serverSelectionTimeoutMS=current_app.config["MONGODB_SERVER_SELECTION_TIMEOUT_MS"])
-    database = _client[current_app.config["MONGODB_DATABASE"]]
+    database = _mongo_client()[current_app.config["MONGODB_DATABASE"]]
     return database[current_app.config[config_key]]
+
+
+def _mongo_client():
+    global _client
+    uri = current_app.config.get("MONGODB_URI")
+    if not uri:
+        raise WorkspaceStorageError("MongoDB is not configured.", reason="unconfigured", resource="configuration")
+    if _client is None:
+        try:
+            from pymongo import MongoClient
+            _client = MongoClient(uri, serverSelectionTimeoutMS=current_app.config["MONGODB_SERVER_SELECTION_TIMEOUT_MS"])
+        except Exception as error:
+            raise _workspace_error(error, "Unable to configure MongoDB.", "configuration") from error
+    return _client
+
+
+def _workspace_error(error: Exception, message: str, resource: str) -> WorkspaceStorageError:
+    if isinstance(error, WorkspaceStorageError):
+        return error
+    return WorkspaceStorageError(message, reason=_mongo_error_reason(error), resource=resource)
+
+
+def _mongo_error_reason(error: Exception) -> str:
+    name = type(error).__name__.lower()
+    code = getattr(error, "code", None)
+    if code in {18, 8000} or "authentication" in str(error).lower():
+        return "authentication_failed"
+    if code == 13 or "unauthorized" in str(error).lower():
+        return "permission_denied"
+    if "timeout" in name or "serverselection" in name:
+        return "connection_timeout"
+    if "configuration" in name or "invaliduri" in name:
+        return "invalid_configuration"
+    return "database_error"
+
+
 
 
 def _text(value: Any, label: str, maximum: int) -> str:

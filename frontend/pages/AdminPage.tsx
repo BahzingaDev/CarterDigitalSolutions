@@ -80,10 +80,16 @@ export function AdminPage() {
     setIsLoading(true);
     setError('');
     try {
-      const [data, projectItems] = await Promise.all([fetchAdminEnquiries(), fetchAdminProjects()]);
-      setEnquiries(data.enquiries);
-      setProjects(projectItems);
-      setSelectedId((current) => current ?? data.enquiries[0]?.id ?? null);
+      const [enquiryResult, projectResult] = await Promise.allSettled([fetchAdminEnquiries(), fetchAdminProjects()]);
+      if (enquiryResult.status === 'rejected') throw enquiryResult.reason;
+      setEnquiries(enquiryResult.value.enquiries);
+      setSelectedId((current) => current ?? enquiryResult.value.enquiries[0]?.id ?? null);
+      if (projectResult.status === 'fulfilled') {
+        setProjects(projectResult.value);
+      } else {
+        const projectError = projectResult.reason instanceof Error ? projectResult.reason.message : 'Projects storage is unavailable.';
+        setError(`Enquiries loaded, but projects could not be loaded: ${projectError}`);
+      }
     } catch (loadError) {
       const text = loadError instanceof Error ? loadError.message : 'Unable to load enquiries';
       setError(text);

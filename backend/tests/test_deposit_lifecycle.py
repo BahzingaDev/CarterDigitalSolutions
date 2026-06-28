@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from backend.services.enquiry_service import _quote_financials
-from backend.services.workspace_service import ensure_accepted_quote_project
+from backend.services.workspace_service import _mongo_error_reason, ensure_accepted_quote_project
 
 
 class DepositCalculationTests(unittest.TestCase):
@@ -78,6 +78,18 @@ class AcceptedQuoteAutomationTests(unittest.TestCase):
         project = ensure_accepted_quote_project("enquiry-1", "quote-1")
 
         self.assertEqual(project["id"], "project-1")
+
+
+class WorkspaceDiagnosticTests(unittest.TestCase):
+    def test_authentication_errors_are_classified_without_exposing_credentials(self):
+        error = RuntimeError("bad auth : authentication failed")
+
+        self.assertEqual(_mongo_error_reason(error), "authentication_failed")
+
+    def test_timeouts_are_classified(self):
+        TimeoutErrorType = type("ServerSelectionTimeoutError", (RuntimeError,), {})
+
+        self.assertEqual(_mongo_error_reason(TimeoutErrorType("timed out")), "connection_timeout")
 
 
 if __name__ == "__main__":
