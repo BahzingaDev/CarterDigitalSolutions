@@ -14,6 +14,7 @@ import {
 import { getBaselineCategories } from '../../src/api/services';
 import { pricingCategories } from '../../src/data/pricing';
 import { fingerprint, useUnsavedChanges } from '../../src/hooks/useUnsavedChanges';
+import { ADMIN_PANE_PAGE_SIZE, AdminPagination, pageItems } from './AdminPagination';
 
 const baseline = pricingCategories.flatMap((audience) => audience.groups.flatMap((group, groupIndex) =>
   group.services.map((service, index) => ({
@@ -47,6 +48,7 @@ const blankCategory: Partial<AdminServiceCategory> = {
 
 export function AdminServices({ csrfToken, onDirtyChange }: { csrfToken: string; onDirtyChange?: (isDirty: boolean) => void }) {
   const [mode, setMode] = useState<'services' | 'categories'>('services');
+  const [page, setPage] = useState(1);
   const [overrides, setOverrides] = useState<AdminServiceOverride[]>([]);
   const [managedCategories, setManagedCategories] = useState<AdminServiceCategory[]>([]);
   const [serviceDraft, setServiceDraft] = useState<Partial<AdminServiceOverride>>(baseline[0]);
@@ -109,6 +111,7 @@ export function AdminServices({ csrfToken, onDirtyChange }: { csrfToken: string;
   const changeMode = (nextMode: 'services' | 'categories') => {
     if (nextMode === mode || !confirmDiscard()) return;
     setMode(nextMode);
+    setPage(1);
   };
 
   const saveService = async () => {
@@ -182,6 +185,11 @@ export function AdminServices({ csrfToken, onDirtyChange }: { csrfToken: string;
 
   const importRequired = getBaselineCategories().some((category) => !managedCategories.some((item) => item.audience === category.audience && item.name === category.name))
     || baseline.some((service) => !overrides.some((item) => item.slug === service.slug));
+  const paneItems = mode === 'services' ? services : categories;
+  const pageCount = Math.max(1, Math.ceil(paneItems.length / ADMIN_PANE_PAGE_SIZE));
+  useEffect(() => { if (page > pageCount) setPage(pageCount); }, [page, pageCount]);
+  const visibleServices = pageItems(services, page);
+  const visibleCategories = pageItems(categories, page);
   const removeService = async () => {
     if (!serviceDraft.id || !window.confirm('Permanently delete this service?')) return;
     setIsSaving(true); setError(''); setMessage('');
@@ -225,7 +233,8 @@ export function AdminServices({ csrfToken, onDirtyChange }: { csrfToken: string;
         <div className="admin-workspace-split">
           <section className="admin-panel admin-workspace-list">
             <button className="btn btn-accent" onClick={() => selectService(blankService)} type="button"><Plus size={16} /> New service</button>
-            {services.map((service) => <button className={serviceDraft.slug === service.slug ? 'is-active' : ''} key={service.slug} onClick={() => selectService(service)} type="button"><strong>{service.name}</strong><small>{service.status} · {service.category}</small></button>)}
+            {visibleServices.map((service) => <button className={serviceDraft.slug === service.slug ? 'is-active' : ''} key={service.slug} onClick={() => selectService(service)} type="button"><strong>{service.name}</strong><small>{service.status} · {service.category}</small></button>)}
+            <AdminPagination count={services.length} onPageChange={setPage} page={page} />
           </section>
           <ServiceEditor categories={categories} draft={serviceDraft} isSaving={isSaving} outcomes={outcomes} preview={preview} processNotes={processNotes} onDraft={setServiceDraft} onOutcomes={setOutcomes} onPreview={() => setPreview((current) => !current)} onProcessNotes={setProcessNotes} onSave={saveService} onDelete={removeService} />
         </div>
@@ -233,7 +242,8 @@ export function AdminServices({ csrfToken, onDirtyChange }: { csrfToken: string;
         <div className="admin-workspace-split">
           <section className="admin-panel admin-workspace-list">
             <button className="btn btn-accent" onClick={() => selectCategory(blankCategory)} type="button"><Plus size={16} /> New category</button>
-            {categories.map((category) => <button className={categoryDraft.slug === category.slug ? 'is-active' : ''} key={`${category.audience}-${category.slug}`} onClick={() => selectCategory(category)} type="button"><strong>{category.name}</strong><small>{category.status} · {category.audience}</small></button>)}
+            {visibleCategories.map((category) => <button className={categoryDraft.slug === category.slug ? 'is-active' : ''} key={`${category.audience}-${category.slug}`} onClick={() => selectCategory(category)} type="button"><strong>{category.name}</strong><small>{category.status} · {category.audience}</small></button>)}
+            <AdminPagination count={categories.length} onPageChange={setPage} page={page} />
           </section>
           <CategoryEditor draft={categoryDraft} isSaving={isSaving} onDraft={setCategoryDraft} onSave={saveCategory} onDelete={removeCategory} />
         </div>

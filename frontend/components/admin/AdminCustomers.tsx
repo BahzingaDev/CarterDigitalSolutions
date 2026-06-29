@@ -7,6 +7,7 @@ import { hasQuoteActivity } from '../../src/data/adminEnquiries';
 import { formatCurrency } from '../../src/data/pricing';
 import { fingerprint, useUnsavedChanges } from '../../src/hooks/useUnsavedChanges';
 import { AdminDocuments } from './AdminDocuments';
+import { ADMIN_PANE_PAGE_SIZE, AdminPagination, pageItems } from './AdminPagination';
 
 type CustomerTab = 'overview' | 'engagements' | 'billing' | 'activity' | 'documents';
 
@@ -20,9 +21,11 @@ export function AdminCustomers({ csrfToken, onDirtyChange, onOpenEnquiry, onOpen
   const [items, setItems] = useState<AdminCustomer[]>([]);
   const [selectedEmail, setSelectedEmail] = useState('');
   const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
   const [draft, setDraft] = useState<AdminCustomer>();
   const [tags, setTags] = useState('');
   const [activeTab, setActiveTab] = useState<CustomerTab>('overview');
+  const [sectionPage, setSectionPage] = useState(1);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -38,6 +41,7 @@ export function AdminCustomers({ csrfToken, onDirtyChange, onOpenEnquiry, onOpen
     setDraft(customer);
     setTags(nextTags);
     setActiveTab('overview');
+    setSectionPage(1);
     setSavedFingerprint(fingerprint({ draft: customer, tags: nextTags }));
     setError('');
     setMessage('');
@@ -57,6 +61,11 @@ export function AdminCustomers({ csrfToken, onDirtyChange, onOpenEnquiry, onOpen
     () => items.filter((item) => `${item.name} ${item.email} ${item.organisation}`.toLowerCase().includes(query.toLowerCase())),
     [items, query],
   );
+  const pageCount = Math.max(1, Math.ceil(filtered.length / ADMIN_PANE_PAGE_SIZE));
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
+  const visibleCustomers = pageItems(filtered, page);
 
   const save = async () => {
     if (!draft) return;
@@ -116,13 +125,15 @@ export function AdminCustomers({ csrfToken, onDirtyChange, onOpenEnquiry, onOpen
   const billedValue = invoices.filter(({ invoice }) => invoice.status !== 'void').reduce((total, { invoice }) => total + Number(invoice.amount || 0), 0);
   const paidValue = invoices.filter(({ invoice }) => invoice.status === 'paid').reduce((total, { invoice }) => total + Number(invoice.amount || 0), 0);
   const communicationCount = enquiries.reduce((total, enquiry) => total + (enquiry.communications?.length ?? 0), 0);
+  const changeTab = (tab: CustomerTab) => { setActiveTab(tab); setSectionPage(1); };
 
   return <div className="admin-workspace-split admin-customer-layout">
     <section className="admin-panel admin-workspace-list">
-      <label className="admin-search"><Search size={16} /><input onChange={(event) => setQuery(event.target.value)} placeholder="Search customers" value={query} /></label>
+      <label className="admin-search"><Search size={16} /><input onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Search customers" value={query} /></label>
       <p className="admin-list-caption">{filtered.length} customer{filtered.length === 1 ? '' : 's'}</p>
-      {filtered.map((customer) => <button className={selectedEmail === customer.email ? 'is-active' : ''} key={customer.email} onClick={() => select(customer)} type="button"><strong>{customer.name || customer.email}</strong><small>{customer.organisation || customer.email}</small></button>)}
+      {visibleCustomers.map((customer) => <button className={selectedEmail === customer.email ? 'is-active' : ''} key={customer.email} onClick={() => select(customer)} type="button"><strong>{customer.name || customer.email}</strong><small>{customer.organisation || customer.email}</small></button>)}
       {filtered.length === 0 ? <p className="admin-empty">No customers found.</p> : null}
+      <AdminPagination count={filtered.length} onPageChange={setPage} page={page} />
     </section>
 
     {draft ? <section className="admin-panel admin-workspace-editor admin-customer-workspace">
@@ -146,11 +157,11 @@ export function AdminCustomers({ csrfToken, onDirtyChange, onOpenEnquiry, onOpen
       </div>
 
       <nav className="admin-customer-tabs" aria-label="Customer account sections">
-        <CustomerTabButton active={activeTab === 'overview'} icon={UserRound} label="Overview" onClick={() => setActiveTab('overview')} />
-        <CustomerTabButton active={activeTab === 'engagements'} icon={BriefcaseBusiness} label="Engagements" onClick={() => setActiveTab('engagements')} />
-        <CustomerTabButton active={activeTab === 'billing'} icon={ReceiptText} label="Billing" onClick={() => setActiveTab('billing')} />
-        <CustomerTabButton active={activeTab === 'activity'} icon={Activity} label="Activity" onClick={() => setActiveTab('activity')} />
-        <CustomerTabButton active={activeTab === 'documents'} icon={Files} label="Documents" onClick={() => setActiveTab('documents')} />
+        <CustomerTabButton active={activeTab === 'overview'} icon={UserRound} label="Overview" onClick={() => changeTab('overview')} />
+        <CustomerTabButton active={activeTab === 'engagements'} icon={BriefcaseBusiness} label="Engagements" onClick={() => changeTab('engagements')} />
+        <CustomerTabButton active={activeTab === 'billing'} icon={ReceiptText} label="Billing" onClick={() => changeTab('billing')} />
+        <CustomerTabButton active={activeTab === 'activity'} icon={Activity} label="Activity" onClick={() => changeTab('activity')} />
+        <CustomerTabButton active={activeTab === 'documents'} icon={Files} label="Documents" onClick={() => changeTab('documents')} />
       </nav>
 
       {activeTab === 'overview' ? <div className="admin-customer-section">
@@ -164,26 +175,29 @@ export function AdminCustomers({ csrfToken, onDirtyChange, onOpenEnquiry, onOpen
       {activeTab === 'engagements' ? <div className="admin-customer-section">
         <SectionHeading description="Projects and commercial work associated with this customer." title="Business engagements" />
         <div className="admin-customer-engagements">
-          {projects.map((item) => <button key={item.id} onClick={() => onOpenProject(item.id)} type="button"><span><strong>{item.name}</strong><small>{readableStatus(item.stage)} · {item.completion ?? 0}% complete</small></span><span><strong>{formatCurrency(item.value)}</strong><small>{item.due_date ? `Due ${formatDate(item.due_date)}` : 'No due date'}</small></span><ArrowRight size={16} /></button>)}
+          {pageItems(projects, sectionPage).map((item) => <button key={item.id} onClick={() => onOpenProject(item.id)} type="button"><span><strong>{item.name}</strong><small>{readableStatus(item.stage)} · {item.completion ?? 0}% complete</small></span><span><strong>{formatCurrency(item.value)}</strong><small>{item.due_date ? `Due ${formatDate(item.due_date)}` : 'No due date'}</small></span><ArrowRight size={16} /></button>)}
           {projects.length === 0 ? <p className="admin-empty">No projects have been created for this customer.</p> : null}
         </div>
+        <AdminPagination count={projects.length} onPageChange={setSectionPage} page={sectionPage} />
       </div> : null}
 
       {activeTab === 'billing' ? <div className="admin-customer-section">
         <SectionHeading description="Billing across every customer project in one place." title="Invoice history"><strong>{formatCurrency(paidValue)} paid</strong></SectionHeading>
         <div className="admin-customer-invoices">
           <div className="is-header"><span>Invoice</span><span>Project</span><span>Issued</span><span>Status</span><span>Amount</span><span /></div>
-          {invoices.map(({ invoice, project }) => <button key={invoice.id} onClick={() => onOpenProject(project.id)} type="button"><span><strong>{invoice.reference}</strong><small>{readableStatus(invoice.kind)}</small></span><span>{project.name}</span><span>{invoice.issue_date ? formatDate(invoice.issue_date) : 'Not issued'}</span><span><em className={`admin-status admin-status-${invoice.status}`}>{readableStatus(invoice.status)}</em></span><strong>{formatCurrency(invoice.amount)}</strong><ArrowRight size={16} /></button>)}
+          {pageItems(invoices, sectionPage).map(({ invoice, project }) => <button key={invoice.id} onClick={() => onOpenProject(project.id)} type="button"><span><strong>{invoice.reference}</strong><small>{readableStatus(invoice.kind)}</small></span><span>{project.name}</span><span>{invoice.issue_date ? formatDate(invoice.issue_date) : 'Not issued'}</span><span><em className={`admin-status admin-status-${invoice.status}`}>{readableStatus(invoice.status)}</em></span><strong>{formatCurrency(invoice.amount)}</strong><ArrowRight size={16} /></button>)}
           {invoices.length === 0 ? <p className="admin-empty">No invoices have been raised for this customer.</p> : null}
         </div>
+        <AdminPagination count={invoices.length} onPageChange={setSectionPage} page={sectionPage} />
       </div> : null}
 
       {activeTab === 'activity' ? <div className="admin-customer-section">
         <SectionHeading description={`${enquiries.length} enquiries and ${communicationCount} recorded messages.`} title="Enquiries and correspondence" />
         <div className="admin-customer-engagements">
-          {enquiries.map((item) => <button key={item.id} onClick={() => onOpenEnquiry(item.id, hasQuoteActivity(item))} type="button"><span><strong>{item.project_type || item.type}</strong><small>{formatDate(item.created_at)} · {readableStatus(item.status)} · {(item.communications?.length ?? 0)} messages</small></span><span><strong>{formatCurrency(item.estimated_cost)}</strong><small>Initial estimate</small></span><ArrowRight size={16} /></button>)}
+          {pageItems(enquiries, sectionPage).map((item) => <button key={item.id} onClick={() => onOpenEnquiry(item.id, hasQuoteActivity(item))} type="button"><span><strong>{item.project_type || item.type}</strong><small>{formatDate(item.created_at)} · {readableStatus(item.status)} · {(item.communications?.length ?? 0)} messages</small></span><span><strong>{formatCurrency(item.estimated_cost)}</strong><small>Initial estimate</small></span><ArrowRight size={16} /></button>)}
           {enquiries.length === 0 ? <p className="admin-empty">No enquiry or correspondence history is available.</p> : null}
         </div>
+        <AdminPagination count={enquiries.length} onPageChange={setSectionPage} page={sectionPage} />
       </div> : null}
 
       {activeTab === 'documents' ? <div className="admin-customer-section"><SectionHeading description="Generated and uploaded files associated with this account." title="Customer documents" /><AdminDocuments csrfToken={csrfToken} customerEmail={draft.email} ownerId={draft.email} ownerType="customer" /></div> : null}

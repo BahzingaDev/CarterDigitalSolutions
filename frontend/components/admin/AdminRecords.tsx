@@ -1,7 +1,9 @@
 import { Plus, Save, Trash2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+
 import { deleteAdminRecord, fetchAdminRecords, saveAdminRecord, type AdminCustomField, type AdminRecord } from '../../src/api/admin';
 import { fingerprint, useUnsavedChanges } from '../../src/hooks/useUnsavedChanges';
+import { ADMIN_PANE_PAGE_SIZE, AdminPagination, pageItems } from './AdminPagination';
 
 const empty = { title: '', record_type: 'Client', tags: [], notes: '', fields: [], archived: false };
 
@@ -9,18 +11,95 @@ export function AdminRecords({ csrfToken, onDirtyChange }: { csrfToken: string; 
   const [items, setItems] = useState<AdminRecord[]>([]);
   const [draft, setDraft] = useState<Partial<AdminRecord>>(empty);
   const [tags, setTags] = useState('');
+  const [page, setPage] = useState(1);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [savedFingerprint, setSavedFingerprint] = useState(() => fingerprint({ draft: empty, tags: '' }));
-  useEffect(() => { void fetchAdminRecords().then(setItems).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load records')); }, []);
+
+  useEffect(() => {
+    void fetchAdminRecords().then(setItems).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load records'));
+  }, []);
+
   const isDirty = fingerprint({ draft, tags }) !== savedFingerprint;
   const confirmDiscard = useUnsavedChanges(isDirty, onDirtyChange);
-  const select = (item: AdminRecord) => { if (!confirmDiscard()) return; const nextTags = item.tags.join(', '); setDraft(item); setTags(nextTags); setSavedFingerprint(fingerprint({ draft: item, tags: nextTags })); setError(''); setMessage(''); };
+  const pageCount = Math.max(1, Math.ceil(items.length / ADMIN_PANE_PAGE_SIZE));
+  useEffect(() => { if (page > pageCount) setPage(pageCount); }, [page, pageCount]);
+  const visibleItems = pageItems(items, page);
   const fields = draft.fields ?? [];
+
+  const select = (item: AdminRecord) => {
+    if (!confirmDiscard()) return;
+    const nextTags = item.tags.join(', ');
+    setDraft(item);
+    setTags(nextTags);
+    setSavedFingerprint(fingerprint({ draft: item, tags: nextTags }));
+    setError('');
+    setMessage('');
+  };
   const updateField = (index: number, patch: Partial<AdminCustomField>) => setDraft({ ...draft, fields: fields.map((field, fieldIndex) => fieldIndex === index ? { ...field, ...patch } : field) });
-  const save = async () => { setIsSaving(true); setError(''); setMessage(''); try { const saved = await saveAdminRecord(csrfToken, { ...draft, tags: tags.split(',').map((tag) => tag.trim()).filter(Boolean) }); setItems((current) => draft.id ? current.map((item) => item.id === saved.id ? saved : item) : [saved, ...current]); const nextTags = saved.tags.join(', '); setDraft(saved); setTags(nextTags); setSavedFingerprint(fingerprint({ draft: saved, tags: nextTags })); setMessage('Record saved.'); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to save record'); } finally { setIsSaving(false); } };
-  const remove = async () => { if (!draft.id || !window.confirm('Delete this record?')) return; setIsSaving(true); setError(''); setMessage(''); try { await deleteAdminRecord(csrfToken, draft.id); setItems((current) => current.filter((item) => item.id !== draft.id)); setDraft(empty); setTags(''); setSavedFingerprint(fingerprint({ draft: empty, tags: '' })); setMessage('Record deleted.'); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to delete record'); } finally { setIsSaving(false); } };
-  const create = () => { if (!confirmDiscard()) return; setDraft(empty); setTags(''); setSavedFingerprint(fingerprint({ draft: empty, tags: '' })); };
-  return <div className="admin-workspace-split"><section className="admin-panel admin-workspace-list"><button className="btn btn-accent" onClick={create} type="button"><Plus size={16} /> New record</button>{items.map((item) => <button className={draft.id === item.id ? 'is-active' : ''} key={item.id} onClick={() => select(item)} type="button"><strong>{item.title}</strong><small>{item.record_type}</small></button>)}</section><section className="admin-panel admin-workspace-editor"><div className="admin-panel-heading"><div><h2>{draft.id ? 'Edit record' : 'New custom record'}</h2><p>Store contacts, suppliers, resources, or any structured business information.</p></div></div>{error ? <div className="alert alert-danger" role="alert">{error}</div> : null}{message ? <div className="alert alert-success" role="status">{message}</div> : null}<div className="admin-management-grid"><label>Title<input className="form-control" onChange={(event) => setDraft({ ...draft, title: event.target.value })} value={draft.title ?? ''} /></label><label>Record type<input className="form-control" onChange={(event) => setDraft({ ...draft, record_type: event.target.value })} value={draft.record_type ?? ''} /></label></div><label>Tags<input className="form-control" onChange={(event) => setTags(event.target.value)} placeholder="client, retained" value={tags} /></label><div className="admin-custom-fields"><div className="admin-subpanel-heading"><h3>Custom fields</h3><button className="btn btn-link" onClick={() => setDraft({ ...draft, fields: [...fields, { key: '', value: '' }] })} type="button"><Plus size={15} /> Add field</button></div>{fields.map((field, index) => <div key={index}><input className="form-control" onChange={(event) => updateField(index, { key: event.target.value })} placeholder="Field name" value={field.key} /><input className="form-control" onChange={(event) => updateField(index, { value: event.target.value })} placeholder="Value" value={field.value} /><button className="admin-icon-button" onClick={() => setDraft({ ...draft, fields: fields.filter((_, fieldIndex) => fieldIndex !== index) })} title="Remove field" type="button"><X size={16} /></button></div>)}</div><label>Notes<textarea className="form-control" onChange={(event) => setDraft({ ...draft, notes: event.target.value })} rows={6} value={draft.notes ?? ''} /></label><div className="admin-management-actions"><button className="btn btn-accent" disabled={!isDirty || isSaving} onClick={() => void save()} type="button"><Save size={16} /> {isSaving ? 'Saving...' : isDirty ? 'Save record' : 'Saved'}</button>{draft.id ? <button className="btn btn-outline-danger" disabled={isSaving} onClick={() => void remove()} type="button"><Trash2 size={16} /> Delete</button> : null}</div></section></div>;
+  const save = async () => {
+    setIsSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      const saved = await saveAdminRecord(csrfToken, { ...draft, tags: tags.split(',').map((tag) => tag.trim()).filter(Boolean) });
+      setItems((current) => draft.id ? current.map((item) => item.id === saved.id ? saved : item) : [saved, ...current]);
+      const nextTags = saved.tags.join(', ');
+      setDraft(saved);
+      setTags(nextTags);
+      setSavedFingerprint(fingerprint({ draft: saved, tags: nextTags }));
+      setMessage('Record saved.');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to save record');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  const remove = async () => {
+    if (!draft.id || !window.confirm('Delete this record?')) return;
+    setIsSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      await deleteAdminRecord(csrfToken, draft.id);
+      setItems((current) => current.filter((item) => item.id !== draft.id));
+      setDraft(empty);
+      setTags('');
+      setSavedFingerprint(fingerprint({ draft: empty, tags: '' }));
+      setMessage('Record deleted.');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to delete record');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  const create = () => {
+    if (!confirmDiscard()) return;
+    setDraft(empty);
+    setTags('');
+    setSavedFingerprint(fingerprint({ draft: empty, tags: '' }));
+  };
+
+  return <div className="admin-workspace-split">
+    <section className="admin-panel admin-workspace-list">
+      <button className="btn btn-accent" onClick={create} type="button"><Plus size={16} /> New record</button>
+      {visibleItems.map((item) => <button className={draft.id === item.id ? 'is-active' : ''} key={item.id} onClick={() => select(item)} type="button"><strong>{item.title}</strong><small>{item.record_type}</small></button>)}
+      {items.length === 0 ? <p className="admin-empty">No records yet.</p> : null}
+      <AdminPagination count={items.length} onPageChange={setPage} page={page} />
+    </section>
+    <section className="admin-panel admin-workspace-editor">
+      <div className="admin-panel-heading"><div><h2>{draft.id ? 'Edit record' : 'New custom record'}</h2><p>Store contacts, suppliers, resources, or any structured business information.</p></div></div>
+      {error ? <div className="alert alert-danger" role="alert">{error}</div> : null}
+      {message ? <div className="alert alert-success" role="status">{message}</div> : null}
+      <div className="admin-management-grid"><label>Title<input className="form-control" onChange={(event) => setDraft({ ...draft, title: event.target.value })} value={draft.title ?? ''} /></label><label>Record type<input className="form-control" onChange={(event) => setDraft({ ...draft, record_type: event.target.value })} value={draft.record_type ?? ''} /></label></div>
+      <label>Tags<input className="form-control" onChange={(event) => setTags(event.target.value)} placeholder="client, retained" value={tags} /></label>
+      <div className="admin-custom-fields">
+        <div className="admin-subpanel-heading"><h3>Custom fields</h3><button className="btn btn-link" onClick={() => setDraft({ ...draft, fields: [...fields, { key: '', value: '' }] })} type="button"><Plus size={15} /> Add field</button></div>
+        {fields.map((field, index) => <div key={index}><input className="form-control" onChange={(event) => updateField(index, { key: event.target.value })} placeholder="Field name" value={field.key} /><input className="form-control" onChange={(event) => updateField(index, { value: event.target.value })} placeholder="Value" value={field.value} /><button className="admin-icon-button" onClick={() => setDraft({ ...draft, fields: fields.filter((_, fieldIndex) => fieldIndex !== index) })} title="Remove field" type="button"><X size={16} /></button></div>)}
+      </div>
+      <label>Notes<textarea className="form-control" onChange={(event) => setDraft({ ...draft, notes: event.target.value })} rows={6} value={draft.notes ?? ''} /></label>
+      <div className="admin-management-actions"><button className="btn btn-accent" disabled={!isDirty || isSaving} onClick={() => void save()} type="button"><Save size={16} /> {isSaving ? 'Saving...' : isDirty ? 'Save record' : 'Saved'}</button>{draft.id ? <button className="btn btn-outline-danger" disabled={isSaving} onClick={() => void remove()} type="button"><Trash2 size={16} /> Delete</button> : null}</div>
+    </section>
+  </div>;
 }

@@ -5,6 +5,7 @@ import type { AdminEnquiry, AdminQuoteItem, AdminQuotePayload, AdminQuoteVersion
 import { fetchCommercialSettings } from '../../src/api/admin';
 import { formatCurrency } from '../../src/data/pricing';
 import { fetchServiceCatalogue, mergeServiceCatalogue } from '../../src/api/services';
+import { ADMIN_PANE_PAGE_SIZE, AdminPagination, pageItems } from './AdminPagination';
 
 export function AdminQuoteManager({ enquiry, onConvert, onCreate, onDelete, onPrepareEmail, onShare, onStatus, onUpdate }: {
   enquiry: AdminEnquiry;
@@ -29,7 +30,11 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onDelete, onPr
   const [pendingAction, setPendingAction] = useState('');
   const [error, setError] = useState('');
   const [shareLinks, setShareLinks] = useState<Record<string, string>>({});
+  const [historyPage, setHistoryPage] = useState(1);
   const [catalogueServices, setCatalogueServices] = useState<{ name: string; category: string; hours: number; rate: number; deposit: number }[]>([]);
+  const quoteHistory = [...enquiry.quote_versions].reverse();
+  const historyPageCount = Math.max(1, Math.ceil(quoteHistory.length / ADMIN_PANE_PAGE_SIZE));
+  useEffect(() => { if (historyPage > historyPageCount) setHistoryPage(historyPageCount); }, [historyPage, historyPageCount]);
 
   useEffect(() => {
     void fetchServiceCatalogue().then((catalogue) => {
@@ -146,7 +151,7 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onDelete, onPr
 
       <section className="admin-subpanel">
         <div className="admin-subpanel-heading"><div><h3>Quote history</h3><p>{enquiry.quote_versions.length} saved version{enquiry.quote_versions.length === 1 ? '' : 's'}</p></div></div>
-        {[...enquiry.quote_versions].reverse().map((quote) => (
+        {pageItems(quoteHistory, historyPage).map((quote) => (
           <article className="admin-quote-version" key={quote.id}>
             <div><strong>Version {quote.version}</strong><small>{formatDate(quote.created_at)} · {formatCurrency(quote.total)}</small></div>
             <span className={`admin-status admin-quote-${quote.status}`}>{quote.status}</span>
@@ -156,6 +161,7 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onDelete, onPr
           </article>
         ))}
         {enquiry.quote_versions.length === 0 ? <p className="admin-empty">No formal quote versions yet.</p> : null}
+        <AdminPagination count={quoteHistory.length} onPageChange={setHistoryPage} page={historyPage} />
       </section>
     </div>
   );

@@ -7,10 +7,11 @@ import { formatCurrency } from '../../src/data/pricing';
 import { fingerprint, useUnsavedChanges } from '../../src/hooks/useUnsavedChanges';
 import { AdminActivity } from './AdminActivity';
 import { AdminCommunications, type CommunicationDraft } from './AdminCommunications';
+import { ADMIN_PANE_PAGE_SIZE, AdminPagination } from './AdminPagination';
 import { AdminQuoteManager } from './AdminQuoteManager';
 
 const statuses: EnquiryStatus[] = ['new', 'reviewed', 'replied', 'closed'];
-const pageSize = 10;
+const pageSize = ADMIN_PANE_PAGE_SIZE;
 
 export function AdminInbox({ enquiries, mode, selectedId, onConvertQuote, onCreateQuote, onDelete, onDeleteQuote, onDirtyChange, onQuoteStatus, onSelect, onSend, onShareQuote, onUpdate, onUpdateQuote }: {
   enquiries: AdminEnquiry[];
@@ -85,7 +86,7 @@ export function AdminInbox({ enquiries, mode, selectedId, onConvertQuote, onCrea
           {pageItems.map((enquiry) => <button className={`admin-enquiry-list-item ${selected?.id === enquiry.id ? 'is-active' : ''}`} key={enquiry.id} onClick={() => onSelect(enquiry.id)} type="button"><span className="admin-avatar" aria-hidden="true">{enquiry.name.charAt(0).toUpperCase()}</span><span className="admin-list-copy"><strong>{enquiry.name}</strong><small>{enquiry.project_type || enquiry.type} · {formatAge(enquiry.created_at)}</small>{enquiry.follow_up_at ? <small className="admin-follow-up"><CalendarClock size={12} /> {formatShortDate(enquiry.follow_up_at)}</small> : null}</span><span className={`admin-priority admin-priority-${enquiry.priority}`}>{enquiry.priority}</span></button>)}
           {pageItems.length === 0 ? <p className="admin-empty admin-list-empty">{emptyMessage}</p> : null}
         </div>
-        {pageCount > 1 ? <div className="admin-pagination"><button disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button">Previous</button><span>{page} of {pageCount}</span><button disabled={page >= pageCount} onClick={() => setPage((current) => current + 1)} type="button">Next</button></div> : null}
+        <AdminPagination count={filtered.length} onPageChange={setPage} page={page} />
       </section>
 
       <section className="admin-detail">
