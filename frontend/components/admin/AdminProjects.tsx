@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, Building2, CalendarPlus, CheckCircle2, ChevronDown, Clock3, Download, FilePlus2, FileText, Mail, MessageSquareText, NotebookPen, Phone, Plus, ReceiptText, Save, Send, Trash2, UserRound, X, type LucideIcon } from 'lucide-react';
+import { BriefcaseBusiness, Building2, CalendarPlus, CheckCircle2, ChevronDown, Clock3, Download, FilePlus2, Files, FileText, Mail, MessageSquareText, NotebookPen, Phone, Plus, ReceiptText, Save, Send, Trash2, UserRound, X, type LucideIcon } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 
 import {
@@ -19,6 +19,7 @@ import {
 } from '../../src/api/admin';
 import { formatCurrency } from '../../src/data/pricing';
 import { normaliseRichText } from './AdminRichTextEditor';
+import { AdminDocuments } from './AdminDocuments';
 
 const stages: { id: ProjectStage; label: string }[] = [
   { id: 'lead', label: 'Lead' }, { id: 'discovery', label: 'Discovery' },
@@ -109,7 +110,7 @@ export function AdminProjects({ csrfToken, enquiries, initialProjectId, initialT
       <div className="admin-project-workspace-heading"><div><p className="section-kicker">Client project</p><h2>{draft.name || 'New project'}</h2><span>{draft.client_name || 'No client assigned'}{isDirty ? ' · Unsaved changes' : ''}</span></div><div className="admin-management-actions"><button className="btn btn-accent" disabled={isSaving || !isDirty} onClick={() => void save()} type="button"><Save size={16} /> {isSaving ? 'Saving...' : isDirty ? 'Save project' : 'Saved'}</button><button className="btn btn-outline-secondary" onClick={() => { if (!isDirty || window.confirm('Discard unsaved project changes?')) setEditing(false); }} type="button">Close</button>{draft.id ? <button className="admin-icon-button is-danger" onClick={() => void remove()} title="Delete project" type="button"><Trash2 size={16} /></button> : null}</div></div>
       <ProjectNextAction draft={draft} onTab={setTab} />
       <div className="admin-project-tabs" role="tablist"><ProjectTab active={tab === 'overview'} label="Overview" onClick={() => setTab('overview')} /><ProjectTab active={tab === 'delivery'} label="Delivery" onClick={() => setTab('delivery')} /><ProjectTab active={tab === 'meetings'} label="Meetings" onClick={() => setTab('meetings')} /><ProjectTab active={tab === 'invoices'} label="Invoices" onClick={() => setTab('invoices')} /></div>
-      {tab === 'overview' ? <ProjectOverview customer={customer} draft={draft} enquiry={linkedEnquiry} onChange={setDraft} onTags={setTags} tags={tags} /> : null}
+      {tab === 'overview' ? <ProjectOverview csrfToken={csrfToken} customer={customer} draft={draft} enquiry={linkedEnquiry} onChange={setDraft} onTags={setTags} tags={tags} /> : null}
       {tab === 'delivery' ? <DeliveryWorkspace draft={draft} onChange={setDraft} /> : null}
       {tab === 'meetings' ? <MeetingWorkspace draft={draft} onChange={setDraft} onInvoiceCreated={() => setTab('invoices')} taxRate={taxRate} /> : null}
       {tab === 'invoices' ? <InvoiceWorkspace draft={draft} onChange={setDraft} taxRate={taxRate} onDownload={async (invoice) => { const saved = await save(); if (saved) await downloadAdminProjectInvoice(saved.id, invoice.id, invoice.reference); }} onMarkPaid={async (invoice) => { const paidDraft = { ...draft, invoices: (draft.invoices ?? []).map((item) => item.id === invoice.id ? { ...item, status: 'paid' as const, paid_date: item.paid_date || new Date().toISOString().slice(0, 10) } : item) }; setDraft(paidDraft); const saved = await save(paidDraft); if (saved) await onInvoiceSent?.(); }} onSend={async (invoice) => { const saved = await save(); if (!saved) return; try { const updated = normaliseProject(await sendAdminProjectInvoice(csrfToken, saved.id, invoice.id)); setDraft(updated); setSavedFingerprint(projectFingerprint(updated, tags)); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)); await onInvoiceSent?.(); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to send invoice'); } }} /> : null}
@@ -118,7 +119,7 @@ export function AdminProjects({ csrfToken, enquiries, initialProjectId, initialT
   </div>;
 }
 
-function ProjectOverview({ customer, draft, enquiry, onChange, onTags, tags }: { customer?: AdminCustomer; draft: Partial<AdminProject>; enquiry?: AdminEnquiry; onChange: (value: Partial<AdminProject>) => void; onTags: (value: string) => void; tags: string }) {
+function ProjectOverview({ csrfToken, customer, draft, enquiry, onChange, onTags, tags }: { csrfToken: string; customer?: AdminCustomer; draft: Partial<AdminProject>; enquiry?: AdminEnquiry; onChange: (value: Partial<AdminProject>) => void; onTags: (value: string) => void; tags: string }) {
   const [openSection, setOpenSection] = useState<OverviewSection>('project');
   const quote = enquiry?.quote_versions.find((item) => item.id === draft.source_quote_id);
   const services = (draft.services ?? []).filter((item) => !item.optional || item.included);
@@ -176,11 +177,15 @@ function ProjectOverview({ customer, draft, enquiry, onChange, onTags, tags }: {
         <div className="admin-management-grid"><label>Tags<input className="form-control" onChange={(event) => onTags(event.target.value)} value={tags} /></label><span /></div>
         <label>Project notes<textarea className="form-control" onChange={(event) => onChange({ ...draft, notes: event.target.value })} rows={5} value={draft.notes ?? ''} /></label>
       </ProjectDisclosure>
+
+      <ProjectDisclosure icon={Files} id="documents" isOpen={openSection === 'documents'} onToggle={toggleSection} summary={draft.id ? 'Generate, upload, and download project files' : 'Save the project before creating documents'} title="Documents">
+        {draft.id ? <AdminDocuments csrfToken={csrfToken} customerEmail={draft.client_email} ownerId={draft.id} ownerType="project" /> : <p className="admin-empty">Save this project before creating documents.</p>}
+      </ProjectDisclosure>
     </div>
   </div>;
 }
 
-type OverviewSection = 'project' | 'scope' | 'customer' | 'communications' | 'notes' | null;
+type OverviewSection = 'project' | 'scope' | 'customer' | 'communications' | 'notes' | 'documents' | null;
 
 function ProjectDisclosure({ children, icon: Icon, id, isOpen, onToggle, summary, title }: { children: ReactNode; icon: LucideIcon; id: Exclude<OverviewSection, null>; isOpen: boolean; onToggle: (id: Exclude<OverviewSection, null>) => void; summary: string; title: string }) {
   return <section className={`admin-project-disclosure${isOpen ? ' is-open' : ''}`}>

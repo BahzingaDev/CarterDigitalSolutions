@@ -486,6 +486,7 @@ def record_communication(
     admin_email: str,
     provider_message_id: str | None = None,
     scheduled_at: str = "",
+    attachments: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
     clean_subject = subject.strip()
     clean_message = sanitize_rich_text(message)
@@ -508,6 +509,10 @@ def record_communication(
         "provider_message_id": provider_message_id or "",
         "delivery_events": [],
         "scheduled_at": scheduled_at or None,
+        "attachments": [
+            {key: item.get(key) for key in ("id", "filename", "content_type", "size")}
+            for item in (attachments or [])[:10]
+        ],
     }
     try:
         mutation: dict[str, Any] = {

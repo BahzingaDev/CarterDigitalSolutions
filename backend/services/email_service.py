@@ -63,7 +63,7 @@ def send_enquiry_notification(enquiry: dict[str, Any], saved: dict[str, str]) ->
     _send_smtp_messages(enquiry, saved)
 
 
-def send_customer_message(enquiry: dict[str, Any], subject: str, message: str, scheduled_at: str = "") -> str | None:
+def send_customer_message(enquiry: dict[str, Any], subject: str, message: str, scheduled_at: str = "", attachments: list[dict[str, Any]] | None = None) -> str | None:
     if not email_notifications_configured():
         raise RuntimeError("Email delivery is not configured.")
 
@@ -104,6 +104,8 @@ def send_customer_message(enquiry: dict[str, Any], subject: str, message: str, s
                     {"name": "enquiry_type", "value": _tag_value(enquiry["type"])},
                 ],
             }
+        if attachments:
+            payload["attachments"] = [{"filename": item["filename"], "content": base64.b64encode(item["content"]).decode("ascii")} for item in attachments]
         if scheduled_at:
             payload["scheduled_at"] = scheduled_at
         response = _send_resend_payload(payload)
@@ -121,6 +123,10 @@ def send_customer_message(enquiry: dict[str, Any], subject: str, message: str, s
         _customer_message_html(enquiry["name"], clean_message_html),
         subtype="html",
     )
+    for attachment in attachments or []:
+        content_type = str(attachment.get("content_type") or "application/octet-stream")
+        maintype, subtype = (content_type.split("/", 1) + ["octet-stream"])[:2]
+        customer_message.add_attachment(attachment["content"], maintype=maintype, subtype=subtype, filename=attachment["filename"])
 
     smtp_class = _smtp_class()
     with smtp_class(

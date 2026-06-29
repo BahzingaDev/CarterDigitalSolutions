@@ -5,6 +5,7 @@ import { fetchAdminCustomers, saveAdminCustomer, type AdminCustomer } from '../.
 import { hasQuoteActivity } from '../../src/data/adminEnquiries';
 import { formatCurrency } from '../../src/data/pricing';
 import { fingerprint, useUnsavedChanges } from '../../src/hooks/useUnsavedChanges';
+import { AdminDocuments } from './AdminDocuments';
 
 export function AdminCustomers({ csrfToken, onDirtyChange, onOpenEnquiry, onOpenProject, refreshKey = 0 }: {
   csrfToken: string;
@@ -92,6 +93,7 @@ export function AdminCustomers({ csrfToken, onDirtyChange, onOpenEnquiry, onOpen
         {draft.projects.map((item) => <button key={item.id} onClick={() => onOpenProject(item.id)} type="button"><span><strong>{item.name}</strong><small>{item.stage} · {formatCurrency(item.value)} · {item.completion ?? 0}%</small></span><ArrowRight size={16} /></button>)}
         {draft.projects.length === 0 ? <p className="admin-empty">No projects.</p> : null}
       </section>
+      <section className="admin-customer-documents"><h3>Documents</h3><AdminDocuments csrfToken={csrfToken} customerEmail={draft.email} ownerId={draft.email} ownerType="customer" /></section>
     </section> : <section className="admin-panel admin-zero-state"><h2>No customer selected</h2></section>}
   </div>;
 }

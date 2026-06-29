@@ -83,7 +83,11 @@ export interface AdminCommunication {
   sent_by: string;
   provider_message_id?: string;
   delivery_events: { id: string; type: string; created_at: string; details: Record<string, unknown> }[];
+  attachments?: Pick<AdminDocument, 'id' | 'filename' | 'content_type' | 'size'>[];
 }
+
+export interface AdminDocumentTemplate { id: string; name: string; filename: string; }
+export interface AdminDocument { id: string; owner_type: 'project' | 'customer' | 'enquiry'; owner_id: string; customer_email: string; template_id: string; kind: 'generated' | 'uploaded'; filename: string; content_type: string; size: number; created_at: string; }
 
 export interface AdminEnquiry {
   id: string;
@@ -211,12 +215,15 @@ export async function createQuoteShareLink(csrfToken: string, enquiryId: string,
   return parseAdminResponse<{ url: string }>(response);
 }
 
-export async function sendAdminCommunication(csrfToken: string, enquiryId: string, subject: string, message: string, quoteId?: string, scheduledAt?: string) {
+export async function sendAdminCommunication(csrfToken: string, enquiryId: string, subject: string, message: string, quoteId?: string, scheduledAt?: string, documentIds: string[] = [], files: File[] = []) {
+  const body = new FormData();
+  body.set('subject', subject); body.set('message', message); body.set('quote_id', quoteId ?? ''); body.set('scheduled_at', scheduledAt ?? ''); body.set('document_ids', JSON.stringify(documentIds));
+  files.forEach((file) => body.append('files', file));
   const response = await fetch(`/api/admin/enquiries/${encodeURIComponent(enquiryId)}/communications`, {
     method: 'POST',
     credentials: 'same-origin',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-    body: JSON.stringify({ subject, message, quote_id: quoteId ?? '', scheduled_at: scheduledAt ?? '' }),
+    headers: { Accept: 'application/json', 'X-CSRF-Token': csrfToken },
+    body,
   });
   return parseAdminResponse<{ enquiry: AdminEnquiry }>(response);
 }
@@ -244,6 +251,13 @@ export async function saveAdminServiceCategory(csrf: string, item: Partial<Admin
 export const deleteAdminServiceCategory = (csrf: string, id: string) => workspaceDelete('service-categories', csrf, id);
 export async function fetchAdminCustomers() { const response = await fetch('/api/admin/customers', { credentials: 'same-origin', headers: { Accept: 'application/json' } }); return (await parseAdminResponse<{ customers: AdminCustomer[] }>(response)).customers; }
 export async function saveAdminCustomer(csrf: string, customer: Partial<AdminCustomer>) { const response = await fetch(`/api/admin/customers/${encodeURIComponent(customer.email ?? '')}`, { method: 'PUT', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(customer) }); return (await parseAdminResponse<{ customer: AdminCustomer }>(response)).customer; }
+export async function fetchAdminDocumentTemplates() { const response = await fetch('/api/admin/documents/templates', { credentials: 'same-origin', headers: { Accept: 'application/json' } }); return (await parseAdminResponse<{ templates: AdminDocumentTemplate[] }>(response)).templates; }
+export async function fetchAdminDocuments(ownerType: 'project' | 'customer', ownerId: string) { const response = await fetch(`/api/admin/documents/${ownerType}/${encodeURIComponent(ownerId)}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } }); return (await parseAdminResponse<{ documents: AdminDocument[] }>(response)).documents; }
+export async function fetchEnquiryDocuments(enquiryId: string) { const response = await fetch(`/api/admin/enquiries/${encodeURIComponent(enquiryId)}/documents`, { credentials: 'same-origin', headers: { Accept: 'application/json' } }); return (await parseAdminResponse<{ documents: AdminDocument[] }>(response)).documents; }
+export async function generateAdminDocument(csrf: string, ownerType: 'project' | 'customer', ownerId: string, templateId: string) { const response = await fetch(`/api/admin/documents/${ownerType}/${encodeURIComponent(ownerId)}/generate`, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify({ template_id: templateId }) }); return (await parseAdminResponse<{ document: AdminDocument }>(response)).document; }
+export async function uploadAdminDocument(csrf: string, ownerType: 'project' | 'customer', ownerId: string, file: File, customerEmail = '') { const body = new FormData(); body.set('file', file); body.set('customer_email', customerEmail); const response = await fetch(`/api/admin/documents/${ownerType}/${encodeURIComponent(ownerId)}/upload`, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'X-CSRF-Token': csrf }, body }); return (await parseAdminResponse<{ document: AdminDocument }>(response)).document; }
+export async function deleteAdminDocument(csrf: string, documentId: string) { const response = await fetch(`/api/admin/documents/file/${encodeURIComponent(documentId)}`, { method: 'DELETE', credentials: 'same-origin', headers: { 'X-CSRF-Token': csrf } }); if (!response.ok) await parseAdminResponse(response); }
+export async function downloadAdminDocument(documentId: string) { const response = await fetch(`/api/admin/documents/file/${encodeURIComponent(documentId)}`, { credentials: 'same-origin' }); if (!response.ok) throw new Error('Unable to download document'); const disposition = response.headers.get('content-disposition') ?? ''; const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? 'document'; const url = URL.createObjectURL(await response.blob()); const anchor = document.createElement('a'); anchor.href = url; anchor.download = filename; anchor.click(); URL.revokeObjectURL(url); }
 
 async function workspaceList<T>(resource: string): Promise<T[]> {
   const response = await fetch(`/api/admin/${resource}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });

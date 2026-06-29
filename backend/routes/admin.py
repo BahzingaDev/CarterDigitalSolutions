@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, Response, current_app, jsonify, request, session
@@ -10,6 +11,16 @@ from ..services.admin_service import (
 )
 from ..services.email_service import send_customer_message, send_project_invoice
 from ..services.invoice_service import generate_invoice_pdf
+from ..services.document_service import (
+    delete_document,
+    generate_document,
+    get_document,
+    list_correspondence_documents,
+    list_document_templates,
+    list_documents,
+    load_email_attachments,
+    store_uploaded_document,
+)
 from ..services.customer_service import CustomerStorageError, list_customer_profiles, save_customer_profile
 from ..services.workspace_service import (
     WorkspaceStorageError,
@@ -60,6 +71,92 @@ from ..utils.rate_limit import request_ip_key
 from ..utils.security import origin_is_allowed
 
 admin_bp = Blueprint("admin", __name__)
+
+
+@admin_bp.get("/admin/documents/templates")
+@require_admin
+def admin_document_templates():
+    return jsonify({"templates": list_document_templates()})
+
+
+@admin_bp.get("/admin/documents/<owner_type>/<owner_id>")
+@require_admin
+def admin_documents(owner_type: str, owner_id: str):
+    if owner_type not in {"project", "customer"}:
+        return jsonify({"error": "Invalid document owner."}), 400
+    try:
+        return jsonify({"documents": list_documents(owner_type, owner_id)})
+    except Exception:
+        current_app.logger.exception("Document listing failed")
+        return jsonify({"error": "Document storage is unavailable."}), 503
+
+
+@admin_bp.post("/admin/documents/<owner_type>/<owner_id>/generate")
+@require_admin_write
+def generate_admin_document(owner_type: str, owner_id: str):
+    if not request.is_json or owner_type not in {"project", "customer"}:
+        return jsonify({"error": "A valid document owner and JSON body are required."}), 400
+    try:
+        document = generate_document(str((request.get_json(silent=True) or {}).get("template_id", "")), owner_type, owner_id)
+        return jsonify({"document": document}), 201
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except Exception:
+        current_app.logger.exception("Document generation failed")
+        return jsonify({"error": "Document generation is unavailable."}), 503
+
+
+@admin_bp.post("/admin/documents/<owner_type>/<owner_id>/upload")
+@require_admin_write
+def upload_admin_document(owner_type: str, owner_id: str):
+    if owner_type not in {"project", "customer"}:
+        return jsonify({"error": "Invalid document owner."}), 400
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"error": "Choose a file to upload."}), 400
+    try:
+        document = store_uploaded_document(file, owner_type, owner_id, request.form.get("customer_email", ""))
+        return jsonify({"document": document}), 201
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except Exception:
+        current_app.logger.exception("Document upload failed")
+        return jsonify({"error": "Document storage is unavailable."}), 503
+
+
+@admin_bp.get("/admin/documents/file/<document_id>")
+@require_admin
+def download_admin_document(document_id: str):
+    try:
+        loaded = get_document(document_id)
+    except Exception:
+        current_app.logger.exception("Document download failed")
+        return jsonify({"error": "Document storage is unavailable."}), 503
+    if not loaded:
+        return jsonify({"error": "Document not found."}), 404
+    metadata, content = loaded
+    return Response(content, mimetype=metadata["content_type"], headers={"Content-Disposition": f'attachment; filename="{metadata["filename"]}"', "X-Content-Type-Options": "nosniff"})
+
+
+@admin_bp.delete("/admin/documents/file/<document_id>")
+@require_admin_write
+def remove_admin_document(document_id: str):
+    try:
+        return ("", 204) if delete_document(document_id) else (jsonify({"error": "Document not found."}), 404)
+    except Exception:
+        current_app.logger.exception("Document deletion failed")
+        return jsonify({"error": "Document storage is unavailable."}), 503
+
+
+@admin_bp.get("/admin/enquiries/<enquiry_id>/documents")
+@require_admin
+def admin_enquiry_documents(enquiry_id: str):
+    try:
+        enquiry = get_enquiry(enquiry_id)
+        return jsonify({"documents": list_correspondence_documents(enquiry) if enquiry else []})
+    except Exception:
+        current_app.logger.exception("Correspondence document listing failed")
+        return jsonify({"error": "Document storage is unavailable."}), 503
 
 
 @admin_bp.get("/admin/commercial-settings")
@@ -608,20 +705,34 @@ def share_admin_quote(enquiry_id: str, quote_id: str):
 @admin_bp.post("/admin/enquiries/<enquiry_id>/communications")
 @require_admin_write
 def send_admin_communication(enquiry_id: str):
-    if not request.is_json:
-        return jsonify({"error": "Content-Type must be application/json."}), 415
-
-    payload = request.get_json(silent=True) or {}
+    if request.is_json:
+        payload = request.get_json(silent=True) or {}
+        files = []
+    elif request.content_type and request.content_type.startswith("multipart/form-data"):
+        payload = request.form
+        files = request.files.getlist("files")
+    else:
+        return jsonify({"error": "Content-Type must be JSON or multipart form data."}), 415
     subject = str(payload.get("subject", "")).strip()
     message = str(payload.get("message", "")).strip()
     quote_id = str(payload.get("quote_id", "")).strip()
     scheduled_at = str(payload.get("scheduled_at", "")).strip()
+    raw_document_ids = payload.get("document_ids", [])
+    try:
+        document_ids = raw_document_ids if isinstance(raw_document_ids, list) else json.loads(str(raw_document_ids or "[]"))
+    except json.JSONDecodeError:
+        return jsonify({"error": "Attachment references are invalid."}), 400
+    if not isinstance(document_ids, list):
+        return jsonify({"error": "Attachment references must be a list."}), 400
 
     try:
         enquiry = get_enquiry(enquiry_id)
         if not enquiry:
             return jsonify({"error": "Enquiry not found."}), 404
-        provider_message_id = send_customer_message(enquiry, subject, message, scheduled_at)
+        uploaded = [store_uploaded_document(file, "enquiry", enquiry_id, enquiry.get("email", "")) for file in files]
+        document_ids.extend(item["id"] for item in uploaded)
+        attachments = load_email_attachments(enquiry, [str(item) for item in document_ids])
+        provider_message_id = send_customer_message(enquiry, subject, message, scheduled_at, attachments)
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
     except EnquiryStorageError:
@@ -649,6 +760,7 @@ def send_admin_communication(enquiry_id: str):
             session.get("admin_email", ""),
             provider_message_id,
             scheduled_at,
+            attachments,
         )
         if quote_id:
             updated = update_quote_status(enquiry_id, quote_id, "sent")

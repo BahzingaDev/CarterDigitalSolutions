@@ -235,10 +235,10 @@ export function AdminPage() {
     }
   };
 
-  const handleSend = async (id: string, subject: string, body: string, quoteId?: string, scheduledAt?: string) => {
+  const handleSend = async (id: string, subject: string, body: string, quoteId?: string, scheduledAt?: string, documentIds: string[] = [], files: File[] = []) => {
     if (!session?.csrf_token) return;
     setError(''); setMessage('');
-    try { const data = await sendAdminCommunication(session.csrf_token, id, subject, body, quoteId, scheduledAt); replaceEnquiry(data.enquiry); setMessage(scheduledAt ? 'Email scheduled and recorded.' : 'Email sent and recorded.'); }
+    try { const data = await sendAdminCommunication(session.csrf_token, id, subject, body, quoteId, scheduledAt, documentIds, files); replaceEnquiry(data.enquiry); setMessage(scheduledAt ? 'Email scheduled and recorded.' : 'Email sent and recorded.'); }
     catch (sendError) { setError(sendError instanceof Error ? sendError.message : 'Unable to send email'); throw sendError; }
   };
 

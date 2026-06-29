@@ -21,7 +21,7 @@ export function AdminInbox({ enquiries, mode, selectedId, onConvertQuote, onCrea
   onDirtyChange?: (isDirty: boolean) => void;
   onQuoteStatus: (enquiryId: string, quoteId: string, status: AdminQuoteVersion['status']) => Promise<void>;
   onSelect: (id: string) => void;
-  onSend: (id: string, subject: string, message: string, quoteId?: string, scheduledAt?: string) => Promise<void>;
+  onSend: (id: string, subject: string, message: string, quoteId?: string, scheduledAt?: string, documentIds?: string[], files?: File[]) => Promise<void>;
   onShareQuote: (enquiryId: string, quoteId: string) => Promise<string>;
   onUpdate: (id: string, payload: AdminEnquiryUpdate) => Promise<void>;
   onUpdateQuote: (enquiryId: string, quoteId: string, payload: AdminQuotePayload) => Promise<void>;
@@ -140,7 +140,7 @@ function AdminEnquiryDetail({ defaultTab, enquiry, onConvertQuote, onCreateQuote
       <section className="admin-notes"><label className="form-label" htmlFor={`notes-${enquiry.id}`}>Private notes</label><textarea className="form-control" id={`notes-${enquiry.id}`} maxLength={4000} onChange={(event) => setNotes(event.target.value)} rows={5} value={notes} /><div className="admin-management-actions"><button className="btn btn-accent" disabled={isSaving || !isDirty} onClick={() => void saveManagement()} type="button">{isSaving ? 'Saving...' : isDirty ? 'Save details' : 'Saved'}</button><button className="btn btn-outline-danger" onClick={() => void onUpdate(enquiry.id, { archived: !enquiry.archived })} type="button"><Archive size={16} /> {enquiry.archived ? 'Restore' : 'Archive'}</button></div></section>
     </div> : null}
     {tab === 'quote' ? <AdminQuoteManager enquiry={enquiry} onConvert={(quote) => onConvertQuote(enquiry, quote)} onCreate={(payload) => onCreateQuote(enquiry.id, payload)} onPrepareEmail={prepareQuoteEmail} onShare={(quoteId) => onShareQuote(enquiry.id, quoteId)} onStatus={(quoteId, status) => onQuoteStatus(enquiry.id, quoteId, status)} onUpdate={(quoteId, payload) => onUpdateQuote(enquiry.id, quoteId, payload)} /> : null}
-    {tab === 'communications' ? <AdminCommunications draft={communicationDraft} enquiry={enquiry} onSend={(subject, message, quoteId, scheduledAt) => onSend(enquiry.id, subject, message, quoteId, scheduledAt)} /> : null}
+    {tab === 'communications' ? <AdminCommunications draft={communicationDraft} enquiry={enquiry} onSend={(subject, message, quoteId, scheduledAt, documentIds, files) => onSend(enquiry.id, subject, message, quoteId, scheduledAt, documentIds, files)} /> : null}
     {tab === 'activity' ? <AdminActivity enquiry={enquiry} /> : null}
   </article>;
 }

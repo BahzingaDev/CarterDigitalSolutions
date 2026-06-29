@@ -2148,6 +2148,29 @@ body {
 .admin-placeholder-reference dd { display: grid; gap: 0.08rem; }
 .admin-placeholder-reference dd strong { font-size: 0.78rem; }
 .admin-placeholder-reference dd span, .admin-placeholder-reference dd small { color: var(--color-muted); font-size: 0.72rem; }
+.admin-documents-workspace { display: grid; gap: 1rem; }
+.admin-document-actions { display: flex; align-items: end; flex-wrap: wrap; gap: 0.75rem; }
+.admin-document-actions > label:first-child { display: grid; gap: 0.35rem; min-width: min(290px, 100%); color: var(--color-muted); font-size: 0.78rem; font-weight: 800; }
+.admin-document-actions .btn { display: inline-flex; align-items: center; gap: 0.4rem; }
+.admin-document-note { margin: 0; padding-left: 0.75rem; border-left: 3px solid var(--color-accent); color: var(--color-muted); font-size: 0.78rem; }
+.admin-document-list { display: grid; }
+.admin-document-list > div { display: grid; align-items: center; gap: 0.75rem; grid-template-columns: auto minmax(0, 1fr) auto auto; padding: 0.65rem 0; border-top: 1px solid var(--color-border); }
+.admin-document-list > div > svg { color: var(--color-accent-strong); }
+.admin-document-list > div > span { display: grid; min-width: 0; }
+.admin-document-list small { overflow: hidden; color: var(--color-muted); font-size: 0.72rem; text-overflow: ellipsis; white-space: nowrap; }
+.admin-customer-documents { display: grid; gap: 0.75rem; padding-top: 1rem; border-top: 1px solid var(--color-border); }
+.admin-customer-documents > h3 { margin: 0; font-size: 0.95rem; }
+.admin-attachment-picker { display: grid; gap: 0.65rem; padding: 0.8rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-page); }
+.admin-attachment-picker > div:first-child { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.admin-attachment-picker > div:first-child strong, .admin-attachment-picker .btn { display: inline-flex; align-items: center; gap: 0.4rem; }
+.admin-attachment-documents { display: grid; gap: 0.35rem; }
+.admin-attachment-documents label { display: grid; align-items: center; gap: 0.55rem; grid-template-columns: auto minmax(0, 1fr); margin: 0; padding: 0.4rem 0; }
+.admin-attachment-documents label > span { display: grid; }
+.admin-attachment-documents small { color: var(--color-muted); }
+.admin-pending-attachment { display: inline-flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.35rem 0.5rem; background: var(--color-accent-soft); font-size: 0.75rem; }
+.admin-pending-attachment button { display: inline-grid; place-items: center; padding: 0; border: 0; background: transparent; color: var(--color-muted); }
+.admin-sent-attachments { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.admin-sent-attachments button { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.45rem; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-page); color: var(--color-accent-strong); font-size: 0.72rem; }
 .admin-signature-panel { max-width: 56rem; }
 .admin-signature-panel .btn { display: inline-flex; align-items: center; justify-self: start; gap: 0.4rem; }
 .admin-signature-preview { margin: 0; padding: 0.75rem; border-left: 3px solid var(--color-accent); background: var(--color-page); color: var(--color-muted); }
@@ -3241,6 +3264,9 @@ body {
   .admin-project-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-placeholder-reference > div { grid-template-columns: 1fr; }
   .admin-placeholder-reference dl > div { grid-template-columns: 1fr; gap: 0.2rem; }
+  .admin-document-actions { align-items: stretch; flex-direction: column; }
+  .admin-document-list > div { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .admin-document-list > div .admin-icon-button:last-child { grid-column: 3; }
   .admin-project-disclosure-toggle { padding: 0.85rem; }
   .admin-project-disclosure-toggle small { white-space: normal; }
   .admin-project-disclosure-body { padding: 1rem 0.85rem; }

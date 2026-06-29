@@ -6,7 +6,7 @@ from pathlib import Path
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-change-me")
     JSON_SORT_KEYS = False
-    MAX_CONTENT_LENGTH = 1024 * 1024
+    MAX_CONTENT_LENGTH = 10 * 1024 * 1024
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_NAME = "cds_admin_session"
     SESSION_COOKIE_SAMESITE = "Lax"
@@ -49,6 +49,8 @@ class Config:
     )
     MONGODB_CUSTOMER_COLLECTION = os.environ.get("MONGODB_CUSTOMER_COLLECTION", "customers")
     MONGODB_SETTINGS_COLLECTION = os.environ.get("MONGODB_SETTINGS_COLLECTION", "admin_settings")
+    MONGODB_DOCUMENT_COLLECTION = os.environ.get("MONGODB_DOCUMENT_COLLECTION", "documents")
+    MONGODB_FILE_BUCKET = os.environ.get("MONGODB_FILE_BUCKET", "admin_files")
     MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(
         os.environ.get("MONGODB_SERVER_SELECTION_TIMEOUT_MS", "5000"),
     )
