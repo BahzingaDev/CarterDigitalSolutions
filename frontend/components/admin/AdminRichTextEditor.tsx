@@ -63,6 +63,12 @@ export function AdminRichTextEditor({ label, maxLength = 5000, onChange, placeho
     command('insertText', `${placeholder.key.slice(prefix.length)}}}`);
     setSuggestions([]);
   };
+  const insertPlaceholderByKey = (key: string) => {
+    const placeholder = placeholders.find((item) => item.key === key);
+    if (!placeholder) return;
+    command('insertText', `{{${placeholder.key}}}`);
+    setSuggestions([]);
+  };
   const insertLink = () => {
     const url = window.prompt('Enter a secure link URL beginning with https://');
     if (!url) return;
@@ -79,6 +85,7 @@ export function AdminRichTextEditor({ label, maxLength = 5000, onChange, placeho
       <EditorButton icon={List} label="Bulleted list" onClick={() => command('insertUnorderedList')} />
       <EditorButton icon={ListOrdered} label="Numbered list" onClick={() => command('insertOrderedList')} />
       <EditorButton icon={Link} label="Add link" onClick={insertLink} />
+      {placeholders.length > 0 ? <select aria-label="Insert placeholder" className="admin-rich-placeholder" disabled={htmlMode} onChange={(event) => { insertPlaceholderByKey(event.target.value); event.target.value = ''; }} title="Insert placeholder" value=""><option value="">Insert placeholder</option>{placeholders.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select> : null}
       <select aria-label="Font family" disabled={htmlMode} onChange={(event) => command('fontName', event.target.value)} title="Font family" defaultValue=""><option value="" disabled>Font</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="Times New Roman">Times</option><option value="Verdana">Verdana</option></select>
       <select aria-label="Font size" disabled={htmlMode} onChange={(event) => command('fontSize', event.target.value)} title="Font size" defaultValue=""><option value="" disabled>Size</option><option value="1">Small</option><option value="3">Normal</option><option value="5">Large</option><option value="6">Heading</option></select>
       <label className="admin-rich-text-colour" title="Text colour"><span className="visually-hidden">Text colour</span><input aria-label="Text colour" disabled={htmlMode} onChange={(event) => command('foreColor', event.target.value)} type="color" /></label>

@@ -96,6 +96,25 @@ def delete_document(document_id: str) -> bool:
     return True
 
 
+def delete_customer_documents(email: str) -> int:
+    clean_email = str(email or "").strip().lower()
+    records = list(_metadata().find({"customer_email": clean_email}, {"id": 1}))
+    deleted = 0
+    for record in records:
+        if delete_document(str(record.get("id") or "")):
+            deleted += 1
+    return deleted
+
+
+def delete_owner_documents(owner_type: str, owner_id: str) -> int:
+    records = list(_metadata().find({"owner_type": owner_type, "owner_id": owner_id}, {"id": 1}))
+    deleted = 0
+    for record in records:
+        if delete_document(str(record.get("id") or "")):
+            deleted += 1
+    return deleted
+
+
 def load_email_attachments(enquiry: dict[str, Any], document_ids: list[str]) -> list[dict[str, Any]]:
     allowed = {item["id"] for item in list_correspondence_documents(enquiry)}
     attachments = []

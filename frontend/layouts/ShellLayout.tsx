@@ -6,8 +6,9 @@ import { Navbar } from '../components/Navbar';
 export function ShellLayout({ children }: PropsWithChildren) {
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <Navbar />
-      <main>{children}</main>
+      <main id="main-content">{children}</main>
       <Footer />
     </div>
   );

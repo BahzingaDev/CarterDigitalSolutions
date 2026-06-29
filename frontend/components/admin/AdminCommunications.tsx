@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 
 import { downloadAdminDocument, fetchAdminTemplates, fetchCommunicationSettings, fetchEnquiryDocuments, type AdminDocument, type AdminEnquiry, type AdminTemplate } from '../../src/api/admin';
 import { enquiryPlaceholderValues, enquiryPlaceholders, resolveCorrespondence } from '../../src/data/correspondencePlaceholders';
-import { PlaceholderInput, PlaceholderReference, PlaceholderSelect } from './AdminPlaceholderReference';
+import { PlaceholderInput, PlaceholderReference } from './AdminPlaceholderReference';
 import { AdminRichTextEditor, normaliseRichText } from './AdminRichTextEditor';
 
 export interface CommunicationDraft { subject: string; message: string; quoteId?: string; }
@@ -39,8 +39,8 @@ export function AdminCommunications({ enquiry, draft, onSend }: { enquiry: Admin
       <section className="admin-subpanel admin-compose-panel">
         <div className="admin-subpanel-heading"><div><h3>Send email</h3><p>To {enquiry.name} at {enquiry.email}</p></div></div>
         <label>Template<select className="form-select" onChange={(event) => { const template = templates.find((item) => item.id === event.target.value); const replacements = enquiryPlaceholderValues(enquiry); setSubject(resolveCorrespondence(template?.subject ?? '', replacements)); setMessage(resolveCorrespondence(template?.body ?? '', replacements)); setQuoteId(undefined); }}><option value="">Blank message</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></label>
-        <div className="admin-template-field"><PlaceholderInput definitions={enquiryPlaceholders} label="Subject" onChange={setSubject} value={subject} /><PlaceholderSelect definitions={enquiryPlaceholders} label="Insert subject placeholder" onInsert={(key) => setSubject((current) => `${current}{{${key}}}`)} /></div>
-        <div className="admin-template-field"><AdminRichTextEditor label="Message" onChange={setMessage} placeholders={enquiryPlaceholders} value={message} /><PlaceholderSelect definitions={enquiryPlaceholders} label="Insert message placeholder" onInsert={(key) => setMessage((current) => `${current}{{${key}}}`)} /></div>
+        <PlaceholderInput definitions={enquiryPlaceholders} label="Subject" onChange={setSubject} value={subject} />
+        <AdminRichTextEditor label="Message" onChange={setMessage} placeholders={enquiryPlaceholders} value={message} />
         <PlaceholderReference definitions={enquiryPlaceholders} title="Correspondence placeholder reference" />
         {signature ? <div className="admin-signature-preview" dangerouslySetInnerHTML={{ __html: normaliseRichText(signature) }} /> : null}
         <div className="admin-attachment-picker"><div><strong><Paperclip size={15} /> Attachments</strong><label className="btn btn-outline-accent btn-sm">Add files<input accept=".doc,.docx,.pdf,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg" hidden multiple onChange={(event) => setFiles(Array.from(event.target.files ?? []))} type="file" /></label></div>{documents.length ? <div className="admin-attachment-documents">{documents.map((document) => <label key={document.id}><input checked={selectedDocuments.includes(document.id)} onChange={(event) => setSelectedDocuments((current) => event.target.checked ? [...current, document.id] : current.filter((id) => id !== document.id))} type="checkbox" /><span><strong>{document.filename}</strong><small>{formatBytes(document.size)}</small></span></label>)}</div> : null}{files.map((file) => <span className="admin-pending-attachment" key={`${file.name}-${file.size}`}>{file.name}<button aria-label={`Remove ${file.name}`} onClick={() => setFiles((current) => current.filter((item) => item !== file))} type="button"><X size={14} /></button></span>)}</div>

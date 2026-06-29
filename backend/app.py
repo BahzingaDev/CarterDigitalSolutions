@@ -1,10 +1,19 @@
+import sys
 from pathlib import Path
 
 from flask import Flask, abort, send_from_directory
 
-from .config import Config
-from .routes import register_routes
-from .utils.security import apply_security_headers
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+try:
+    from .config import Config
+    from .routes import register_routes
+    from .utils.security import apply_security_headers
+except ImportError:
+    from backend.config import Config
+    from backend.routes import register_routes
+    from backend.utils.security import apply_security_headers
 
 
 def create_app(config: type[Config] = Config) -> Flask:

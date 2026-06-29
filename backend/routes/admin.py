@@ -12,7 +12,10 @@ from ..services.admin_service import (
 from ..services.email_service import send_customer_message, send_project_invoice
 from ..services.invoice_service import generate_invoice_pdf
 from ..services.document_service import (
+    DocumentStorageError,
     delete_document,
+    delete_customer_documents,
+    delete_owner_documents,
     generate_document,
     get_document,
     list_correspondence_documents,
@@ -21,7 +24,7 @@ from ..services.document_service import (
     load_email_attachments,
     store_uploaded_document,
 )
-from ..services.customer_service import CustomerStorageError, list_customer_profiles, save_customer_profile
+from ..services.customer_service import CustomerStorageError, delete_customer_profile, list_customer_profiles, save_customer_profile
 from ..services.workspace_service import (
     WorkspaceStorageError,
     delete_project,
@@ -51,6 +54,8 @@ from ..services.enquiry_service import (
     EnquiryStorageError,
     create_quote_version,
     create_quote_approval_link,
+    delete_enquiry,
+    delete_quote_version,
     get_enquiry,
     list_enquiries,
     record_communication,
@@ -226,6 +231,30 @@ def update_admin_customer(email: str):
         return jsonify({"error": str(error)}), 400
     except CustomerStorageError:
         current_app.logger.exception("Admin customer save failed")
+        return jsonify({"error": "Customer storage is unavailable."}), 503
+
+
+@admin_bp.delete("/admin/customers/<path:email>")
+@require_admin_write
+def remove_admin_customer(email: str):
+    cascade = request.args.get("cascade", "").lower() in {"1", "true", "yes"}
+    try:
+        deleted = delete_customer_profile(email, cascade=cascade)
+        warning = ""
+        try:
+            deleted["documents"] = delete_customer_documents(email) if cascade else 0
+        except DocumentStorageError:
+            current_app.logger.exception("Customer records deleted but document cleanup failed")
+            deleted["documents"] = 0
+            warning = "Customer records were deleted, but some stored documents may require manual cleanup."
+        response = {"deleted": deleted}
+        if warning:
+            response["warning"] = warning
+        return jsonify(response)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 409
+    except CustomerStorageError:
+        current_app.logger.exception("Admin customer deletion failed")
         return jsonify({"error": "Customer storage is unavailable."}), 503
 
 
@@ -592,6 +621,24 @@ def update_admin_enquiry(enquiry_id: str):
     return jsonify({"enquiry": updated})
 
 
+@admin_bp.delete("/admin/enquiries/<enquiry_id>")
+@require_admin_write
+def remove_admin_enquiry(enquiry_id: str):
+    try:
+        deleted = delete_enquiry(enquiry_id)
+        if deleted:
+            try:
+                delete_owner_documents("enquiry", enquiry_id)
+            except DocumentStorageError:
+                current_app.logger.exception("Enquiry deleted but document cleanup failed")
+    except EnquiryStorageError:
+        current_app.logger.exception("Admin enquiry deletion failed")
+        return jsonify({"error": "Enquiry storage is unavailable."}), 503
+    if not deleted:
+        return jsonify({"error": "Enquiry not found."}), 404
+    return jsonify({"deleted": True})
+
+
 @admin_bp.post("/admin/enquiries/<enquiry_id>/quotes")
 @require_admin_write
 def create_admin_quote(enquiry_id: str):
@@ -657,6 +704,21 @@ def edit_admin_quote(enquiry_id: str, quote_id: str):
     except ValueError as error:
         return jsonify({"error": str(error)}), 400
     except EnquiryStorageError:
+        return jsonify({"error": "Enquiry storage is unavailable."}), 503
+    if not updated:
+        return jsonify({"error": "Enquiry not found."}), 404
+    return jsonify({"enquiry": updated})
+
+
+@admin_bp.delete("/admin/enquiries/<enquiry_id>/quotes/<quote_id>")
+@require_admin_write
+def remove_admin_quote(enquiry_id: str, quote_id: str):
+    try:
+        updated = delete_quote_version(enquiry_id, quote_id)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 409
+    except EnquiryStorageError:
+        current_app.logger.exception("Admin quote deletion failed")
         return jsonify({"error": "Enquiry storage is unavailable."}), 503
     if not updated:
         return jsonify({"error": "Enquiry not found."}), 404

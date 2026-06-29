@@ -1,4 +1,4 @@
-import { Archive, CalendarClock, FileText, History, MessageSquare, Search, UserRound } from 'lucide-react';
+import { Archive, CalendarClock, FileText, History, MessageSquare, Search, Trash2, UserRound } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import type { AdminEnquiry, AdminEnquiryUpdate, AdminQuoteItem, AdminQuotePayload, AdminQuoteVersion, EnquiryStatus } from '../../src/api/admin';
@@ -12,12 +12,14 @@ import { AdminQuoteManager } from './AdminQuoteManager';
 const statuses: EnquiryStatus[] = ['new', 'reviewed', 'replied', 'closed'];
 const pageSize = 10;
 
-export function AdminInbox({ enquiries, mode, selectedId, onConvertQuote, onCreateQuote, onDirtyChange, onQuoteStatus, onSelect, onSend, onShareQuote, onUpdate, onUpdateQuote }: {
+export function AdminInbox({ enquiries, mode, selectedId, onConvertQuote, onCreateQuote, onDelete, onDeleteQuote, onDirtyChange, onQuoteStatus, onSelect, onSend, onShareQuote, onUpdate, onUpdateQuote }: {
   enquiries: AdminEnquiry[];
   mode: 'all' | 'quotes';
   selectedId: string | null;
   onCreateQuote: (id: string, payload: { items: AdminQuoteItem[]; discount: number; expenses: number; tax_rate: number; deposit: number; notes: string; valid_until: string | null }) => Promise<void>;
   onConvertQuote: (enquiry: AdminEnquiry, quote: AdminQuoteVersion) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  onDeleteQuote: (enquiryId: string, quoteId: string) => Promise<void>;
   onDirtyChange?: (isDirty: boolean) => void;
   onQuoteStatus: (enquiryId: string, quoteId: string, status: AdminQuoteVersion['status']) => Promise<void>;
   onSelect: (id: string) => void;
@@ -87,7 +89,7 @@ export function AdminInbox({ enquiries, mode, selectedId, onConvertQuote, onCrea
       </section>
 
       <section className="admin-detail">
-        {selected ? <AdminEnquiryDetail key={`${selected.id}-${mode}`} defaultTab={mode === 'quotes' ? 'quote' : 'details'} enquiry={selected} onConvertQuote={onConvertQuote} onCreateQuote={onCreateQuote} onDirtyChange={onDirtyChange} onQuoteStatus={onQuoteStatus} onSend={onSend} onShareQuote={onShareQuote} onUpdate={onUpdate} onUpdateQuote={onUpdateQuote} /> : <div className="admin-panel admin-zero-state">{mode === 'quotes' ? <FileText size={28} /> : <UserRound size={28} />}<h2>No {noun} to display</h2><p>{emptyMessage}</p></div>}
+        {selected ? <AdminEnquiryDetail key={`${selected.id}-${mode}`} defaultTab={mode === 'quotes' ? 'quote' : 'details'} enquiry={selected} onConvertQuote={onConvertQuote} onCreateQuote={onCreateQuote} onDelete={onDelete} onDeleteQuote={onDeleteQuote} onDirtyChange={onDirtyChange} onQuoteStatus={onQuoteStatus} onSend={onSend} onShareQuote={onShareQuote} onUpdate={onUpdate} onUpdateQuote={onUpdateQuote} /> : <div className="admin-panel admin-zero-state">{mode === 'quotes' ? <FileText size={28} /> : <UserRound size={28} />}<h2>No {noun} to display</h2><p>{emptyMessage}</p></div>}
       </section>
     </div>
   );
@@ -95,11 +97,13 @@ export function AdminInbox({ enquiries, mode, selectedId, onConvertQuote, onCrea
 
 type DetailTab = 'details' | 'quote' | 'communications' | 'activity';
 
-function AdminEnquiryDetail({ defaultTab, enquiry, onConvertQuote, onCreateQuote, onDirtyChange, onQuoteStatus, onSend, onShareQuote, onUpdate, onUpdateQuote }: {
+function AdminEnquiryDetail({ defaultTab, enquiry, onConvertQuote, onCreateQuote, onDelete, onDeleteQuote, onDirtyChange, onQuoteStatus, onSend, onShareQuote, onUpdate, onUpdateQuote }: {
   defaultTab: DetailTab;
   enquiry: AdminEnquiry;
   onCreateQuote: AdminInboxProps['onCreateQuote'];
   onConvertQuote: AdminInboxProps['onConvertQuote'];
+  onDelete: AdminInboxProps['onDelete'];
+  onDeleteQuote: AdminInboxProps['onDeleteQuote'];
   onDirtyChange?: (isDirty: boolean) => void;
   onQuoteStatus: AdminInboxProps['onQuoteStatus'];
   onSend: AdminInboxProps['onSend'];
@@ -137,9 +141,9 @@ function AdminEnquiryDetail({ defaultTab, enquiry, onConvertQuote, onCreateQuote
       <dl className="admin-meta-grid"><div><dt>Received</dt><dd>{formatDate(enquiry.created_at)}</dd></div><div><dt>Project type</dt><dd>{enquiry.project_type || 'Not specified'}</dd></div><div><dt>Estimated hours</dt><dd>{enquiry.estimated_hours || 'Not provided'}</dd></div><div><dt>Estimated cost</dt><dd>{enquiry.estimated_cost ? formatCurrency(enquiry.estimated_cost) : 'Not provided'}</dd></div></dl>
       <section className="admin-management-grid"><label>Status<select className="form-select" onChange={(event) => void onUpdate(enquiry.id, { status: event.target.value as EnquiryStatus })} value={enquiry.status}>{statuses.map((status) => <option key={status} value={status}>{status}</option>)}</select></label><label>Priority<select className="form-select" onChange={(event) => void onUpdate(enquiry.id, { priority: event.target.value as AdminEnquiry['priority'] })} value={enquiry.priority}><option value="standard">Standard</option><option value="medium">Medium</option><option value="high">High</option></select></label><label>Follow-up<input className="form-control" onChange={(event) => setFollowUp(event.target.value)} type="datetime-local" value={followUp} /></label><label>Labels<input className="form-control" onChange={(event) => setLabels(event.target.value)} placeholder="website, priority" value={labels} /></label></section>
       <section className="admin-message"><h3>Customer message</h3><p>{enquiry.message}</p></section>
-      <section className="admin-notes"><label className="form-label" htmlFor={`notes-${enquiry.id}`}>Private notes</label><textarea className="form-control" id={`notes-${enquiry.id}`} maxLength={4000} onChange={(event) => setNotes(event.target.value)} rows={5} value={notes} /><div className="admin-management-actions"><button className="btn btn-accent" disabled={isSaving || !isDirty} onClick={() => void saveManagement()} type="button">{isSaving ? 'Saving...' : isDirty ? 'Save details' : 'Saved'}</button><button className="btn btn-outline-danger" onClick={() => void onUpdate(enquiry.id, { archived: !enquiry.archived })} type="button"><Archive size={16} /> {enquiry.archived ? 'Restore' : 'Archive'}</button></div></section>
+      <section className="admin-notes"><label className="form-label" htmlFor={`notes-${enquiry.id}`}>Private notes</label><textarea className="form-control" id={`notes-${enquiry.id}`} maxLength={4000} onChange={(event) => setNotes(event.target.value)} rows={5} value={notes} /><div className="admin-management-actions"><button className="btn btn-accent" disabled={isSaving || !isDirty} onClick={() => void saveManagement()} type="button">{isSaving ? 'Saving...' : isDirty ? 'Save details' : 'Saved'}</button><button className="btn btn-outline-secondary" onClick={() => void onUpdate(enquiry.id, { archived: !enquiry.archived })} type="button"><Archive size={16} /> {enquiry.archived ? 'Restore' : 'Archive'}</button><button className="btn btn-outline-danger" onClick={() => { if (window.confirm(`Permanently delete ${enquiry.name}'s enquiry and its quote history? This cannot be undone.`)) void onDelete(enquiry.id); }} type="button"><Trash2 size={16} /> Delete</button></div></section>
     </div> : null}
-    {tab === 'quote' ? <AdminQuoteManager enquiry={enquiry} onConvert={(quote) => onConvertQuote(enquiry, quote)} onCreate={(payload) => onCreateQuote(enquiry.id, payload)} onPrepareEmail={prepareQuoteEmail} onShare={(quoteId) => onShareQuote(enquiry.id, quoteId)} onStatus={(quoteId, status) => onQuoteStatus(enquiry.id, quoteId, status)} onUpdate={(quoteId, payload) => onUpdateQuote(enquiry.id, quoteId, payload)} /> : null}
+    {tab === 'quote' ? <AdminQuoteManager enquiry={enquiry} key={enquiry.quote_versions.map((quote) => quote.id).join('-')} onConvert={(quote) => onConvertQuote(enquiry, quote)} onCreate={(payload) => onCreateQuote(enquiry.id, payload)} onDelete={(quoteId) => onDeleteQuote(enquiry.id, quoteId)} onPrepareEmail={prepareQuoteEmail} onShare={(quoteId) => onShareQuote(enquiry.id, quoteId)} onStatus={(quoteId, status) => onQuoteStatus(enquiry.id, quoteId, status)} onUpdate={(quoteId, payload) => onUpdateQuote(enquiry.id, quoteId, payload)} /> : null}
     {tab === 'communications' ? <AdminCommunications draft={communicationDraft} enquiry={enquiry} onSend={(subject, message, quoteId, scheduledAt, documentIds, files) => onSend(enquiry.id, subject, message, quoteId, scheduledAt, documentIds, files)} /> : null}
     {tab === 'activity' ? <AdminActivity enquiry={enquiry} /> : null}
   </article>;

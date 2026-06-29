@@ -357,7 +357,7 @@ def list_service_overrides(published_only: bool = False) -> list[dict[str, Any]]
     services = _list("MONGODB_SERVICE_COLLECTION", {"sort_order": 1, "name": 1})
     return [
         service for service in services
-        if service.get("status", "published") == "published" and service.get("active", True)
+        if service.get("status", "published") == "published" and service.get("active", True) and not service.get("deleted", False)
     ] if published_only else services
 
 
@@ -435,6 +435,7 @@ def save_service_override(payload: dict[str, Any], service_id: str | None = None
         "deposit": _optional_text(payload.get("deposit"), 80),
         "deposit_amount": _number(payload.get("deposit_amount", 0), "Deposit amount", 1_000_000),
         "active": bool(payload.get("active", True)),
+        "deleted": bool(payload.get("deleted", False)),
         "sort_order": int(_number(payload.get("sort_order", 0), "Sort order", 10000)),
         "status": status,
         "outcomes": _string_list(payload.get("outcomes", []), "outcomes"),

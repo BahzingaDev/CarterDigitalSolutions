@@ -1,12 +1,13 @@
 import {
-  BriefcaseBusiness,
   ChevronLeft,
+  Database,
   FileText,
   FolderKanban,
   Gauge,
   Inbox,
   LogOut,
   MessageSquareText,
+  PackageSearch,
   Settings,
   UserRound,
   type LucideIcon,
@@ -40,16 +41,16 @@ const groups: NavigationGroup[] = [
     items: [
       { id: 'projects', label: 'Projects', icon: FolderKanban },
       { id: 'customers', label: 'Customers', icon: UserRound },
-      { id: 'records', label: 'Custom records', icon: BriefcaseBusiness },
-      { id: 'services', label: 'Services', icon: Settings },
+      { id: 'records', label: 'Custom records', icon: Database },
+      { id: 'services', label: 'Services', icon: PackageSearch },
     ],
   },
   {
     label: 'Administration',
     items: [
-      { id: 'account' as const, label: 'Account', icon: UserRound },
       { id: 'templates', label: 'Email templates', icon: MessageSquareText },
       { id: 'settings', label: 'Settings', icon: Settings },
+      { id: 'account' as const, label: 'Account', icon: UserRound },
     ],
   },
 ];

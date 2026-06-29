@@ -6,11 +6,12 @@ import { fetchCommercialSettings } from '../../src/api/admin';
 import { formatCurrency } from '../../src/data/pricing';
 import { fetchServiceCatalogue, mergeServiceCatalogue } from '../../src/api/services';
 
-export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail, onShare, onStatus, onUpdate }: {
+export function AdminQuoteManager({ enquiry, onConvert, onCreate, onDelete, onPrepareEmail, onShare, onStatus, onUpdate }: {
   enquiry: AdminEnquiry;
   onCreate: (payload: AdminQuotePayload) => Promise<void>;
   onUpdate: (quoteId: string, payload: AdminQuotePayload) => Promise<void>;
   onConvert: (quote: AdminQuoteVersion) => Promise<void>;
+  onDelete: (quoteId: string) => Promise<void>;
   onPrepareEmail: (quote: AdminQuoteVersion, approvalUrl: string) => void;
   onShare: (quoteId: string) => Promise<string>;
   onStatus: (quoteId: string, status: AdminQuoteVersion['status']) => Promise<void>;
@@ -149,7 +150,7 @@ export function AdminQuoteManager({ enquiry, onConvert, onCreate, onPrepareEmail
           <article className="admin-quote-version" key={quote.id}>
             <div><strong>Version {quote.version}</strong><small>{formatDate(quote.created_at)} · {formatCurrency(quote.total)}</small></div>
             <span className={`admin-status admin-quote-${quote.status}`}>{quote.status}</span>
-            <div className="admin-quote-actions"><button className="admin-icon-button" disabled={Boolean(pendingAction)} onClick={() => void shareQuote(quote, 'email')} title={pendingAction === `email-${quote.id}` ? 'Preparing approval email' : 'Email approval link'} type="button"><Mail size={16} /></button><button className="admin-icon-button" disabled={Boolean(pendingAction)} onClick={() => void shareQuote(quote, 'copy')} title={pendingAction === `copy-${quote.id}` ? 'Copying approval link' : 'Create and copy approval link'} type="button"><Link2 size={16} /></button>{shareLinks[quote.id] ? <button className="admin-icon-button" onClick={() => window.open(shareLinks[quote.id], '_blank', 'noopener,noreferrer')} title="Open printable quote" type="button"><Printer size={16} /></button> : null}<button className="admin-icon-button" disabled={quote.status !== 'accepted' || Boolean(quote.converted_project_id)} onClick={() => void onConvert(quote)} title={quote.converted_project_id ? 'Project workspace created' : quote.status === 'accepted' ? 'Convert quote to project' : 'Accept the quote before creating its project'} type="button"><BriefcaseBusiness size={16} /></button></div>
+            <div className="admin-quote-actions"><button className="admin-icon-button" disabled={Boolean(pendingAction)} onClick={() => void shareQuote(quote, 'email')} title={pendingAction === `email-${quote.id}` ? 'Preparing approval email' : 'Email approval link'} type="button"><Mail size={16} /></button><button className="admin-icon-button" disabled={Boolean(pendingAction)} onClick={() => void shareQuote(quote, 'copy')} title={pendingAction === `copy-${quote.id}` ? 'Copying approval link' : 'Create and copy approval link'} type="button"><Link2 size={16} /></button>{shareLinks[quote.id] ? <button className="admin-icon-button" onClick={() => window.open(shareLinks[quote.id], '_blank', 'noopener,noreferrer')} title="Open printable quote" type="button"><Printer size={16} /></button> : null}<button className="admin-icon-button" disabled={quote.status !== 'accepted' || Boolean(quote.converted_project_id)} onClick={() => void onConvert(quote)} title={quote.converted_project_id ? 'Project workspace created' : quote.status === 'accepted' ? 'Convert quote to project' : 'Accept the quote before creating its project'} type="button"><BriefcaseBusiness size={16} /></button><button className="admin-icon-button is-danger" disabled={Boolean(quote.converted_project_id)} onClick={() => { if (window.confirm(`Permanently delete quote version ${quote.version}? This cannot be undone.`)) void onDelete(quote.id); }} title={quote.converted_project_id ? 'Quotes linked to projects cannot be deleted' : 'Delete quote version'} type="button"><Trash2 size={16} /></button></div>
             {quote.id === latest?.id ? <QuoteStageActions onConvert={onConvert} onPrepareEmail={onPrepareEmail} onShare={onShare} onStatus={onStatus} quote={quote} /> : <small className="admin-version-locked">Previous version · read only</small>}
             <DepositInvoiceWorkflow onCreateProject={() => onConvert(quote)} quote={quote} />
           </article>

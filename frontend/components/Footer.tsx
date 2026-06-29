@@ -26,7 +26,7 @@ export function Footer() {
             ))}
           </nav>
 
-          <p className="footer-note mb-0">© 2026 Carter Digital Solutions</p>
+          <p className="footer-note mb-0">Copyright {new Date().getFullYear()} Carter Digital Solutions</p>
         </div>
       </div>
     </footer>

@@ -14,14 +14,6 @@ export function PlaceholderInput({ definitions, label, maxLength = 180, onChange
   return <div className="admin-placeholder-input"><label>{label}<input className="form-control" maxLength={maxLength} onChange={(event) => update(event.target.value)} onKeyDown={(event) => { if (!suggestions.length) return; if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setActive((current) => (current + (event.key === 'ArrowDown' ? 1 : suggestions.length - 1)) % suggestions.length); } if (event.key === 'Enter' || event.key === 'Tab') { event.preventDefault(); insert(suggestions[active]); } if (event.key === 'Escape') setSuggestions([]); }} value={value} /></label>{suggestions.length ? <div className="admin-placeholder-suggestions" role="listbox">{suggestions.map((item, index) => <button aria-selected={active === index} className={active === index ? 'is-active' : ''} key={item.key} onMouseDown={(event) => { event.preventDefault(); insert(item); }} role="option" title={item.description} type="button"><code>{'{{'}{item.key}{'}}'}</code><span><strong>{item.label}</strong><small>{item.description}</small></span></button>)}</div> : null}</div>;
 }
 
-export function PlaceholderSelect({ definitions, label, onInsert }: { definitions: CorrespondencePlaceholder[]; label: string; onInsert: (key: string) => void }) {
-  const groups = grouped(definitions);
-  return <select aria-label={label} className="form-select admin-placeholder-select" onChange={(event) => { if (event.target.value) onInsert(event.target.value); event.target.value = ''; }} value="">
-    <option value="">Insert placeholder</option>
-    {groups.map(([group, items]) => <optgroup key={group} label={group}>{items.map((item) => <option key={item.key} value={item.key}>{item.label} — {'{{'}{item.key}{'}}'}</option>)}</optgroup>)}
-  </select>;
-}
-
 export function PlaceholderReference({ definitions, title }: { definitions: CorrespondencePlaceholder[]; title: string }) {
   return <details className="admin-placeholder-reference">
     <summary>{title} ({definitions.length})</summary>

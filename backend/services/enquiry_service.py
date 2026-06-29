@@ -146,6 +146,38 @@ def get_enquiry_by_quote_id(quote_id: str) -> dict[str, Any] | None:
     return _serialise_record(record) if record else None
 
 
+def delete_enquiry(enquiry_id: str) -> bool:
+    try:
+        return bool(_get_collection().delete_one({"id": enquiry_id}).deleted_count)
+    except EnquiryStorageError:
+        raise
+    except Exception as error:
+        raise EnquiryStorageError("Unable to delete enquiry.", reason="write_failed") from error
+
+
+def delete_quote_version(enquiry_id: str, quote_id: str) -> dict[str, Any] | None:
+    record = get_enquiry(enquiry_id)
+    if not record:
+        return None
+    quote = next((item for item in record.get("quote_versions", []) if item.get("id") == quote_id), None)
+    if not quote:
+        raise ValueError("Quote not found.")
+    if quote.get("converted_project_id"):
+        raise ValueError("A quote linked to a project cannot be deleted.")
+    now = datetime.now(timezone.utc)
+    try:
+        result = _get_collection().update_one(
+            {"id": enquiry_id, "quote_versions.id": quote_id},
+            {
+                "$pull": {"quote_versions": {"id": quote_id}},
+                "$push": {"activity": _activity("quote", f"Quote version {quote.get('version')} deleted", now)},
+            },
+        )
+    except Exception as error:
+        raise EnquiryStorageError("Unable to delete quote.", reason="write_failed") from error
+    return get_enquiry(enquiry_id) if result.modified_count else None
+
+
 def update_enquiry(enquiry_id: str, updates: dict[str, Any]) -> dict[str, Any] | None:
     allowed_statuses = {"new", "reviewed", "replied", "closed"}
     allowed_priorities = {"standard", "medium", "high"}

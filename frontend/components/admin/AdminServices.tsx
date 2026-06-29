@@ -74,7 +74,7 @@ export function AdminServices({ csrfToken, onDirtyChange }: { csrfToken: string;
   const services = useMemo(() => [
     ...baseline.map((service) => ({ ...service, ...overrides.find((item) => item.slug === service.slug) })),
     ...overrides.filter((item) => !baseline.some((base) => base.slug === item.slug)),
-  ].sort((left, right) => left.sort_order - right.sort_order), [overrides]);
+  ].filter((service) => !service.deleted).sort((left, right) => left.sort_order - right.sort_order), [overrides]);
 
   const categories = useMemo(() => {
     const builtIn = getBaselineCategories().map((category) => ({
@@ -186,8 +186,13 @@ export function AdminServices({ csrfToken, onDirtyChange }: { csrfToken: string;
     if (!serviceDraft.id || !window.confirm('Permanently delete this service?')) return;
     setIsSaving(true); setError(''); setMessage('');
     try {
-      await deleteAdminService(csrfToken, serviceDraft.id);
-      setOverrides((current) => current.filter((item) => item.id !== serviceDraft.id));
+      if (baseline.some((item) => item.slug === serviceDraft.slug)) {
+        const deleted = await saveAdminService(csrfToken, { ...serviceDraft, active: false, deleted: true });
+        setOverrides((current) => current.map((item) => item.id === deleted.id ? deleted : item));
+      } else {
+        await deleteAdminService(csrfToken, serviceDraft.id);
+        setOverrides((current) => current.filter((item) => item.id !== serviceDraft.id));
+      }
       setServiceDraft(blankService); setOutcomes(''); setProcessNotes(''); setSavedServiceFingerprint(fingerprint({ draft: blankService, outcomes: '', processNotes: '' }));
       setMessage('Service deleted.');
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to delete service'); }

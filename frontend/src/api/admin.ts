@@ -14,7 +14,7 @@ export interface ProjectInvoice { id: string; reference: string; kind: 'deposit'
 export interface AdminProject { id: string; name: string; client_name: string; client_email: string; stage: ProjectStage; value: number; due_date: string; notes: string; tags: string[]; linked_enquiry_id: string; source_quote_id: string; services: ProjectService[]; included_consultation_hours: number; consultation_rate: number; meetings: ProjectMeeting[]; invoices: ProjectInvoice[]; tasks: ProjectChecklistItem[]; milestones: ProjectChecklistItem[]; completion: number; created_at: string; updated_at: string; }
 export interface AdminCustomer { email: string; name: string; phone: string; organisation: string; notes: string; tags: string[]; enquiries: AdminEnquiry[]; projects: AdminProject[]; }
 export interface AdminServiceCategory { id: string; slug: string; name: string; audience: string; description: string; active: boolean; sort_order: number; status: 'draft' | 'published'; created_at?: string; updated_at?: string; }
-export interface AdminServiceOverride { id: string; slug: string; name: string; audience: string; category_id: string; category: string; description: string; best_for: string; starting_from: number; hourly_rate: number; estimated_hours: number; deposit: string; deposit_amount: number; active: boolean; sort_order: number; status: 'draft' | 'published'; outcomes: string[]; process_notes: string[]; }
+export interface AdminServiceOverride { id: string; slug: string; name: string; audience: string; category_id: string; category: string; description: string; best_for: string; starting_from: number; hourly_rate: number; estimated_hours: number; deposit: string; deposit_amount: number; active: boolean; deleted?: boolean; sort_order: number; status: 'draft' | 'published'; outcomes: string[]; process_notes: string[]; }
 
 export interface AdminSession {
   authenticated: boolean;
@@ -183,6 +183,13 @@ export async function updateAdminEnquiry(
   return parseAdminResponse<{ enquiry: AdminEnquiry }>(response);
 }
 
+export async function deleteAdminEnquiry(csrfToken: string, enquiryId: string) {
+  const response = await fetch(`/api/admin/enquiries/${encodeURIComponent(enquiryId)}`, {
+    method: 'DELETE', credentials: 'same-origin', headers: { Accept: 'application/json', 'X-CSRF-Token': csrfToken },
+  });
+  return parseAdminResponse<{ deleted: boolean }>(response);
+}
+
 export async function createAdminQuote(
   csrfToken: string,
   id: string,
@@ -197,6 +204,7 @@ export async function createAdminQuote(
   return parseAdminResponse<{ enquiry: AdminEnquiry }>(response);
 }
 export async function updateAdminQuote(csrfToken: string, enquiryId: string, quoteId: string, payload: AdminQuotePayload) { const response = await fetch(`/api/admin/enquiries/${encodeURIComponent(enquiryId)}/quotes/${encodeURIComponent(quoteId)}`, { method: 'PUT', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken }, body: JSON.stringify(payload) }); return parseAdminResponse<{ enquiry: AdminEnquiry }>(response); }
+export async function deleteAdminQuote(csrfToken: string, enquiryId: string, quoteId: string) { const response = await fetch(`/api/admin/enquiries/${encodeURIComponent(enquiryId)}/quotes/${encodeURIComponent(quoteId)}`, { method: 'DELETE', credentials: 'same-origin', headers: { Accept: 'application/json', 'X-CSRF-Token': csrfToken } }); return parseAdminResponse<{ enquiry: AdminEnquiry }>(response); }
 
 export async function updateAdminQuoteStatus(csrfToken: string, enquiryId: string, quoteId: string, status: AdminQuoteVersion['status']) {
   const response = await fetch(`/api/admin/enquiries/${encodeURIComponent(enquiryId)}/quotes/${encodeURIComponent(quoteId)}`, {
@@ -251,6 +259,7 @@ export async function saveAdminServiceCategory(csrf: string, item: Partial<Admin
 export const deleteAdminServiceCategory = (csrf: string, id: string) => workspaceDelete('service-categories', csrf, id);
 export async function fetchAdminCustomers() { const response = await fetch('/api/admin/customers', { credentials: 'same-origin', headers: { Accept: 'application/json' } }); return (await parseAdminResponse<{ customers: AdminCustomer[] }>(response)).customers; }
 export async function saveAdminCustomer(csrf: string, customer: Partial<AdminCustomer>) { const response = await fetch(`/api/admin/customers/${encodeURIComponent(customer.email ?? '')}`, { method: 'PUT', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(customer) }); return (await parseAdminResponse<{ customer: AdminCustomer }>(response)).customer; }
+export async function deleteAdminCustomer(csrf: string, email: string, cascade = false) { const response = await fetch(`/api/admin/customers/${encodeURIComponent(email)}?cascade=${cascade ? 'true' : 'false'}`, { method: 'DELETE', credentials: 'same-origin', headers: { Accept: 'application/json', 'X-CSRF-Token': csrf } }); return parseAdminResponse<{ deleted: { profiles: number; enquiries: number; projects: number; documents: number } }>(response); }
 export async function fetchAdminDocumentTemplates() { const response = await fetch('/api/admin/documents/templates', { credentials: 'same-origin', headers: { Accept: 'application/json' } }); return (await parseAdminResponse<{ templates: AdminDocumentTemplate[] }>(response)).templates; }
 export async function fetchAdminDocuments(ownerType: 'project' | 'customer', ownerId: string) { const response = await fetch(`/api/admin/documents/${ownerType}/${encodeURIComponent(ownerId)}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } }); return (await parseAdminResponse<{ documents: AdminDocument[] }>(response)).documents; }
 export async function fetchEnquiryDocuments(enquiryId: string) { const response = await fetch(`/api/admin/enquiries/${encodeURIComponent(enquiryId)}/documents`, { credentials: 'same-origin', headers: { Accept: 'application/json' } }); return (await parseAdminResponse<{ documents: AdminDocument[] }>(response)).documents; }

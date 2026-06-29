@@ -18,7 +18,14 @@ def list_customer_profiles() -> list[dict[str, Any]]:
         for customer in database[current_app.config["MONGODB_CUSTOMER_COLLECTION"]].find({}, {"_id": 0}):
             profiles[customer["email"]] = _serialise(customer)
 
-        for enquiry in database[current_app.config["MONGODB_ENQUIRY_COLLECTION"]].find({}, {"_id": 0, "email": 1, "name": 1, "created_at": 1, "id": 1, "type": 1, "status": 1, "estimated_cost": 1}):
+        enquiry_fields = {
+            "_id": 0, "id": 1, "created_at": 1, "status": 1, "priority": 1, "type": 1,
+            "name": 1, "email": 1, "project_type": 1, "message": 1, "quote_items": 1,
+            "estimated_hours": 1, "estimated_cost": 1, "admin_notes": 1, "labels": 1,
+            "follow_up_at": 1, "archived": 1, "quote_versions": 1, "communications": 1,
+            "activity": 1,
+        }
+        for enquiry in database[current_app.config["MONGODB_ENQUIRY_COLLECTION"]].find({}, enquiry_fields):
             email = str(enquiry.get("email", "")).strip().lower()
             if not email:
                 continue
@@ -69,6 +76,29 @@ def save_customer_profile(payload: dict[str, Any]) -> dict[str, Any]:
     except Exception as error:
         raise CustomerStorageError("Unable to save customer profile.") from error
     return _serialise(saved)
+
+
+def delete_customer_profile(email: str, cascade: bool = False) -> dict[str, int]:
+    clean_email = str(email or "").strip().lower()
+    if not clean_email or "@" not in clean_email:
+        raise ValueError("A valid customer email is required.")
+    try:
+        database = _database()
+        enquiry_collection = database[current_app.config["MONGODB_ENQUIRY_COLLECTION"]]
+        project_collection = database[current_app.config["MONGODB_PROJECT_COLLECTION"]]
+        enquiry_count = enquiry_collection.count_documents({"email": clean_email})
+        project_count = project_collection.count_documents({"client_email": clean_email})
+        if (not cascade) and (enquiry_count or project_count):
+            raise ValueError("This customer has linked enquiries or projects. Confirm cascade deletion to remove the complete customer record.")
+        profile_count = database[current_app.config["MONGODB_CUSTOMER_COLLECTION"]].delete_many({"email": clean_email}).deleted_count
+        if cascade:
+            enquiry_collection.delete_many({"email": clean_email})
+            project_collection.delete_many({"client_email": clean_email})
+        return {"profiles": profile_count, "enquiries": enquiry_count if cascade else 0, "projects": project_count if cascade else 0}
+    except ValueError:
+        raise
+    except Exception as error:
+        raise CustomerStorageError("Unable to delete customer profile.") from error
 
 
 def _base_profile(email: str, name: str) -> dict[str, Any]:

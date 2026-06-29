@@ -24,6 +24,8 @@ import {
   type AdminView,
   createAdminQuote,
   createQuoteShareLink,
+  deleteAdminEnquiry,
+  deleteAdminQuote,
   fetchAdminEnquiries,
   fetchAdminProjects,
   fetchAdminSession,
@@ -210,6 +212,23 @@ export function AdminPage() {
     }
   };
 
+  const handleDeleteEnquiry = async (id: string) => {
+    if (!session?.csrf_token) return;
+    setError('');
+    setMessage('');
+    try {
+      await deleteAdminEnquiry(session.csrf_token, id);
+      setEnquiries((current) => {
+        const remaining = current.filter((item) => item.id !== id);
+        setSelectedId(remaining[0]?.id ?? null);
+        return remaining;
+      });
+      setMessage('Enquiry permanently deleted.');
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Unable to delete enquiry');
+    }
+  };
+
   const handleCreateQuote = async (id: string, payload: { items: AdminQuoteItem[]; discount: number; expenses: number; tax_rate: number; deposit: number; notes: string; valid_until: string | null }) => {
     if (!session?.csrf_token) return;
     setError(''); setMessage('');
@@ -232,6 +251,18 @@ export function AdminPage() {
       setMessage('Draft quote updated.');
     } catch (quoteError) {
       setError(quoteError instanceof Error ? quoteError.message : 'Unable to update the draft quote');
+    }
+  };
+  const handleDeleteQuote = async (enquiryId: string, quoteId: string) => {
+    if (!session?.csrf_token) return;
+    setError('');
+    setMessage('');
+    try {
+      const data = await deleteAdminQuote(session.csrf_token, enquiryId, quoteId);
+      replaceEnquiry(data.enquiry);
+      setMessage('Quote version permanently deleted.');
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Unable to delete quote');
     }
   };
 
@@ -344,12 +375,12 @@ export function AdminPage() {
           {view !== 'account' ? <button className="btn btn-outline-accent admin-refresh" disabled={isLoading} onClick={() => { if (!confirmDiscard()) return; setHasUnsavedChanges(false); setRefreshKey((current) => current + 1); void loadWorkspace(); }} type="button"><RefreshCw className={isLoading ? 'is-spinning' : ''} size={16} /> {isLoading ? 'Refreshing' : 'Refresh'}</button> : null}
         </header>
 
-        <div className={`admin-content ${view === 'projects' ? 'admin-content-wide' : ''}`}>
+        <div className={`admin-content ${['projects', 'customers'].includes(view) ? 'admin-content-wide' : ''}`}>
           {message ? <div className="alert alert-success" role="status">{message}</div> : null}
           {error ? <div className="alert alert-danger" role="alert">{error}</div> : null}
           {view === 'overview' ? <AdminOverview enquiries={enquiries} projects={projects} onNavigate={navigate} onOpenProject={openProject} onSelect={selectEnquiry} /> : null}
-          {view === 'enquiries' ? <AdminInbox enquiries={enquiries} mode="all" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onDirtyChange={setHasUnsavedChanges} onQuoteStatus={handleQuoteStatus} onSelect={selectEnquiry} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
-          {view === 'quotes' ? <AdminInbox enquiries={enquiries} mode="quotes" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onDirtyChange={setHasUnsavedChanges} onQuoteStatus={handleQuoteStatus} onSelect={selectEnquiry} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
+          {view === 'enquiries' ? <AdminInbox enquiries={enquiries} mode="all" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onDelete={handleDeleteEnquiry} onDeleteQuote={handleDeleteQuote} onDirtyChange={setHasUnsavedChanges} onQuoteStatus={handleQuoteStatus} onSelect={selectEnquiry} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
+          {view === 'quotes' ? <AdminInbox enquiries={enquiries} mode="quotes" onConvertQuote={handleConvertQuote} onCreateQuote={handleCreateQuote} onDelete={handleDeleteEnquiry} onDeleteQuote={handleDeleteQuote} onDirtyChange={setHasUnsavedChanges} onQuoteStatus={handleQuoteStatus} onSelect={selectEnquiry} onSend={handleSend} onShareQuote={handleShareQuote} onUpdate={handleUpdate} onUpdateQuote={handleUpdateQuote} selectedId={selectedId} /> : null}
           {view === 'projects' ? <AdminProjects csrfToken={session.csrf_token ?? ''} enquiries={enquiries} initialProjectId={selectedProjectId} initialTab={selectedProjectTab} onDirtyChange={setHasUnsavedChanges} onInvoiceSent={loadWorkspace} onTabChange={setSelectedProjectTab} refreshKey={refreshKey} /> : null}
           {view === 'customers' ? <AdminCustomers csrfToken={session.csrf_token ?? ''} onDirtyChange={setHasUnsavedChanges} onOpenEnquiry={openEnquiry} onOpenProject={openProject} refreshKey={refreshKey} /> : null}
           {view === 'records' ? <AdminRecords csrfToken={session.csrf_token ?? ''} key={`records-${refreshKey}`} onDirtyChange={setHasUnsavedChanges} /> : null}
