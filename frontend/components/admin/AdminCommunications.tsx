@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 
 import { fetchAdminTemplates, fetchCommunicationSettings, type AdminEnquiry, type AdminTemplate } from '../../src/api/admin';
 import { enquiryPlaceholderValues, enquiryPlaceholders, resolveCorrespondence } from '../../src/data/correspondencePlaceholders';
-import { PlaceholderReference, PlaceholderSelect } from './AdminPlaceholderReference';
+import { PlaceholderInput, PlaceholderReference, PlaceholderSelect } from './AdminPlaceholderReference';
 import { AdminRichTextEditor, normaliseRichText } from './AdminRichTextEditor';
 
 export interface CommunicationDraft { subject: string; message: string; quoteId?: string; }
@@ -35,8 +35,8 @@ export function AdminCommunications({ enquiry, draft, onSend }: { enquiry: Admin
       <section className="admin-subpanel admin-compose-panel">
         <div className="admin-subpanel-heading"><div><h3>Send email</h3><p>To {enquiry.name} at {enquiry.email}</p></div></div>
         <label>Template<select className="form-select" onChange={(event) => { const template = templates.find((item) => item.id === event.target.value); const replacements = enquiryPlaceholderValues(enquiry); setSubject(resolveCorrespondence(template?.subject ?? '', replacements)); setMessage(resolveCorrespondence(template?.body ?? '', replacements)); setQuoteId(undefined); }}><option value="">Blank message</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></label>
-        <div className="admin-template-field"><label>Subject<input className="form-control" maxLength={180} onChange={(event) => setSubject(event.target.value)} value={subject} /></label><PlaceholderSelect definitions={enquiryPlaceholders} label="Insert subject placeholder" onInsert={(key) => setSubject((current) => `${current}{{${key}}}`)} /></div>
-        <div className="admin-template-field"><AdminRichTextEditor label="Message" onChange={setMessage} value={message} /><PlaceholderSelect definitions={enquiryPlaceholders} label="Insert message placeholder" onInsert={(key) => setMessage((current) => `${current}{{${key}}}`)} /></div>
+        <div className="admin-template-field"><PlaceholderInput definitions={enquiryPlaceholders} label="Subject" onChange={setSubject} value={subject} /><PlaceholderSelect definitions={enquiryPlaceholders} label="Insert subject placeholder" onInsert={(key) => setSubject((current) => `${current}{{${key}}}`)} /></div>
+        <div className="admin-template-field"><AdminRichTextEditor label="Message" onChange={setMessage} placeholders={enquiryPlaceholders} value={message} /><PlaceholderSelect definitions={enquiryPlaceholders} label="Insert message placeholder" onInsert={(key) => setMessage((current) => `${current}{{${key}}}`)} /></div>
         <PlaceholderReference definitions={enquiryPlaceholders} title="Correspondence placeholder reference" />
         {signature ? <div className="admin-signature-preview" dangerouslySetInnerHTML={{ __html: normaliseRichText(signature) }} /> : null}
         <label>Schedule for later<input className="form-control" onChange={(event) => setScheduledAt(event.target.value)} type="datetime-local" value={scheduledAt} /></label>

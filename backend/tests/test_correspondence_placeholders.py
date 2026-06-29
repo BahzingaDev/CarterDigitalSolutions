@@ -68,11 +68,12 @@ class CorrespondencePlaceholderTests(unittest.TestCase):
         self.assertEqual(values["payment_details"], "Account ending 1234")
 
     def test_rich_text_preserves_formatting_and_blank_lines_safely(self):
-        rich_text = '<p>Hello <strong>Alex</strong></p><div><br></div><p><a href="https://example.com" onclick="alert(1)">Review</a></p><script>alert(1)</script>'
+        rich_text = '<p><font face="Georgia" size="5" color="#6f2da8">Hello <strong>Alex</strong></font></p><div><br></div><p><a href="https://example.com" onclick="alert(1)">Review</a></p><script>alert(1)</script>'
         clean = sanitize_rich_text(rich_text)
         plain = rich_text_to_plain(clean)
 
         self.assertIn("<strong>Alex</strong>", clean)
+        self.assertIn('face="Georgia"', clean)
         self.assertIn('href="https://example.com"', clean)
         self.assertNotIn("onclick", clean)
         self.assertNotIn("<script", clean)

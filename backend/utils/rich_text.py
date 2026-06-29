@@ -5,8 +5,8 @@ import re
 import bleach
 
 
-ALLOWED_TAGS = {"p", "div", "br", "strong", "b", "em", "i", "u", "ul", "ol", "li", "a", "blockquote"}
-ALLOWED_ATTRIBUTES = {"a": ["href", "target", "rel"]}
+ALLOWED_TAGS = {"p", "div", "br", "strong", "b", "em", "i", "u", "ul", "ol", "li", "a", "blockquote", "font"}
+ALLOWED_ATTRIBUTES = {"a": ["href", "target", "rel"], "font": ["face", "size", "color"]}
 
 
 def sanitize_rich_text(value: object) -> str:

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { deleteAdminTemplate, fetchAdminTemplates, saveAdminTemplate, type AdminTemplate } from '../../src/api/admin';
 import { enquiryPlaceholders, resolveCorrespondence } from '../../src/data/correspondencePlaceholders';
 import { fingerprint, useUnsavedChanges } from '../../src/hooks/useUnsavedChanges';
-import { PlaceholderReference, PlaceholderSelect } from './AdminPlaceholderReference';
+import { PlaceholderInput, PlaceholderReference, PlaceholderSelect } from './AdminPlaceholderReference';
 import { AdminRichTextEditor, normaliseRichText } from './AdminRichTextEditor';
 
 const empty = { name: '', subject: '', body: '' };
@@ -38,5 +38,5 @@ export function AdminTemplates({ csrfToken, onDirtyChange }: { csrfToken: string
   </div>;
 }
 
-function TemplateField({ label, multiline, onChange, onInsert, value }: { label: string; multiline: boolean; onChange: (value: string) => void; onInsert: (key: string) => void; value: string }) { return <div className="admin-template-field">{multiline ? <AdminRichTextEditor label={label} onChange={onChange} value={value} /> : <label>{label}<input className="form-control" maxLength={180} onChange={(event) => onChange(event.target.value)} value={value} /></label>}<PlaceholderSelect definitions={enquiryPlaceholders} label={`Insert ${label} placeholder`} onInsert={onInsert} /></div>; }
+function TemplateField({ label, multiline, onChange, onInsert, value }: { label: string; multiline: boolean; onChange: (value: string) => void; onInsert: (key: string) => void; value: string }) { return <div className="admin-template-field">{multiline ? <AdminRichTextEditor label={label} onChange={onChange} placeholders={enquiryPlaceholders} value={value} /> : <PlaceholderInput definitions={enquiryPlaceholders} label={label} onChange={onChange} value={value} />}<PlaceholderSelect definitions={enquiryPlaceholders} label={`Insert ${label} placeholder`} onInsert={onInsert} /></div>; }
 function resolve(value: string) { return resolveCorrespondence(value, samples); }
