@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, Building2, CalendarPlus, CheckCircle2, ChevronDown, Clock3, Download, FilePlus2, Files, FileText, Mail, MessageSquareText, NotebookPen, Phone, Plus, ReceiptText, Save, Send, Trash2, UserRound, X, type LucideIcon } from 'lucide-react';
+import { BriefcaseBusiness, Building2, CalendarPlus, CheckCircle2, ChevronDown, Circle, Clock3, Download, FilePlus2, Files, FileText, Mail, MessageSquareText, NotebookPen, Paperclip, Phone, Plus, ReceiptText, Save, Send, Trash2, UserRound, X, type LucideIcon } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 
 import {
@@ -31,15 +31,15 @@ const empty: Partial<AdminProject> = {
   name: '', client_name: '', client_email: '', stage: 'lead', value: 0, due_date: '', notes: '', tags: [], linked_enquiry_id: '', source_quote_id: '',
   services: [], included_consultation_hours: 0, consultation_rate: 16.5, meetings: [], invoices: [], tasks: [], milestones: [], completion: 0,
 };
-type WorkspaceTab = 'overview' | 'delivery' | 'meetings' | 'invoices';
+type WorkspaceTab = 'lifecycle' | 'overview' | 'delivery' | 'meetings' | 'invoices';
 
-export function AdminProjects({ csrfToken, enquiries, initialProjectId, initialTab, onDirtyChange, onInvoiceSent, onTabChange, refreshKey = 0 }: { csrfToken: string; enquiries: AdminEnquiry[]; initialProjectId?: string | null; initialTab?: WorkspaceTab; onDirtyChange?: (isDirty: boolean) => void; onInvoiceSent?: () => Promise<void>; onTabChange?: (tab: WorkspaceTab) => void; refreshKey?: number }) {
+export function AdminProjects({ csrfToken, enquiries, initialProjectId, initialTab, onDirtyChange, onInvoiceSent, onOpenEnquiry, onTabChange, refreshKey = 0 }: { csrfToken: string; enquiries: AdminEnquiry[]; initialProjectId?: string | null; initialTab?: WorkspaceTab; onDirtyChange?: (isDirty: boolean) => void; onInvoiceSent?: () => Promise<void>; onOpenEnquiry: (id: string, isQuote?: boolean, tab?: 'details' | 'quote' | 'communications' | 'activity') => void; onTabChange?: (tab: WorkspaceTab) => void; refreshKey?: number }) {
   const [items, setItems] = useState<AdminProject[]>([]);
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [draft, setDraft] = useState<Partial<AdminProject>>(empty);
   const [tags, setTags] = useState('');
   const [editing, setEditing] = useState(false);
-  const [tab, setTab] = useState<WorkspaceTab>('overview');
+  const [tab, setTab] = useState<WorkspaceTab>('lifecycle');
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [taxRate, setTaxRate] = useState(0);
@@ -51,7 +51,7 @@ export function AdminProjects({ csrfToken, enquiries, initialProjectId, initialT
         const normalised = projects.map(normaliseProject);
         setItems(normalised);
         const target = normalised.find((project) => project.id === initialProjectId);
-        if (target) { const targetTags = target.tags.join(', '); setDraft(target); setTags(targetTags); setSavedFingerprint(projectFingerprint(target, targetTags)); setEditing(true); setTab(initialTab ?? 'overview'); }
+        if (target) { const targetTags = target.tags.join(', '); setDraft(target); setTags(targetTags); setSavedFingerprint(projectFingerprint(target, targetTags)); setEditing(true); setTab(initialTab ?? 'lifecycle'); }
       })
       .catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load projects'));
   }, [initialProjectId, refreshKey]);
@@ -67,7 +67,7 @@ export function AdminProjects({ csrfToken, enquiries, initialProjectId, initialT
     return () => window.removeEventListener('beforeunload', warn);
   }, [isDirty]);
 
-  const select = (item: AdminProject) => { if (isDirty && !window.confirm('Discard unsaved project changes?')) return; const normalised = normaliseProject(item); const itemTags = item.tags.join(', '); setDraft(normalised); setTags(itemTags); setSavedFingerprint(projectFingerprint(normalised, itemTags)); setEditing(true); setTab('overview'); setError(''); };
+  const select = (item: AdminProject) => { if (isDirty && !window.confirm('Discard unsaved project changes?')) return; const normalised = normaliseProject(item); const itemTags = item.tags.join(', '); setDraft(normalised); setTags(itemTags); setSavedFingerprint(projectFingerprint(normalised, itemTags)); setEditing(true); setTab('lifecycle'); setError(''); };
   const save = async (value = draft): Promise<AdminProject | undefined> => {
     setIsSaving(true); setError('');
     try {
@@ -102,6 +102,25 @@ export function AdminProjects({ csrfToken, enquiries, initialProjectId, initialT
   };
   const linkedEnquiry = enquiries.find((item) => item.id === draft.linked_enquiry_id);
   const customer = customers.find((item) => item.email.toLowerCase() === String(draft.client_email ?? '').toLowerCase());
+  const sendInvoice = async (invoice: ProjectInvoice) => {
+    const saved = await save();
+    if (!saved) return;
+    try {
+      const updated = normaliseProject(await sendAdminProjectInvoice(csrfToken, saved.id, invoice.id));
+      setDraft(updated);
+      setSavedFingerprint(projectFingerprint(updated, tags));
+      setItems((current) => current.map((item) => item.id === updated.id ? updated : item));
+      await onInvoiceSent?.();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to send invoice');
+    }
+  };
+  const markInvoicePaid = async (invoice: ProjectInvoice) => {
+    const paidDraft = { ...draft, invoices: (draft.invoices ?? []).map((item) => item.id === invoice.id ? { ...item, status: 'paid' as const, paid_date: item.paid_date || new Date().toISOString().slice(0, 10) } : item) };
+    setDraft(paidDraft);
+    const saved = await save(paidDraft);
+    if (saved) await onInvoiceSent?.();
+  };
 
   return <div className="admin-view-stack">
     <div className="admin-pipeline-toolbar"><div><strong>{items.length} projects</strong><span>{formatCurrency(items.filter((item) => item.stage !== 'completed').reduce((sum, item) => sum + item.value, 0))} open pipeline</span></div><button className="btn btn-accent" onClick={() => { if (isDirty && !window.confirm('Discard unsaved project changes?')) return; setDraft(empty); setTags(''); setSavedFingerprint(projectFingerprint(empty, '')); setEditing(true); setTab('overview'); }} type="button"><Plus size={16} /> New project</button></div>
@@ -109,11 +128,12 @@ export function AdminProjects({ csrfToken, enquiries, initialProjectId, initialT
     {editing ? <section className="admin-panel admin-project-editor">
       <div className="admin-project-workspace-heading"><div><p className="section-kicker">Client project</p><h2>{draft.name || 'New project'}</h2><span>{draft.client_name || 'No client assigned'}{isDirty ? ' · Unsaved changes' : ''}</span></div><div className="admin-management-actions"><button className="btn btn-accent" disabled={isSaving || !isDirty} onClick={() => void save()} type="button"><Save size={16} /> {isSaving ? 'Saving...' : isDirty ? 'Save project' : 'Saved'}</button><button className="btn btn-outline-secondary" onClick={() => { if (!isDirty || window.confirm('Discard unsaved project changes?')) setEditing(false); }} type="button">Close</button>{draft.id ? <button className="admin-icon-button is-danger" onClick={() => void remove()} title="Delete project" type="button"><Trash2 size={16} /></button> : null}</div></div>
       <ProjectNextAction draft={draft} onTab={setTab} />
-      <div className="admin-project-tabs" role="tablist"><ProjectTab active={tab === 'overview'} label="Overview" onClick={() => setTab('overview')} /><ProjectTab active={tab === 'delivery'} label="Delivery" onClick={() => setTab('delivery')} /><ProjectTab active={tab === 'meetings'} label="Meetings" onClick={() => setTab('meetings')} /><ProjectTab active={tab === 'invoices'} label="Invoices" onClick={() => setTab('invoices')} /></div>
+      <div className="admin-project-tabs" role="tablist"><ProjectTab active={tab === 'lifecycle'} label="Lifecycle" onClick={() => setTab('lifecycle')} /><ProjectTab active={tab === 'overview'} label="Overview" onClick={() => setTab('overview')} /><ProjectTab active={tab === 'delivery'} label="Delivery" onClick={() => setTab('delivery')} /><ProjectTab active={tab === 'meetings'} label="Meetings" onClick={() => setTab('meetings')} /><ProjectTab active={tab === 'invoices'} label="Invoices" onClick={() => setTab('invoices')} /></div>
+      {tab === 'lifecycle' ? <LifecycleWorkspace draft={draft} enquiry={linkedEnquiry} onChange={setDraft} onEmail={() => linkedEnquiry && onOpenEnquiry(linkedEnquiry.id, false, 'communications')} onOpenEnquiry={() => linkedEnquiry && onOpenEnquiry(linkedEnquiry.id, false, 'details')} onOpenQuote={() => linkedEnquiry && onOpenEnquiry(linkedEnquiry.id, true, 'quote')} onSave={save} onSendInvoice={sendInvoice} onTab={setTab} taxRate={taxRate} /> : null}
       {tab === 'overview' ? <ProjectOverview csrfToken={csrfToken} customer={customer} draft={draft} enquiry={linkedEnquiry} onChange={setDraft} onTags={setTags} tags={tags} /> : null}
       {tab === 'delivery' ? <DeliveryWorkspace draft={draft} onChange={setDraft} /> : null}
       {tab === 'meetings' ? <MeetingWorkspace draft={draft} onChange={setDraft} onInvoiceCreated={() => setTab('invoices')} taxRate={taxRate} /> : null}
-      {tab === 'invoices' ? <InvoiceWorkspace draft={draft} onChange={setDraft} taxRate={taxRate} onDownload={async (invoice) => { const saved = await save(); if (saved) await downloadAdminProjectInvoice(saved.id, invoice.id, invoice.reference); }} onMarkPaid={async (invoice) => { const paidDraft = { ...draft, invoices: (draft.invoices ?? []).map((item) => item.id === invoice.id ? { ...item, status: 'paid' as const, paid_date: item.paid_date || new Date().toISOString().slice(0, 10) } : item) }; setDraft(paidDraft); const saved = await save(paidDraft); if (saved) await onInvoiceSent?.(); }} onSend={async (invoice) => { const saved = await save(); if (!saved) return; try { const updated = normaliseProject(await sendAdminProjectInvoice(csrfToken, saved.id, invoice.id)); setDraft(updated); setSavedFingerprint(projectFingerprint(updated, tags)); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)); await onInvoiceSent?.(); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to send invoice'); } }} /> : null}
+      {tab === 'invoices' ? <InvoiceWorkspace draft={draft} onChange={setDraft} taxRate={taxRate} onDownload={async (invoice) => { const saved = await save(); if (saved) await downloadAdminProjectInvoice(saved.id, invoice.id, invoice.reference); }} onMarkPaid={markInvoicePaid} onSend={sendInvoice} /> : null}
     </section> : null}
     {!editing ? <div className="admin-kanban">{stages.map((stage) => <section className="admin-kanban-column" key={stage.id}><header><span>{stage.label}</span><em>{items.filter((item) => item.stage === stage.id).length}</em></header><div>{items.filter((item) => item.stage === stage.id).map((project) => <article className="admin-project-card" key={project.id} onClick={() => select(project)}><strong>{project.name}</strong><small>{project.client_name || 'No client assigned'}</small><span>{formatCurrency(project.value)}</span><div className="admin-card-progress"><i style={{ width: `${project.completion ?? 0}%` }} /></div><small>{projectCardSummary(project)}</small><small className={`admin-card-deposit is-${depositState(project.invoices)}`}>{depositSummary(project.invoices)}</small>{project.due_date ? <time>{formatDisplayDate(project.due_date)}</time> : null}<select aria-label={`Move ${project.name}`} onClick={(event) => event.stopPropagation()} onChange={(event) => void move(project, event.target.value as ProjectStage)} value={project.stage}>{stages.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></article>)}</div></section>)}</div> : null}
   </div>;
@@ -202,6 +222,128 @@ function stageLabel(stage?: ProjectStage) {
   return stages.find((item) => item.id === stage)?.label ?? 'No stage';
 }
 
+function LifecycleWorkspace({ draft, enquiry, onChange, onEmail, onOpenEnquiry, onOpenQuote, onSave, onSendInvoice, onTab, taxRate }: {
+  draft: Partial<AdminProject>;
+  enquiry?: AdminEnquiry;
+  onChange: (value: Partial<AdminProject>) => void;
+  onEmail: () => void;
+  onOpenEnquiry: () => void;
+  onOpenQuote: () => void;
+  onSave: (value?: Partial<AdminProject>) => Promise<AdminProject | undefined>;
+  onSendInvoice: (invoice: ProjectInvoice) => Promise<void>;
+  onTab: (tab: WorkspaceTab) => void;
+  taxRate: number;
+}) {
+  const [pendingAction, setPendingAction] = useState('');
+  const quoteVersions = enquiry?.quote_versions ?? [];
+  const quote = quoteVersions.find((item) => item.id === draft.source_quote_id)
+    ?? quoteVersions[quoteVersions.length - 1];
+  const meetings = draft.meetings ?? [];
+  const invoices = draft.invoices ?? [];
+  const deposit = invoices.find((item) => item.kind === 'deposit' && item.status !== 'void');
+  const finalInvoice = [...invoices].reverse().find((item) => item.kind === 'final' && item.status !== 'void');
+  const hasMeeting = meetings.some((item) => item.status !== 'cancelled');
+  const completedMeeting = meetings.some((item) => item.status === 'completed');
+  const deliveryComplete = Number(draft.completion ?? 0) >= 100;
+  const depositRequired = Number(quote?.deposit ?? deposit?.amount ?? 0) > 0;
+  const depositComplete = !depositRequired || deposit?.status === 'paid';
+  const finalPaid = finalInvoice?.status === 'paid';
+  const projectComplete = draft.stage === 'completed';
+
+  const run = async (key: string, action: () => Promise<void>) => {
+    setPendingAction(key);
+    try { await action(); } finally { setPendingAction(''); }
+  };
+  const createFinalInvoice = async () => {
+    const billedTotal = invoices.filter((item) => item.status !== 'void' && item.kind !== 'final').reduce((total, item) => total + Number(item.amount || 0), 0);
+    const remainingTotal = Math.max(0, Number(draft.value || 0) - billedTotal);
+    const subtotal = Number((remainingTotal / (1 + taxRate / 100)).toFixed(2));
+    const taxAmount = Number((subtotal * taxRate / 100).toFixed(2));
+    const invoice: ProjectInvoice = {
+      id: crypto.randomUUID(),
+      reference: `INV-${String(invoices.length + 1).padStart(3, '0')}`,
+      kind: 'final',
+      status: 'draft',
+      subtotal,
+      tax_rate: taxRate,
+      tax_amount: taxAmount,
+      amount: Number((subtotal + taxAmount).toFixed(2)),
+      issue_date: '',
+      due_date: '',
+      paid_date: '',
+      notes: `Final invoice for ${draft.name || 'project delivery'}`,
+    };
+    const next = { ...draft, invoices: [...invoices, invoice] };
+    onChange(next);
+    await onSave(next);
+    onTab('invoices');
+  };
+  const completeProject = async () => {
+    const next = { ...draft, stage: 'completed' as const, completion: 100 };
+    onChange(next);
+    await onSave(next);
+  };
+
+  return <div className="admin-project-workspace admin-lifecycle">
+    <div className="admin-lifecycle-summary">
+      <div><span>Current stage</span><strong>{stageLabel(draft.stage)}</strong></div>
+      <div><span>Delivery</span><strong>{draft.completion ?? 0}%</strong></div>
+      <div><span>Deposit</span><strong>{!depositRequired ? 'Not required' : deposit?.status ? readableLifecycleStatus(deposit.status) : 'Not created'}</strong></div>
+      <div><span>Final invoice</span><strong>{finalInvoice ? readableLifecycleStatus(finalInvoice.status) : 'Not created'}</strong></div>
+    </div>
+    <div className="admin-lifecycle-list">
+      <LifecycleStep complete={Boolean(enquiry)} icon={MessageSquareText} number={1} status={enquiry ? 'Recorded' : 'Missing'} title="Enquiry">
+        <p>{enquiry ? `Received ${formatDisplayDate(enquiry.created_at)} for ${enquiry.project_type || 'this project'}.` : 'No enquiry is linked to this project.'}</p>
+        <div className="admin-lifecycle-actions">{enquiry ? <><button className="btn btn-outline-accent btn-sm" onClick={onOpenEnquiry} type="button">View enquiry</button><button className="btn btn-accent btn-sm" onClick={onEmail} type="button"><Mail size={15} /> Email client</button></> : <button className="btn btn-outline-accent btn-sm" onClick={() => onTab('overview')} type="button">Link enquiry</button>}</div>
+      </LifecycleStep>
+
+      <LifecycleStep complete={quote?.status === 'accepted'} icon={FileText} number={2} status={quote ? readableLifecycleStatus(quote.status) : 'Not created'} title="Quote and approval">
+        <p>{quote ? `Version ${quote.version} · ${formatCurrency(quote.total)} total · ${formatCurrency(quote.deposit)} deposit.` : 'Create and send a formal quote before confirming the scope.'}</p>
+        <div className="admin-lifecycle-actions"><button className="btn btn-outline-accent btn-sm" disabled={!enquiry} onClick={onOpenQuote} type="button">Open quote</button></div>
+      </LifecycleStep>
+
+      <LifecycleStep complete={completedMeeting} current={hasMeeting && !completedMeeting} icon={CalendarPlus} number={3} status={completedMeeting ? 'Completed' : hasMeeting ? 'Scheduled' : 'Not booked'} title="Discovery and meetings">
+        <p>{meetings.length ? `${meetings.filter((item) => item.status === 'scheduled').length} upcoming and ${meetings.filter((item) => item.status === 'completed').length} completed meetings.` : 'Book discovery, kickoff, review, and handover meetings from the project calendar.'}</p>
+        <div className="admin-lifecycle-actions"><button className="btn btn-accent btn-sm" onClick={() => onTab('meetings')} type="button"><CalendarPlus size={15} /> {hasMeeting ? 'Manage meetings' : 'Book meeting'}</button></div>
+      </LifecycleStep>
+
+      <LifecycleStep complete={depositComplete} current={Boolean(deposit) && !depositComplete} icon={ReceiptText} number={4} status={!depositRequired ? 'Not required' : deposit ? readableLifecycleStatus(deposit.status) : 'Not created'} title="Deposit invoice">
+        <p>{!depositRequired ? 'The approved scope does not require a deposit.' : deposit ? `${deposit.reference} · ${formatCurrency(deposit.amount)}.` : 'Create the required deposit invoice before delivery begins.'}</p>
+        <div className="admin-lifecycle-actions">{deposit && ['draft', 'sent', 'overdue'].includes(deposit.status) ? <button className="btn btn-accent btn-sm" disabled={pendingAction === deposit.id} onClick={() => { if (window.confirm(`Send ${deposit.reference} with its PDF attached?`)) void run(deposit.id, () => onSendInvoice(deposit)); }} type="button"><Send size={15} /> {deposit.status === 'draft' ? 'Send deposit invoice' : 'Send reminder'}</button> : null}<button className="btn btn-outline-accent btn-sm" onClick={() => onTab('invoices')} type="button">Open invoices</button></div>
+      </LifecycleStep>
+
+      <LifecycleStep complete={deliveryComplete} current={draft.stage === 'active' && !deliveryComplete} icon={BriefcaseBusiness} number={5} status={deliveryComplete ? 'Complete' : `${draft.completion ?? 0}% complete`} title="Project delivery">
+        <p>Manage the confirmed scope, tasks, milestones, deadlines, and delivery progress.</p>
+        <div className="admin-lifecycle-actions"><button className="btn btn-accent btn-sm" onClick={() => onTab('delivery')} type="button">Open delivery workspace</button></div>
+      </LifecycleStep>
+
+      <LifecycleStep complete={finalPaid} current={Boolean(finalInvoice) && !finalPaid} icon={ReceiptText} number={6} status={finalInvoice ? readableLifecycleStatus(finalInvoice.status) : 'Not created'} title="Final invoice">
+        <p>{finalInvoice ? `${finalInvoice.reference} · ${formatCurrency(finalInvoice.amount)}.` : 'Raise the remaining balance once delivery is ready for completion.'}</p>
+        <div className="admin-lifecycle-actions">{!finalInvoice ? <button className="btn btn-accent btn-sm" disabled={!deliveryComplete || pendingAction === 'create-final'} onClick={() => void run('create-final', createFinalInvoice)} type="button"><FilePlus2 size={15} /> Create final invoice</button> : null}{finalInvoice && ['draft', 'sent', 'overdue'].includes(finalInvoice.status) ? <button className="btn btn-accent btn-sm" disabled={pendingAction === finalInvoice.id} onClick={() => { if (window.confirm(`Send ${finalInvoice.reference} with its PDF attached?`)) void run(finalInvoice.id, () => onSendInvoice(finalInvoice)); }} type="button"><Send size={15} /> {finalInvoice.status === 'draft' ? 'Send final invoice' : 'Send reminder'}</button> : null}<button className="btn btn-outline-accent btn-sm" onClick={() => onTab('invoices')} type="button">Open invoices</button></div>
+      </LifecycleStep>
+
+      <LifecycleStep complete={projectComplete} current={deliveryComplete && finalPaid && !projectComplete} icon={CheckCircle2} number={7} status={projectComplete ? 'Completed' : 'Open'} title="Completion and handover">
+        <p>{projectComplete ? 'The project is complete and retained in the customer record.' : 'Complete delivery, settle the final invoice, and finish the handover before closing the project.'}</p>
+        <div className="admin-lifecycle-actions"><button className="btn btn-accent btn-sm" disabled={!deliveryComplete || !finalPaid || projectComplete || pendingAction === 'complete'} onClick={() => void run('complete', completeProject)} type="button"><CheckCircle2 size={15} /> Mark project complete</button><button className="btn btn-outline-accent btn-sm" onClick={() => onTab('overview')} type="button">Project overview</button></div>
+      </LifecycleStep>
+    </div>
+  </div>;
+}
+
+function LifecycleStep({ children, complete, current = false, icon: Icon, number, status, title }: { children: ReactNode; complete: boolean; current?: boolean; icon: LucideIcon; number: number; status: string; title: string }) {
+  return <section className={`admin-lifecycle-step ${complete ? 'is-complete' : current ? 'is-current' : ''}`}>
+    <span className="admin-lifecycle-marker">{complete ? <CheckCircle2 size={20} /> : current ? <Icon size={19} /> : <Circle size={19} />}</span>
+    <div className="admin-lifecycle-content">
+      <header><div><small>Stage {number}</small><h3>{title}</h3></div><span>{status}</span></header>
+      {children}
+    </div>
+  </section>;
+}
+
+function readableLifecycleStatus(value: string) {
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
 function DeliveryWorkspace({ draft, onChange }: { draft: Partial<AdminProject>; onChange: (value: Partial<AdminProject>) => void }) {
   return <div className="admin-project-workspace">
     <div className="admin-project-progress"><span>Completion</span><div><i style={{ width: `${draft.completion ?? 0}%` }} /></div><strong>{draft.completion ?? 0}%</strong></div>
@@ -259,10 +401,11 @@ function InvoiceWorkspace({ draft, onChange, onDownload, onMarkPaid, onSend, tax
     <DepositPaymentStatus invoices={invoices} />
     <div className="admin-consultation-summary"><Summary label="Project value" value={formatCurrency(draft.value ?? 0)} /><Summary label="Invoiced" value={formatCurrency(billed)} /><Summary label="Paid" value={formatCurrency(paid)} /><Summary label="Outstanding" value={formatCurrency(Math.max(0, billed - paid))} /></div>
     <div className="admin-subpanel-heading"><div><h3>Invoice register</h3><p>Track deposit, interim, consultation, and final invoices.</p></div><button className="btn btn-outline-accent" onClick={add} type="button"><Plus size={16} /> Add invoice</button></div>
+    <p className="admin-invoice-attachment-note"><Paperclip size={15} /> Sending an invoice automatically attaches its PDF and saves the latest copy to the project documents.</p>
     <div className="admin-invoice-register">{invoices.map((invoice, index) => <article key={invoice.id}>
       <div className="admin-invoice-grid"><label>Reference<input className="form-control" onChange={(event) => update(index, { reference: event.target.value })} value={invoice.reference} /></label><label>Type<select className="form-select" onChange={(event) => update(index, { kind: event.target.value as ProjectInvoice['kind'] })} value={invoice.kind}><option value="deposit">Deposit</option><option value="interim">Interim</option><option value="final">Final</option><option value="consultation">Consultation</option><option value="other">Other</option></select></label><label>Net amount (£)<input className="form-control" min="0" onChange={(event) => update(index, { subtotal: Number(event.target.value) })} step="0.01" type="number" value={invoice.subtotal} /></label><label>Tax (global)<input className="form-control" readOnly value={`${invoice.tax_rate}%`} /></label><label>Total<input className="form-control" readOnly value={formatCurrency(invoice.amount)} /></label><label>Status<select className="form-select" onChange={(event) => { const status = event.target.value as ProjectInvoice['status']; update(index, { status, paid_date: status === 'paid' && !invoice.paid_date ? new Date().toISOString().slice(0, 10) : invoice.paid_date }); }} value={invoice.status}><option value="draft">Draft</option><option value="sent">Sent</option><option value="paid">Paid</option><option value="overdue">Overdue</option><option value="void">Void</option></select></label><label>Issued<input className="form-control" onChange={(event) => update(index, { issue_date: event.target.value })} type="date" value={invoice.issue_date} /></label><label>Due<input className="form-control" onChange={(event) => update(index, { due_date: event.target.value })} type="date" value={invoice.due_date} /></label></div>
       <label>Notes<input className="form-control" onChange={(event) => update(index, { notes: event.target.value })} value={invoice.notes} /></label>
-      <div className="admin-management-actions"><button className="btn btn-outline-accent btn-sm" onClick={() => void onDownload(invoice)} type="button"><Download size={15} /> PDF</button>{invoice.status === 'sent' || invoice.status === 'overdue' ? <button className="btn btn-outline-accent btn-sm" onClick={() => void onMarkPaid(invoice)} type="button">Mark paid</button> : null}<button className="btn btn-accent btn-sm" disabled={invoice.status === 'void' || sendingId === invoice.id} onClick={() => { if (!window.confirm(`Send ${invoice.reference} for ${formatCurrency(invoice.amount)} to ${draft.client_email || 'the client'}?`)) return; setSendingId(invoice.id); void onSend(invoice).finally(() => setSendingId('')); }} type="button"><Send size={15} /> {sendingId === invoice.id ? 'Sending...' : invoice.status === 'sent' || invoice.status === 'overdue' ? 'Send reminder' : 'Send invoice'}</button><button className="admin-icon-button is-danger" onClick={() => onChange({ ...draft, invoices: invoices.filter((_, invoiceIndex) => invoiceIndex !== index) })} title="Remove invoice" type="button"><X size={15} /></button></div>
+      <div className="admin-management-actions"><button className="btn btn-outline-accent btn-sm" onClick={() => void onDownload(invoice)} type="button"><Download size={15} /> PDF</button>{invoice.status === 'sent' || invoice.status === 'overdue' ? <button className="btn btn-outline-accent btn-sm" onClick={() => void onMarkPaid(invoice)} type="button">Mark paid</button> : null}<button className="btn btn-accent btn-sm" disabled={invoice.status === 'void' || sendingId === invoice.id} onClick={() => { if (!window.confirm(`Send ${invoice.reference} for ${formatCurrency(invoice.amount)} to ${draft.client_email || 'the client'} with its PDF attached?`)) return; setSendingId(invoice.id); void onSend(invoice).finally(() => setSendingId('')); }} type="button"><Send size={15} /> {sendingId === invoice.id ? 'Sending...' : invoice.status === 'sent' || invoice.status === 'overdue' ? 'Send reminder' : 'Send invoice'}</button><button className="admin-icon-button is-danger" onClick={() => onChange({ ...draft, invoices: invoices.filter((_, invoiceIndex) => invoiceIndex !== index) })} title="Remove invoice" type="button"><X size={15} /></button></div>
     </article>)}</div>
     {invoices.length === 0 ? <p className="admin-empty">No invoices recorded for this project.</p> : null}
   </div>;

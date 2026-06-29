@@ -23,6 +23,7 @@ from ..services.document_service import (
     list_documents,
     load_email_attachments,
     store_uploaded_document,
+    store_invoice_pdf,
 )
 from ..services.customer_service import CustomerStorageError, delete_customer_profile, list_customer_profiles, save_customer_profile
 from ..services.workspace_service import (
@@ -366,6 +367,7 @@ def send_admin_project_invoice(project_id: str, invoice_id: str):
         due_date = invoice.get("due_date") or (issue_date + timedelta(days=settings["invoice_due_days"])).isoformat()
         invoice = {**invoice, "issue_date": issue_date.isoformat(), "due_date": due_date}
         pdf = generate_invoice_pdf(project, invoice, settings)
+        attachment = store_invoice_pdf(project, invoice, pdf)
         provider_message_id = send_project_invoice(project, invoice, pdf, settings)
         updated = mark_project_invoice_sent(project_id, invoice_id, provider_message_id, due_date, invoice.get("status", "draft"))
         if invoice.get("kind") == "deposit" and project.get("linked_enquiry_id") and project.get("source_quote_id"):
@@ -383,7 +385,7 @@ def send_admin_project_invoice(project_id: str, invoice_id: str):
     except (WorkspaceStorageError, RuntimeError):
         current_app.logger.exception("Project invoice delivery failed")
         return jsonify({"error": "Invoice delivery is unavailable."}), 503
-    return jsonify({"project": updated})
+    return jsonify({"project": updated, "attachment": attachment})
 
 
 @admin_bp.get("/admin/services")

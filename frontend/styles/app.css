@@ -2194,6 +2194,7 @@ textarea {
 .admin-document-actions > label:first-child { display: grid; gap: 0.35rem; min-width: min(290px, 100%); color: var(--color-muted); font-size: 0.78rem; font-weight: 800; }
 .admin-document-actions .btn { display: inline-flex; align-items: center; gap: 0.4rem; }
 .admin-document-note { margin: 0; padding-left: 0.75rem; border-left: 3px solid var(--color-accent); color: var(--color-muted); font-size: 0.78rem; }
+.admin-invoice-attachment-note { display: flex; align-items: center; gap: 0.45rem; margin: 0; padding: 0.65rem 0.75rem; border-left: 3px solid var(--color-accent); background: var(--color-page); color: var(--color-muted); font-size: 0.78rem; }
 .admin-document-list { display: grid; }
 .admin-document-list > div { display: grid; align-items: center; gap: 0.75rem; grid-template-columns: auto minmax(0, 1fr) auto auto; padding: 0.65rem 0; border-top: 1px solid var(--color-border); }
 .admin-document-list > div > svg { color: var(--color-accent-strong); }
@@ -2279,6 +2280,30 @@ textarea {
 .admin-project-tabs { display: flex; gap: 1.25rem; border-bottom: 1px solid var(--color-border); }
 .admin-project-tabs button { padding: 0.7rem 0; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--color-muted); font-weight: 800; }
 .admin-project-tabs button.is-active { border-bottom-color: var(--color-accent); color: var(--color-text); }
+.admin-lifecycle { gap: 1.5rem; }
+.admin-lifecycle-summary { display: grid; gap: 0.75rem; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.admin-lifecycle-summary > div { display: grid; gap: 0.15rem; min-width: 0; padding: 0.75rem 0.85rem; border-left: 3px solid var(--color-accent); background: var(--color-page); }
+.admin-lifecycle-summary span { color: var(--color-muted); font-size: 0.7rem; font-weight: 800; }
+.admin-lifecycle-summary strong { overflow: hidden; font-size: 0.95rem; text-overflow: ellipsis; white-space: nowrap; }
+.admin-lifecycle-list { display: grid; }
+.admin-lifecycle-step { position: relative; display: grid; gap: 1rem; grid-template-columns: 42px minmax(0, 1fr); padding-bottom: 1.25rem; }
+.admin-lifecycle-step:not(:last-child)::before { position: absolute; top: 38px; bottom: 0; left: 20px; width: 2px; background: var(--color-border); content: ''; }
+.admin-lifecycle-marker { position: relative; z-index: 1; display: grid; place-items: center; width: 42px; height: 42px; border: 2px solid var(--color-border); border-radius: 50%; background: var(--color-surface); color: var(--color-muted); }
+.admin-lifecycle-step.is-current .admin-lifecycle-marker { border-color: var(--color-accent); background: var(--color-accent-soft); color: var(--color-accent-strong); }
+.admin-lifecycle-step.is-complete .admin-lifecycle-marker { border-color: #15803d; background: #dcfce7; color: #166534; }
+.admin-lifecycle-step.is-complete:not(:last-child)::before { background: color-mix(in srgb, #15803d 55%, var(--color-border)); }
+.admin-lifecycle-content { min-width: 0; padding: 0.2rem 0 1.1rem; border-bottom: 1px solid var(--color-border); }
+.admin-lifecycle-content header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.admin-lifecycle-content header > div { display: grid; gap: 0.05rem; }
+.admin-lifecycle-content header small { color: var(--color-muted); font-size: 0.65rem; font-weight: 800; text-transform: uppercase; }
+.admin-lifecycle-content h3 { margin: 0; font-size: 1rem; font-weight: 850; }
+.admin-lifecycle-content header > span { flex: 0 0 auto; padding: 0.25rem 0.5rem; border-radius: 4px; background: var(--color-page); color: var(--color-muted); font-size: 0.7rem; font-weight: 850; }
+.admin-lifecycle-step.is-current .admin-lifecycle-content header > span { background: var(--color-accent-soft); color: var(--color-accent-strong); }
+.admin-lifecycle-step.is-complete .admin-lifecycle-content header > span { background: #dcfce7; color: #166534; }
+.admin-lifecycle-content > p { max-width: 58rem; margin: 0.5rem 0 0; color: var(--color-muted); font-size: 0.82rem; }
+.admin-lifecycle-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.85rem; }
+:root[data-theme='dark'] .admin-lifecycle-step.is-complete .admin-lifecycle-marker,
+:root[data-theme='dark'] .admin-lifecycle-step.is-complete .admin-lifecycle-content header > span { background: #173e2a; color: #bbf7d0; }
 .admin-project-workspace { display: grid; gap: 1.25rem; }
 .admin-project-workspace > label, .admin-meeting-list label, .admin-invoice-register label { display: grid; gap: 0.35rem; color: var(--color-muted); font-size: 0.78rem; font-weight: 800; }
 .admin-project-facts { display: grid; gap: 0.6rem; grid-template-columns: repeat(4, minmax(120px, 1fr)); }
@@ -3220,6 +3245,7 @@ textarea {
   .admin-workspace-split { grid-template-columns: 1fr; }
   .admin-project-overview-columns { grid-template-columns: 1fr; }
   .admin-project-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .admin-lifecycle-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-checklist-grid { grid-template-columns: 1fr; }
   .admin-consultation-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-meeting-grid, .admin-invoice-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -3313,7 +3339,14 @@ textarea {
   .admin-project-disclosure-body { padding: 1rem 0.85rem; }
   .admin-project-activity-list li { align-items: flex-start; flex-direction: column; gap: 0.2rem; }
   .admin-project-tabs { gap: 0; justify-content: space-between; }
-  .admin-project-tabs button { flex: 1; font-size: 0.74rem; }
+  .admin-project-tabs { overflow-x: auto; }
+  .admin-project-tabs button { min-width: 5.25rem; flex: 1 0 auto; font-size: 0.74rem; }
+  .admin-lifecycle-summary { grid-template-columns: 1fr; }
+  .admin-lifecycle-step { gap: 0.75rem; grid-template-columns: 36px minmax(0, 1fr); }
+  .admin-lifecycle-marker { width: 36px; height: 36px; }
+  .admin-lifecycle-step:not(:last-child)::before { top: 34px; left: 17px; }
+  .admin-lifecycle-content header { align-items: stretch; flex-direction: column; gap: 0.4rem; }
+  .admin-lifecycle-content header > span { align-self: flex-start; }
   .admin-project-service-table > div.is-header { display: none; }
   .admin-project-service-table > div:not(.is-header) { grid-template-columns: minmax(0, 1fr) auto; }
   .admin-project-service-table > div:not(.is-header) > span:first-child { grid-column: 1 / -1; }

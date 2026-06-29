@@ -13,8 +13,9 @@ import { AdminQuoteManager } from './AdminQuoteManager';
 const statuses: EnquiryStatus[] = ['new', 'reviewed', 'replied', 'closed'];
 const pageSize = ADMIN_PANE_PAGE_SIZE;
 
-export function AdminInbox({ enquiries, mode, selectedId, onConvertQuote, onCreateQuote, onDelete, onDeleteQuote, onDirtyChange, onQuoteStatus, onSelect, onSend, onShareQuote, onUpdate, onUpdateQuote }: {
+export function AdminInbox({ enquiries, initialTab, mode, selectedId, onConvertQuote, onCreateQuote, onDelete, onDeleteQuote, onDirtyChange, onQuoteStatus, onSelect, onSend, onShareQuote, onUpdate, onUpdateQuote }: {
   enquiries: AdminEnquiry[];
+  initialTab?: DetailTab;
   mode: 'all' | 'quotes';
   selectedId: string | null;
   onCreateQuote: (id: string, payload: { items: AdminQuoteItem[]; discount: number; expenses: number; tax_rate: number; deposit: number; notes: string; valid_until: string | null }) => Promise<void>;
@@ -90,13 +91,13 @@ export function AdminInbox({ enquiries, mode, selectedId, onConvertQuote, onCrea
       </section>
 
       <section className="admin-detail">
-        {selected ? <AdminEnquiryDetail key={`${selected.id}-${mode}`} defaultTab={mode === 'quotes' ? 'quote' : 'details'} enquiry={selected} onConvertQuote={onConvertQuote} onCreateQuote={onCreateQuote} onDelete={onDelete} onDeleteQuote={onDeleteQuote} onDirtyChange={onDirtyChange} onQuoteStatus={onQuoteStatus} onSend={onSend} onShareQuote={onShareQuote} onUpdate={onUpdate} onUpdateQuote={onUpdateQuote} /> : <div className="admin-panel admin-zero-state">{mode === 'quotes' ? <FileText size={28} /> : <UserRound size={28} />}<h2>No {noun} to display</h2><p>{emptyMessage}</p></div>}
+        {selected ? <AdminEnquiryDetail key={`${selected.id}-${mode}-${initialTab ?? ''}`} defaultTab={initialTab ?? (mode === 'quotes' ? 'quote' : 'details')} enquiry={selected} onConvertQuote={onConvertQuote} onCreateQuote={onCreateQuote} onDelete={onDelete} onDeleteQuote={onDeleteQuote} onDirtyChange={onDirtyChange} onQuoteStatus={onQuoteStatus} onSend={onSend} onShareQuote={onShareQuote} onUpdate={onUpdate} onUpdateQuote={onUpdateQuote} /> : <div className="admin-panel admin-zero-state">{mode === 'quotes' ? <FileText size={28} /> : <UserRound size={28} />}<h2>No {noun} to display</h2><p>{emptyMessage}</p></div>}
       </section>
     </div>
   );
 }
 
-type DetailTab = 'details' | 'quote' | 'communications' | 'activity';
+export type DetailTab = 'details' | 'quote' | 'communications' | 'activity';
 
 function AdminEnquiryDetail({ defaultTab, enquiry, onConvertQuote, onCreateQuote, onDelete, onDeleteQuote, onDirtyChange, onQuoteStatus, onSend, onShareQuote, onUpdate, onUpdateQuote }: {
   defaultTab: DetailTab;

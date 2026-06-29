@@ -77,6 +77,30 @@ def store_uploaded_document(file: FileStorage, owner_type: str, owner_id: str, c
     return _store_bytes(content, filename, content_type, owner_type, owner_id, customer_email)
 
 
+def store_invoice_pdf(project: dict[str, Any], invoice: dict[str, Any], content: bytes) -> dict[str, Any]:
+    project_id = str(project.get("id") or "").strip()
+    invoice_id = str(invoice.get("id") or "").strip()
+    if not project_id or not invoice_id:
+        raise ValueError("A saved project and invoice are required.")
+    template_id = f"invoice:{invoice_id}"
+    existing = _metadata().find_one(
+        {"owner_type": "project", "owner_id": project_id, "template_id": template_id},
+        {"id": 1},
+    )
+    if existing:
+        delete_document(str(existing["id"]))
+    reference = secure_filename(str(invoice.get("reference") or "invoice"))[:80] or "invoice"
+    return _store_bytes(
+        content,
+        f"invoice-{reference}.pdf",
+        "application/pdf",
+        "project",
+        project_id,
+        str(project.get("client_email") or ""),
+        template_id,
+    )
+
+
 def get_document(document_id: str) -> tuple[dict[str, Any], bytes] | None:
     record = _metadata().find_one({"id": document_id}, {"_id": 0})
     if not record:
